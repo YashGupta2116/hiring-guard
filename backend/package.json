@@ -16,7 +16,11 @@
     "db:deploy": "prisma migrate deploy",
     "db:generate": "prisma generate",
     "db:studio": "prisma studio",
+    "db:seed": "tsx prisma/seed.ts",
     "keys:generate": "tsx scripts/generate-signing-key.ts"
+  },
+  "prisma": {
+    "seed": "tsx prisma/seed.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.10.0",
