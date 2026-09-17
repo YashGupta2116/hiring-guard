@@ -17,6 +17,7 @@ import {
   LogOut,
   Building2,
   Sparkles,
+  Palette,
   Check,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -66,6 +67,11 @@ export function Sidebar({ collapsed, setCollapsed }: SidebarProps) {
       icon: BarChart3,
     },
     {
+      title: "Design System",
+      href: "/app/design-system",
+      icon: Palette,
+    },
+    {
       title: "Settings",
       href: "/app/settings",
       icon: Settings,
@@ -79,7 +85,7 @@ export function Sidebar({ collapsed, setCollapsed }: SidebarProps) {
   return (
     <aside
       className={cn(
-        "relative flex flex-col border-r border-border bg-card/60 backdrop-blur-md transition-all duration-200 z-30 select-none",
+        "relative flex h-screen max-h-screen shrink-0 flex-col overflow-hidden border-r border-border bg-card/80 backdrop-blur-md transition-all duration-200 z-30 select-none",
         collapsed ? "w-16" : "w-56"
       )}
     >
@@ -91,10 +97,10 @@ export function Sidebar({ collapsed, setCollapsed }: SidebarProps) {
               <Shield className="h-4 w-4" />
             </div>
             <div className="flex flex-col truncate">
-              <span className="font-semibold text-foreground text-xs tracking-tight">
+              <span className="font-serif font-bold text-foreground text-sm tracking-tight">
                 VeriTrust
               </span>
-              <span className="text-[10px] text-muted-foreground truncate">
+              <span className="text-[10px] text-muted-foreground truncate font-sans">
                 Acme Systems
               </span>
             </div>
@@ -157,8 +163,8 @@ export function Sidebar({ collapsed, setCollapsed }: SidebarProps) {
       {/* Demo Mode Subtle Notice */}
       {!collapsed && (
         <div className="px-3 py-1.5 mx-2 mb-2 rounded border border-border/80 bg-secondary/40 text-[10px] text-muted-foreground flex items-center justify-between">
-          <span className="flex items-center gap-1 font-medium">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 inline-block" /> Demo Mode
+          <span className="flex items-center gap-1.5 font-medium">
+            <span className="h-1.5 w-1.5 rounded-full bg-sage-500 inline-block" /> Demo Mode
           </span>
           <span className="font-mono text-[9px]">v2.4</span>
         </div>
@@ -221,7 +227,7 @@ export function Sidebar({ collapsed, setCollapsed }: SidebarProps) {
               <div className="my-1 border-t border-border" />
               <button
                 onClick={handleLogout}
-                className="flex w-full items-center gap-2 rounded px-2 py-1 text-xs text-rose-500 hover:bg-rose-500/10 transition-colors"
+                className="flex w-full items-center gap-2 rounded px-2 py-1 text-xs text-terra-600 dark:text-terra-400 hover:bg-terra-500/10 transition-colors"
               >
                 <LogOut className="h-3 w-3" /> Sign out
               </button>

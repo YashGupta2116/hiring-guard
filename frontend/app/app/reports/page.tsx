@@ -144,7 +144,7 @@ export default function ReportsPage() {
                         size="md"
                       />
                       <div>
-                        <div className="font-semibold text-foreground text-xs">
+                        <div className="font-serif font-semibold text-foreground text-xs">
                           {report.candidateName}
                         </div>
                         <div className="text-[10px] text-muted-foreground">
@@ -166,19 +166,19 @@ export default function ReportsPage() {
 
                   {/* Overall Score */}
                   <td className="px-3.5 py-2.5 whitespace-nowrap">
-                    <span className="font-semibold text-foreground text-xs">
+                    <span className="font-serif font-semibold text-foreground text-xs">
                       {report.overallScore}
                     </span>
                     <span className="text-muted-foreground text-[10px]">/100</span>
                   </td>
 
                   {/* Technical */}
-                  <td className="px-3.5 py-2.5 text-foreground font-medium text-xs">
+                  <td className="px-3.5 py-2.5 text-foreground font-serif font-medium text-xs">
                     {report.technicalScore}%
                   </td>
 
                   {/* Communication */}
-                  <td className="px-3.5 py-2.5 text-muted-foreground text-xs">
+                  <td className="px-3.5 py-2.5 text-muted-foreground font-serif text-xs">
                     {report.communicationScore}%
                   </td>
 

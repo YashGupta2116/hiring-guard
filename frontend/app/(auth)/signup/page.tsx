@@ -50,7 +50,7 @@ export default function SignupPage() {
           <div className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-foreground text-background shadow-xs mb-1">
             <Shield className="h-4.5 w-4.5" />
           </div>
-          <h1 className="text-xl font-semibold tracking-tight text-foreground">
+          <h1 className="text-xl font-serif font-semibold tracking-tight text-foreground">
             Create your VeriTrust Workspace
           </h1>
           <p className="text-xs text-muted-foreground">

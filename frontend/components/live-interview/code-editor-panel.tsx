@@ -187,12 +187,12 @@ console.log("Snapshot size:", ring.getSnapshot().length);`
             <Terminal className="h-3 w-3" /> Console & Test Assertions
           </span>
           {testResults.status === "completed" && (
-            <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">
+            <span className="text-[10px] text-sage-700 dark:text-sage-400 font-medium">
               3 of 3 Passed (14ms)
             </span>
           )}
           {testResults.status === "running" && (
-            <span className="text-[10px] text-amber-600 dark:text-amber-400 font-medium">
+            <span className="text-[10px] text-amber-700 dark:text-amber-400 font-medium">
               Executing sandbox...
             </span>
           )}
@@ -211,9 +211,9 @@ console.log("Snapshot size:", ring.getSnapshot().length);`
                 <div key={i} className="flex items-center justify-between text-[11px]">
                   <span className="flex items-center gap-1.5 text-foreground">
                     {c.passed ? (
-                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+                      <CheckCircle2 className="h-3.5 w-3.5 text-sage-600 dark:text-sage-400" />
                     ) : (
-                      <XCircle className="h-3.5 w-3.5 text-rose-500" />
+                      <XCircle className="h-3.5 w-3.5 text-terra-600 dark:text-terra-400" />
                     )}
                     {c.name}
                   </span>

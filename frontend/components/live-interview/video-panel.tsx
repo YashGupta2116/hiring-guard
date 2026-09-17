@@ -36,14 +36,14 @@ export function VideoPanel({
         {/* Dynamic Gaze / Face Detection Telemetry Bounding Box */}
         {showTelemetryHUD && (
           <div className="absolute inset-0 pointer-events-none flex items-center justify-center">
-            <div className="relative w-32 h-40 rounded-lg border border-dashed border-emerald-400/60 flex flex-col justify-between p-2">
-              <div className="flex items-center justify-between text-[9px] font-mono text-emerald-400 bg-black/70 px-1.5 py-0.5 rounded">
+            <div className="relative w-32 h-40 rounded-lg border border-dashed border-sage-400/70 flex flex-col justify-between p-2">
+              <div className="flex items-center justify-between text-[9px] font-mono text-sage-300 bg-sand-950/80 px-1.5 py-0.5 rounded">
                 <span>GAZE: 2° CENTER</span>
                 <span className="flex items-center gap-1">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> LOCK
+                  <span className="h-1.5 w-1.5 rounded-full bg-sage-400" /> LOCK
                 </span>
               </div>
-              <div className="text-center text-[9px] font-mono text-emerald-400 bg-black/70 px-1.5 py-0.5 rounded">
+              <div className="text-center text-[9px] font-mono text-sage-300 bg-sand-950/80 px-1.5 py-0.5 rounded">
                 PUPIL DIA: 3.4mm
               </div>
             </div>
@@ -52,10 +52,10 @@ export function VideoPanel({
 
         {/* Top Badges Overlay */}
         <div className="absolute top-2.5 left-2.5 flex items-center gap-1.5 z-10">
-          <div className="inline-flex items-center gap-1 rounded bg-black/70 backdrop-blur-sm px-2 py-0.5 text-[10px] font-semibold text-rose-400 border border-white/10">
-            <span className="h-1.5 w-1.5 rounded-full bg-rose-500 animate-pulse" /> LIVE
+          <div className="inline-flex items-center gap-1 rounded bg-sand-950/80 backdrop-blur-sm px-2 py-0.5 text-[10px] font-semibold text-terra-400 border border-sand-700">
+            <span className="h-1.5 w-1.5 rounded-full bg-terra-500 animate-pulse" /> LIVE
           </div>
-          <div className="rounded bg-black/60 backdrop-blur-sm px-2 py-0.5 text-[10px] font-mono text-zinc-300 border border-white/10">
+          <div className="rounded bg-sand-950/70 backdrop-blur-sm px-2 py-0.5 text-[10px] font-mono text-sand-300 border border-sand-700">
             1080p • 30 FPS • 24ms
           </div>
         </div>
@@ -65,8 +65,8 @@ export function VideoPanel({
             onClick={() => setShowTelemetryHUD(!showTelemetryHUD)}
             className={`flex items-center gap-1 text-[10px] px-2 py-0.5 rounded border backdrop-blur-sm transition-colors ${
               showTelemetryHUD
-                ? "bg-black/70 border-emerald-500/40 text-emerald-400"
-                : "bg-black/60 border-white/10 text-zinc-400 hover:text-white"
+                ? "bg-sand-950/80 border-sage-500/50 text-sage-300"
+                : "bg-sand-950/70 border-sand-700 text-sand-400 hover:text-sand-200"
             }`}
             title="Toggle Gaze Mesh HUD"
           >
@@ -76,10 +76,10 @@ export function VideoPanel({
         </div>
 
         {/* Bottom Candidate Bar */}
-        <div className="absolute bottom-2.5 left-2.5 flex items-center gap-2 z-10 bg-black/70 backdrop-blur-md px-2.5 py-1 rounded-md border border-white/10 text-xs">
-          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 shrink-0" />
-          <span className="font-semibold text-white">{candidateName}</span>
-          <Volume2 className="h-3 w-3 text-emerald-400 shrink-0" />
+        <div className="absolute bottom-2.5 left-2.5 flex items-center gap-2 z-10 bg-sand-950/80 backdrop-blur-md px-2.5 py-1 rounded-md border border-sand-700 text-xs">
+          <span className="h-1.5 w-1.5 rounded-full bg-sage-500 shrink-0" />
+          <span className="font-semibold text-sand-100">{candidateName}</span>
+          <Volume2 className="h-3 w-3 text-sage-400 shrink-0" />
         </div>
 
         {/* Floating Interviewer PiP Self-Preview */}

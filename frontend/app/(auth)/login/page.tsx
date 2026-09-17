@@ -48,18 +48,18 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen flex flex-col lg:flex-row bg-background">
       {/* Left Column: Visual Brand & Philosophy */}
-      <div className="relative flex-1 hidden lg:flex flex-col justify-between p-12 bg-zinc-950 text-zinc-100 overflow-hidden border-r border-zinc-800">
+      <div className="relative flex-1 hidden lg:flex flex-col justify-between p-12 bg-sand-950 text-sand-100 overflow-hidden border-r border-sand-800">
         {/* Subtle architectural hairline overlay */}
-        <div className="absolute inset-0 bg-[linear-gradient(to_right,#27272a0a_1px,transparent_1px),linear-gradient(to_bottom,#27272a0a_1px,transparent_1px)] bg-[size:4rem_4rem] pointer-events-none" />
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,#e5e0d30a_1px,transparent_1px),linear-gradient(to_bottom,#e5e0d30a_1px,transparent_1px)] bg-[size:4rem_4rem] pointer-events-none" />
 
         {/* Brand Header */}
         <div className="relative z-10 flex items-center gap-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-zinc-900 border border-zinc-800 text-zinc-100 shadow-xs">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-sand-900 border border-sand-800 text-sand-100 shadow-xs">
             <Shield className="h-4.5 w-4.5" />
           </div>
           <div className="flex items-center gap-2">
-            <span className="text-base font-semibold tracking-tight text-white font-mono">VeriTrust</span>
-            <span className="text-[10px] font-mono uppercase tracking-wider text-zinc-400 border border-zinc-800 bg-zinc-900 px-2 py-0.5 rounded-full">
+            <span className="text-base font-serif font-semibold tracking-tight text-sand-50">VeriTrust</span>
+            <span className="text-[10px] font-mono uppercase tracking-wider text-sand-400 border border-sand-800 bg-sand-900 px-2 py-0.5 rounded-full">
               Enterprise
             </span>
           </div>
@@ -67,37 +67,37 @@ export default function LoginPage() {
 
         {/* Philosophy Quotation */}
         <div className="relative z-10 max-w-lg space-y-6">
-          <div className="inline-flex items-center gap-2 rounded-full border border-zinc-800 bg-zinc-900/80 px-3 py-1 text-xs text-zinc-300">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+          <div className="inline-flex items-center gap-2 rounded-full border border-sand-800 bg-sand-900/80 px-3 py-1 text-xs text-sand-300">
+            <span className="h-1.5 w-1.5 rounded-full bg-sage-500 animate-pulse" />
             Decision Intelligence for Technical Interviews
           </div>
-          <h1 className="text-3xl font-semibold tracking-tight text-white leading-tight">
+          <h1 className="text-3xl font-serif font-semibold tracking-tight text-sand-50 leading-tight">
             "Don't just watch the candidate. Understand the behavioral telemetry."
           </h1>
-          <p className="text-zinc-400 text-sm leading-relaxed">
+          <p className="text-sand-300 text-sm leading-relaxed">
             VeriTrust combines behavioral telemetry, coding dynamics, response latency, and video observation into explainable decision intelligence. Human judgment remains sovereign.
           </p>
 
-          <div className="grid grid-cols-2 gap-4 pt-4 border-t border-zinc-800/80">
+          <div className="grid grid-cols-2 gap-4 pt-4 border-t border-sand-800/80">
             <div className="flex items-start gap-2.5">
-              <CheckCircle2 className="h-4 w-4 text-zinc-300 shrink-0 mt-0.5" />
+              <CheckCircle2 className="h-4 w-4 text-sand-300 shrink-0 mt-0.5" />
               <div>
-                <h4 className="text-xs font-medium text-white">Multimodal Telemetry</h4>
-                <p className="text-[11px] text-zinc-400">Correlated anomalies over isolated flags</p>
+                <h4 className="text-xs font-medium text-sand-100">Multimodal Telemetry</h4>
+                <p className="text-[11px] text-sand-400">Correlated anomalies over isolated flags</p>
               </div>
             </div>
             <div className="flex items-start gap-2.5">
-              <CheckCircle2 className="h-4 w-4 text-zinc-300 shrink-0 mt-0.5" />
+              <CheckCircle2 className="h-4 w-4 text-sand-300 shrink-0 mt-0.5" />
               <div>
-                <h4 className="text-xs font-medium text-white">Privacy Safeguards</h4>
-                <p className="text-[11px] text-zinc-400">Isolated candidate sandbox experience</p>
+                <h4 className="text-xs font-medium text-sand-100">Privacy Safeguards</h4>
+                <p className="text-[11px] text-sand-400">Isolated candidate sandbox experience</p>
               </div>
             </div>
           </div>
         </div>
 
         {/* Footer Meta */}
-        <div className="relative z-10 text-xs text-zinc-500 flex items-center justify-between font-mono">
+        <div className="relative z-10 text-xs text-sand-400 flex items-center justify-between font-mono">
           <span>VeriTrust System v2.4</span>
           <span>SOC2 Type II & GDPR Compliant</span>
         </div>
@@ -111,11 +111,11 @@ export default function LoginPage() {
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-foreground text-background">
               <Shield className="h-4 w-4" />
             </div>
-            <span className="text-lg font-semibold tracking-tight font-mono">VeriTrust</span>
+            <span className="text-lg font-serif font-semibold tracking-tight">VeriTrust</span>
           </div>
 
           <div>
-            <h2 className="text-xl font-semibold tracking-tight text-foreground">
+            <h2 className="text-xl font-serif font-semibold tracking-tight text-foreground">
               Sign in to your workspace
             </h2>
             <p className="text-xs text-muted-foreground mt-1">

@@ -98,7 +98,7 @@ export default function ProcessingPage() {
             >
               <div className="flex h-4 w-4 shrink-0 items-center justify-center">
                 {isDone ? (
-                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+                  <CheckCircle2 className="h-3.5 w-3.5 text-sage-600 dark:text-sage-400" />
                 ) : isCurrent ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin text-foreground" />
                 ) : (

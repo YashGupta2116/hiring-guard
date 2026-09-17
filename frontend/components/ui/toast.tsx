@@ -42,15 +42,15 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
           <div
             key={t.id}
             className={cn(
-              "pointer-events-auto flex items-start gap-3 rounded-xl border p-4 shadow-xl backdrop-blur-md transition-all duration-300 animate-in slide-in-from-bottom-5",
-              t.type === "success" && "border-emerald-500/30 bg-emerald-950/80 text-emerald-100",
-              t.type === "error" && "border-rose-500/30 bg-rose-950/80 text-rose-100",
-              t.type === "info" && "border-cyan-500/30 bg-cyan-950/80 text-cyan-100"
+              "pointer-events-auto flex items-start gap-3 rounded-md border p-3.5 shadow-md bg-sand-10 dark:bg-sand-900 text-sand-900 dark:text-sand-100 transition-all duration-300 animate-in slide-in-from-bottom-5",
+              t.type === "success" && "border-sage-400/60 dark:border-sage-700/60",
+              t.type === "error" && "border-terra-400/60 dark:border-terra-700/60",
+              t.type === "info" && "border-slate-400/60 dark:border-slate-700/60"
             )}
           >
-            {t.type === "success" && <CheckCircle2 className="h-5 w-5 text-emerald-400 shrink-0 mt-0.5" />}
-            {t.type === "error" && <AlertCircle className="h-5 w-5 text-rose-400 shrink-0 mt-0.5" />}
-            {t.type === "info" && <Info className="h-5 w-5 text-cyan-400 shrink-0 mt-0.5" />}
+            {t.type === "success" && <CheckCircle2 className="h-4 w-4 text-sage-600 dark:text-sage-400 shrink-0 mt-0.5" />}
+            {t.type === "error" && <AlertCircle className="h-4 w-4 text-terra-600 dark:text-terra-400 shrink-0 mt-0.5" />}
+            {t.type === "info" && <Info className="h-4 w-4 text-slate-600 dark:text-slate-400 shrink-0 mt-0.5" />}
             <div className="flex-1 text-left">
               <h4 className="text-sm font-semibold">{t.title}</h4>
               {t.description && <p className="text-xs opacity-90 mt-0.5">{t.description}</p>}

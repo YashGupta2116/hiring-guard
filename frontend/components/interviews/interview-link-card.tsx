@@ -55,7 +55,7 @@ export function InterviewLinkCard({
 
           <p className="text-[11px] text-muted-foreground flex items-center gap-3">
             <span className="flex items-center gap-1 font-mono">
-              <ShieldCheck className="h-3 w-3 text-emerald-500" /> Token: <strong>{token}</strong>
+              <ShieldCheck className="h-3 w-3 text-sage-600 dark:text-sage-400" /> Token: <strong>{token}</strong>
             </span>
             <span className="flex items-center gap-1">
               <Clock className="h-3 w-3" /> {expiresAt}
@@ -71,7 +71,7 @@ export function InterviewLinkCard({
             onClick={handleCopy}
             className="h-7 gap-1.5 text-xs"
           >
-            {copied ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
+            {copied ? <Check className="h-3.5 w-3.5 text-sage-600 dark:text-sage-400" /> : <Copy className="h-3.5 w-3.5" />}
             {copied ? "Copied" : "Copy Link"}
           </Button>
 

@@ -102,7 +102,7 @@ export function CalendarView({ interviews }: CalendarViewProps) {
                     className={cn(
                       "block truncate rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors border",
                       item.status === "Live"
-                        ? "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20 font-semibold"
+                        ? "bg-terra-500/10 text-terra-700 dark:text-terra-400 border-terra-500/30 font-semibold"
                         : item.status === "Scheduled"
                         ? "bg-secondary text-foreground border-border/80 hover:bg-secondary/80"
                         : "bg-secondary/50 text-muted-foreground border-border/40 hover:bg-secondary/70"
@@ -110,7 +110,7 @@ export function CalendarView({ interviews }: CalendarViewProps) {
                   >
                     <div className="flex items-center gap-1">
                       {item.status === "Live" ? (
-                        <span className="h-1.5 w-1.5 rounded-full bg-rose-500 animate-pulse shrink-0" />
+                        <span className="h-1.5 w-1.5 rounded-full bg-terra-500 animate-pulse shrink-0" />
                       ) : (
                         <Clock className="h-2.5 w-2.5 opacity-60 shrink-0" />
                       )}

@@ -17,9 +17,9 @@ export function Stat({
   className,
 }: StatProps) {
   const trendClasses = {
-    up: "text-emerald-600 dark:text-emerald-400",
-    down: "text-rose-600 dark:text-rose-400",
-    warning: "text-amber-600 dark:text-amber-400",
+    up: "text-sage-700 dark:text-sage-400",
+    down: "text-terra-700 dark:text-terra-400",
+    warning: "text-amber-700 dark:text-amber-400",
     neutral: "text-muted-foreground",
   }[trend];
 
@@ -28,7 +28,7 @@ export function Stat({
       <span className="text-xs font-medium text-muted-foreground block truncate">
         {label}
       </span>
-      <div className="text-2xl font-semibold tracking-tight text-foreground mt-1">
+      <div className="text-2xl font-serif font-semibold tracking-tight text-foreground mt-1">
         {value}
       </div>
       {change && (

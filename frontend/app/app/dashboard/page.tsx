@@ -14,14 +14,14 @@ import {
   Sparkles,
   ExternalLink,
   ChevronRight,
-  Radio,
   ShieldCheck,
-  Users,
 } from "lucide-react";
 import { useStore } from "@/lib/store/interview-store";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { SessionPill } from "@/components/ui/session-pill";
+import { IntegrityGauge } from "@/components/ui/integrity-gauge";
 import { PageHeader } from "@/components/ui/page-header";
 import { SectionHeader } from "@/components/ui/section-header";
 import { Stat, StatGroup } from "@/components/ui/stat";
@@ -111,15 +111,15 @@ export default function DashboardPage() {
 
       {/* Active Live Session Alert Bar (Restrained, Analytical) */}
       {liveInterviews.length > 0 && (
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-2.5 rounded-lg border border-border bg-card text-xs">
-          <div className="flex items-center gap-2.5">
-            <span className="h-2 w-2 rounded-full bg-rose-500 animate-pulse shrink-0" />
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-3 rounded-lg border border-border bg-card text-xs shadow-xs">
+          <div className="flex items-center gap-3">
+            <SessionPill status="Live" size="sm" />
             <div>
               <span className="font-semibold text-foreground">
                 Active Technical Round: {liveInterviews[0].candidateName}
               </span>
-              <span className="text-muted-foreground ml-2">
-                {liveInterviews[0].jobRole} • Room #{liveInterviews[0].token}
+              <span className="text-muted-foreground ml-2 font-mono text-[11px]">
+                {liveInterviews[0].jobRole} • Session #{liveInterviews[0].token}
               </span>
             </div>
           </div>
@@ -131,7 +131,7 @@ export default function DashboardPage() {
               </Button>
             </Link>
             <Link href={`/app/interviews/${liveInterviews[0].id}/live`}>
-              <Button size="sm" className="h-7 text-xs px-2.5">
+              <Button size="sm" variant="action" className="h-7 text-xs px-3">
                 Join Room
               </Button>
             </Link>
@@ -203,7 +203,7 @@ export default function DashboardPage() {
                       <span className="text-xs font-semibold text-foreground truncate">
                         {interview.candidateName}
                       </span>
-                      <StatusBadge status={interview.status} size="sm" />
+                      <SessionPill status={interview.status} size="sm" />
                     </div>
                     <p className="text-[11px] text-muted-foreground truncate mt-0.5">
                       {interview.jobRole} • {interview.date} at {interview.time} ({interview.durationMinutes}m)
@@ -275,7 +275,14 @@ export default function DashboardPage() {
                   </div>
                 </div>
 
-                <div className="text-right shrink-0">
+                <div className="flex items-center gap-2 shrink-0">
+                  <div className="scale-75 origin-right">
+                    <IntegrityGauge
+                      score={report.integrityConfidenceScore}
+                      size="sm"
+                      showLabel={false}
+                    />
+                  </div>
                   <StatusBadge status={report.integrityBand} size="sm" />
                 </div>
               </Link>

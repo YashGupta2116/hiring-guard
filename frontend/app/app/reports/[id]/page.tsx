@@ -11,6 +11,8 @@ import { CandidateAvatar } from "@/components/ui/candidate-avatar";
 import { SectionHeader } from "@/components/ui/section-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import { EvidenceTimeline } from "@/components/reports/evidence-timeline";
+import { IntegrityGauge } from "@/components/ui/integrity-gauge";
+import { ChannelBreakdown } from "@/components/ui/channel-breakdown";
 import {
   ArrowLeft,
   FileText,
@@ -97,14 +99,14 @@ export default function ReportDetailPage() {
             />
             <div className="space-y-1">
               <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-lg font-bold text-foreground">
+                <h1 className="font-serif text-2xl sm:text-3xl font-normal text-foreground">
                   {report.candidateName}
                 </h1>
                 <StatusBadge status={report.recommendation} size="sm" />
                 <StatusBadge status={report.integrityBand} size="sm" />
               </div>
               <p className="text-xs font-medium text-foreground">{report.appliedRole}</p>
-              <p className="text-[11px] text-muted-foreground flex flex-wrap items-center gap-3 pt-0.5">
+              <p className="text-[11px] text-muted-foreground flex flex-wrap items-center gap-3 pt-0.5 font-mono">
                 <span>Evaluated: {report.interviewDate}</span>
                 <span>•</span>
                 <span>Interviewer: {report.interviewerName}</span>
@@ -120,59 +122,54 @@ export default function ReportDetailPage() {
         </div>
       </div>
 
-      {/* Score Summary Metrics (De-carded Unified Block) */}
+      {/* Score Summary Metrics (De-carded Unified Block, Fraunces Serif) */}
       <div className="grid grid-cols-2 md:grid-cols-4 rounded-lg border border-border bg-card divide-y md:divide-y-0 md:divide-x divide-border overflow-hidden">
         {/* Overall Score */}
         <div className="p-4 space-y-1">
-          <span className="text-[11px] font-medium text-muted-foreground block uppercase tracking-wider">
+          <span className="text-[10px] font-mono font-medium text-muted-foreground block uppercase tracking-widest">
             Overall Score
           </span>
-          <div className="text-3xl font-bold tracking-tight text-foreground">
+          <div className="font-serif text-3xl sm:text-4xl text-foreground font-normal tracking-tight">
             {report.overallScore}
-            <span className="text-sm font-normal text-muted-foreground">/100</span>
+            <span className="font-sans text-sm text-muted-foreground font-normal ml-1">/100</span>
           </div>
-          <span className="text-[10px] text-muted-foreground block">
+          <span className="text-[10px] text-muted-foreground block font-sans">
             Composite evaluation
           </span>
         </div>
 
         {/* Technical Score */}
         <div className="p-4 space-y-1">
-          <span className="text-[11px] font-medium text-muted-foreground block uppercase tracking-wider">
+          <span className="text-[10px] font-mono font-medium text-muted-foreground block uppercase tracking-widest">
             Technical Skill
           </span>
-          <div className="text-3xl font-bold tracking-tight text-foreground">
+          <div className="font-serif text-3xl sm:text-4xl text-foreground font-normal tracking-tight">
             {report.technicalScore}%
           </div>
-          <span className="text-[10px] text-muted-foreground block">
+          <span className="text-[10px] text-muted-foreground block font-sans">
             Algorithmic reasoning
           </span>
         </div>
 
         {/* Communication Score */}
         <div className="p-4 space-y-1">
-          <span className="text-[11px] font-medium text-muted-foreground block uppercase tracking-wider">
+          <span className="text-[10px] font-mono font-medium text-muted-foreground block uppercase tracking-widest">
             Communication
           </span>
-          <div className="text-3xl font-bold tracking-tight text-foreground">
+          <div className="font-serif text-3xl sm:text-4xl text-foreground font-normal tracking-tight">
             {report.communicationScore}%
           </div>
-          <span className="text-[10px] text-muted-foreground block">
+          <span className="text-[10px] text-muted-foreground block font-sans">
             Clarity & structure
           </span>
         </div>
 
-        {/* Integrity Confidence Score */}
-        <div className="p-4 space-y-1">
-          <span className="text-[11px] font-medium text-muted-foreground block uppercase tracking-wider">
-            Integrity Confidence
-          </span>
-          <div className="text-3xl font-bold tracking-tight text-foreground">
-            {report.integrityConfidenceScore}%
-          </div>
-          <span className="text-[10px] text-muted-foreground block">
-            {report.integrityBand}
-          </span>
+        {/* Integrity Confidence Gauge */}
+        <div className="p-3 flex flex-col items-center justify-center text-center">
+          <IntegrityGauge
+            score={report.integrityConfidenceScore}
+            size="sm"
+          />
         </div>
       </div>
 
@@ -204,6 +201,11 @@ export default function ReportDetailPage() {
           <p className="text-xs text-foreground leading-relaxed bg-secondary/20 p-3 rounded-md border border-border/60">
             {report.integrityExplanation}
           </p>
+        </div>
+
+        {/* Channel Breakdown Component (PDF Page 2) */}
+        <div className="pt-2">
+          <ChannelBreakdown title="CHANNELS · MULTIMODAL VERIFICATION" />
         </div>
 
         {/* Signature Evidence Timeline */}
@@ -263,13 +265,13 @@ export default function ReportDetailPage() {
           />
 
           <div className="space-y-1.5">
-            <span className="font-semibold text-emerald-700 dark:text-emerald-400 block">
+            <span className="font-semibold text-sage-700 dark:text-sage-400 block">
               Key Strengths:
             </span>
             <ul className="space-y-1.5 pl-1">
               {report.keyStrengths.map((str, i) => (
                 <li key={i} className="flex items-start gap-2 text-muted-foreground">
-                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-0.5" />
+                  <CheckCircle2 className="h-3.5 w-3.5 text-sage-600 dark:text-sage-400 shrink-0 mt-0.5" />
                   <span>{str}</span>
                 </li>
               ))}

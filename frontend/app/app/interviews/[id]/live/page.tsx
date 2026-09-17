@@ -10,6 +10,8 @@ import { LiveSidebar } from "@/components/live-interview/live-sidebar";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { SessionPill } from "@/components/ui/session-pill";
+import { CandidateWarning } from "@/components/ui/candidate-warning";
 import {
   Dialog,
   DialogHeader,
@@ -114,13 +116,11 @@ export default function LiveInterviewPage() {
             <ChevronLeft className="h-4 w-4" /> Exit
           </Link>
 
-          <div className="inline-flex items-center gap-1 rounded bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 px-2 py-0.5 text-[11px] font-semibold">
-            <span className="h-1.5 w-1.5 rounded-full bg-rose-500 animate-pulse" /> LIVE
-          </div>
+          <SessionPill status="Live" size="sm" />
 
           <div className="hidden sm:block">
             <h1 className="text-xs sm:text-sm font-semibold text-foreground flex items-center gap-1.5">
-              <span>{interview.candidateName}</span>
+              <span className="font-serif">{interview.candidateName}</span>
               <span className="text-muted-foreground">•</span>
               <span className="text-muted-foreground text-xs font-normal">
                 {interview.jobRole}
@@ -137,7 +137,7 @@ export default function LiveInterviewPage() {
           </div>
 
           <div className="hidden sm:flex items-center gap-1.5 rounded border border-border bg-secondary/30 px-2 py-1 text-[11px] font-medium text-muted-foreground">
-            <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
+            <span className="h-1.5 w-1.5 rounded-full bg-terra-500" />
             <span>Encrypted Recording</span>
           </div>
         </div>
@@ -151,7 +151,7 @@ export default function LiveInterviewPage() {
             className="h-7 text-xs gap-1 px-2.5"
             title="Copy Candidate Invitation Link"
           >
-            {copiedLink ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
+            {copiedLink ? <Check className="h-3.5 w-3.5 text-sage-600 dark:text-sage-400" /> : <Copy className="h-3.5 w-3.5" />}
             <span className="hidden md:inline">Candidate Link</span>
           </Button>
 
@@ -195,7 +195,7 @@ export default function LiveInterviewPage() {
       {/* Bottom Floating Control Bar */}
       <div className="flex items-center justify-between px-5 py-2 border-t border-border bg-card shrink-0">
         <div className="text-xs text-muted-foreground hidden sm:flex items-center gap-1.5">
-          <Shield className="h-3.5 w-3.5 text-emerald-500" />
+          <Shield className="h-3.5 w-3.5 text-sage-600 dark:text-sage-400" />
           <span>Multimodal Baseline: <strong className="text-foreground">Consistent</strong></span>
         </div>
 
@@ -207,7 +207,7 @@ export default function LiveInterviewPage() {
             className={cn(
               "flex h-8 w-8 items-center justify-center rounded-md border transition-colors",
               isMicMuted
-                ? "bg-rose-500/10 border-rose-500/30 text-rose-500"
+                ? "bg-terra-500/10 border-terra-500/30 text-terra-600 dark:text-terra-400"
                 : "bg-secondary border-border text-foreground hover:bg-secondary/80"
             )}
             title={isMicMuted ? "Unmute Microphone" : "Mute Microphone"}
@@ -221,7 +221,7 @@ export default function LiveInterviewPage() {
             className={cn(
               "flex h-8 w-8 items-center justify-center rounded-md border transition-colors",
               isCameraOff
-                ? "bg-rose-500/10 border-rose-500/30 text-rose-500"
+                ? "bg-terra-500/10 border-terra-500/30 text-terra-600 dark:text-terra-400"
                 : "bg-secondary border-border text-foreground hover:bg-secondary/80"
             )}
             title={isCameraOff ? "Turn On Camera" : "Turn Off Camera"}
@@ -268,7 +268,7 @@ export default function LiveInterviewPage() {
       {/* End Interview Confirmation Modal */}
       <Dialog open={endSessionDialogOpen} onOpenChange={setEndSessionDialogOpen}>
         <DialogHeader>
-          <div className="flex items-center gap-2 text-rose-600 dark:text-rose-400">
+          <div className="flex items-center gap-2 text-terra-600 dark:text-terra-400">
             <PhoneOff className="h-4 w-4" />
             <DialogTitle>End Live Technical Session?</DialogTitle>
           </div>

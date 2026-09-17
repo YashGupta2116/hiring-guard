@@ -167,11 +167,11 @@ export default function InterviewsPage() {
             className={cn(
               "px-3 py-1.5 text-xs font-medium rounded-md transition-colors flex items-center gap-1.5",
               activeTab === "Live"
-                ? "bg-rose-500/10 text-rose-600 dark:text-rose-400 font-semibold"
+                ? "bg-terra-500/10 text-terra-700 dark:text-terra-400 font-semibold"
                 : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
             )}
           >
-            <span className="h-1.5 w-1.5 rounded-full bg-rose-500 animate-pulse" />
+            <span className="h-1.5 w-1.5 rounded-full bg-terra-500 animate-pulse" />
             Live <span className="ml-0.5 text-[10px] opacity-70">({liveCount})</span>
           </button>
 

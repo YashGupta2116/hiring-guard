@@ -33,13 +33,13 @@ export function Badge({
     outline: "text-foreground border border-border bg-transparent",
     brand: "bg-secondary text-foreground border border-border font-medium",
     destructive:
-      "bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20",
+      "bg-terra-50 dark:bg-terra-950/40 text-terra-700 dark:text-terra-300 border border-terra-200 dark:border-terra-800",
     success:
-      "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20",
+      "bg-sage-50 dark:bg-sage-950/40 text-sage-700 dark:text-sage-300 border border-sage-200 dark:border-sage-800",
     warning:
-      "bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20",
-    info: "bg-zinc-500/10 text-zinc-600 dark:text-zinc-400 border border-zinc-500/20",
-    live: "bg-zinc-800 text-zinc-100 dark:bg-zinc-800 dark:text-zinc-200 border border-zinc-700/80 font-medium",
+      "bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800",
+    info: "bg-slate-50 dark:bg-slate-900/40 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800",
+    live: "bg-sand-900 text-sand-100 dark:bg-sand-800 dark:text-sand-100 border border-sand-700 font-medium",
   }[variant];
 
   return (
@@ -53,7 +53,7 @@ export function Badge({
       {...props}
     >
       {variant === "live" && (
-        <span className="h-1.5 w-1.5 rounded-full bg-rose-500 inline-block animate-pulse" />
+        <span className="h-1.5 w-1.5 rounded-full bg-terra-500 inline-block animate-pulse" />
       )}
       {children}
     </div>

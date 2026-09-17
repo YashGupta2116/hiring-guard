@@ -7,6 +7,7 @@ import { useStore } from "@/lib/store/interview-store";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { CandidateWarning } from "@/components/ui/candidate-warning";
 import {
   Shield,
   Clock,
@@ -127,7 +128,7 @@ export default function CandidateInterviewPage() {
           </div>
 
           <div className="hidden sm:flex items-center gap-1.5 rounded border border-border bg-secondary/30 px-2 py-1 text-[11px] font-medium text-muted-foreground">
-            <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />
+            <span className="h-1.5 w-1.5 rounded-full bg-terra-500" />
             <span>Session Recorded</span>
           </div>
         </div>
@@ -179,7 +180,7 @@ export default function CandidateInterviewPage() {
                 You
               </div>
               <div className="absolute top-1 right-1 flex gap-1">
-                {isMicMuted && <MicOff className="h-2.5 w-2.5 text-rose-400 bg-black/60 p-0.5 rounded" />}
+                {isMicMuted && <MicOff className="h-2.5 w-2.5 text-terra-400 bg-sand-950/70 p-0.5 rounded" />}
               </div>
             </div>
           </div>
@@ -214,14 +215,12 @@ export default function CandidateInterviewPage() {
               </ul>
             </div>
 
-            {/* Candidate Advisory Notice */}
-            <div className="rounded border border-border/80 bg-secondary/30 p-2.5 text-[11px] text-muted-foreground space-y-0.5 mt-2">
-              <div className="flex items-center gap-1.5 font-semibold text-foreground">
-                <Shield className="h-3 w-3" /> Assessment Environment
-              </div>
-              <p>
-                Please maintain your focus on this assessment window and keep your webcam enabled for the duration of the technical screen.
-              </p>
+            {/* Candidate Advisory Notice (PDF Page 3) */}
+            <div className="pt-2">
+              <CandidateWarning
+                tier="NOTICE"
+                message="Please keep your face within the camera frame."
+              />
             </div>
           </div>
         </div>
@@ -311,7 +310,7 @@ export default function CandidateInterviewPage() {
             className={cn(
               "flex h-8 w-8 items-center justify-center rounded-md border transition-colors",
               isMicMuted
-                ? "bg-rose-500/10 border-rose-500/30 text-rose-500"
+                ? "bg-terra-500/10 border-terra-500/30 text-terra-600 dark:text-terra-400"
                 : "bg-secondary border-border text-foreground hover:bg-secondary/80"
             )}
             title="Toggle Mic"
@@ -324,7 +323,7 @@ export default function CandidateInterviewPage() {
             className={cn(
               "flex h-8 w-8 items-center justify-center rounded-md border transition-colors",
               isCameraOff
-                ? "bg-rose-500/10 border-rose-500/30 text-rose-500"
+                ? "bg-terra-500/10 border-terra-500/30 text-terra-600 dark:text-terra-400"
                 : "bg-secondary border-border text-foreground hover:bg-secondary/80"
             )}
             title="Toggle Camera"

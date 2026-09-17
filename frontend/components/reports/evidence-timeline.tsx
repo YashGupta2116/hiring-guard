@@ -24,7 +24,7 @@ export function EvidenceTimeline({ events }: EvidenceTimelineProps) {
   if (events.length === 0) {
     return (
       <div className="rounded-lg border border-dashed border-border bg-card/40 p-6 text-center text-xs text-muted-foreground">
-        <ShieldCheck className="h-5 w-5 text-emerald-500 mx-auto mb-2" />
+        <ShieldCheck className="h-5 w-5 text-sage-600 dark:text-sage-400 mx-auto mb-2" />
         <p className="font-semibold text-foreground">Zero behavioral anomalies flagged</p>
         <p className="mt-0.5 text-[11px]">
           All telemetry channels remained consistent with baseline cognitive distributions throughout the session.
@@ -40,19 +40,22 @@ export function EvidenceTimeline({ events }: EvidenceTimelineProps) {
     switch (severity) {
       case "High":
         return (
-          <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-500/20">
+          <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium bg-terra-500/10 text-terra-700 dark:text-terra-400 border border-terra-500/30">
+            <span className="h-1.5 w-1.5 rounded-full bg-terra-600 dark:bg-terra-400" />
             High Severity
           </span>
         );
       case "Medium":
         return (
-          <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20">
+          <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/30">
+            <span className="h-1 w-1 rounded-full bg-amber-600 dark:bg-amber-400" />
             Medium Variance
           </span>
         );
       case "Low":
         return (
-          <span className="inline-flex items-center rounded px-1.5 py-0.5 text-[10px] font-medium bg-secondary text-foreground border border-border">
+          <span className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] font-medium bg-secondary text-foreground border border-border">
+            <span className="h-1.5 w-1.5 rounded-full border border-sand-500 bg-transparent" />
             Low Variance
           </span>
         );
@@ -100,7 +103,7 @@ export function EvidenceTimeline({ events }: EvidenceTimelineProps) {
               </span>
             </div>
             <p className="text-muted-foreground text-[11px] leading-relaxed">
-              Events between <strong>00:08:31</strong> and <strong>00:08:42</strong> demonstrate multi-channel temporal correlation: code insertion burst coincides with off-screen lateral gaze displacement.
+              Events between <strong>00:08:31</strong> and <strong>00:14:32</strong> demonstrate multi-channel temporal correlation: code insertion burst coincides with off-screen lateral gaze displacement.
             </p>
           </div>
         </div>
@@ -118,9 +121,9 @@ export function EvidenceTimeline({ events }: EvidenceTimelineProps) {
                 className={cn(
                   "absolute -left-5 top-1.5 flex h-4 w-4 items-center justify-center rounded-full ring-2 ring-card text-[9px]",
                   evt.severity === "High"
-                    ? "bg-rose-500 text-white"
+                    ? "bg-terra-600 text-white"
                     : evt.severity === "Medium"
-                    ? "bg-amber-500 text-white"
+                    ? "bg-amber-600 text-white"
                     : "bg-secondary text-foreground"
                 )}
               >

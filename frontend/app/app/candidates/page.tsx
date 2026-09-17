@@ -127,7 +127,7 @@ export default function CandidatesPage() {
                         name={cand.name}
                         size="md"
                       />
-                      <span className="font-semibold text-foreground text-xs">
+                      <span className="font-serif font-semibold text-foreground text-xs">
                         {cand.name}
                       </span>
                     </div>
@@ -145,7 +145,7 @@ export default function CandidatesPage() {
 
                   {/* Interviews */}
                   <td className="px-3.5 py-2.5 text-foreground whitespace-nowrap text-xs">
-                    <span className="font-semibold">{cand.interviewsTaken}</span>
+                    <span className="font-serif font-semibold">{cand.interviewsTaken}</span>
                   </td>
 
                   {/* Last Interview */}
@@ -156,7 +156,7 @@ export default function CandidatesPage() {
                   {/* Average Score */}
                   <td className="px-3.5 py-2.5 whitespace-nowrap">
                     <div className="flex items-center gap-1.5">
-                      <span className="font-semibold text-foreground text-xs">
+                      <span className="font-serif font-semibold text-foreground text-xs">
                         {cand.averageScore > 0 ? `${cand.averageScore}%` : "—"}
                       </span>
                       {cand.averageScore >= 85 && (

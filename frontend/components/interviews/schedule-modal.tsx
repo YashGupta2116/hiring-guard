@@ -176,8 +176,8 @@ export function ScheduleModal({
 
       {createdInterview ? (
         <div className="space-y-5 animate-fade-in-up">
-          <div className="flex items-center gap-3 p-4 rounded-xl border border-emerald-500/20 bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 text-xs">
-            <CheckCircle2 className="h-5 w-5 text-emerald-500 shrink-0" />
+          <div className="flex items-center gap-3 p-4 rounded-lg border border-sage-500/30 bg-sage-500/10 text-sage-900 dark:text-sage-200 text-xs">
+            <CheckCircle2 className="h-5 w-5 text-sage-600 dark:text-sage-400 shrink-0" />
             <div>
               <p className="font-semibold text-sm">
                 Interview for {createdInterview.candidateName} is confirmed

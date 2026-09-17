@@ -7,6 +7,7 @@ import { useStore } from "@/lib/store/interview-store";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { SessionPill } from "@/components/ui/session-pill";
 import { InterviewLinkCard } from "@/components/interviews/interview-link-card";
 import { EmptyState } from "@/components/ui/empty-state";
 import { CandidateAvatar } from "@/components/ui/candidate-avatar";
@@ -88,8 +89,8 @@ export default function InterviewDetailPage() {
         <div className="flex items-center gap-2">
           {interview.status === "Live" ? (
             <Link href={`/app/interviews/${interview.id}/live`}>
-              <Button size="sm" className="h-8 gap-1.5 bg-rose-600 hover:bg-rose-500 text-white">
-                <span className="h-1.5 w-1.5 rounded-full bg-white animate-pulse" /> Join Live Room
+              <Button size="sm" variant="action" className="h-8 gap-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-sage-500 animate-pulse" /> Join Live Room
               </Button>
             </Link>
           ) : interview.status === "Completed" && interview.reportId ? (
@@ -102,6 +103,7 @@ export default function InterviewDetailPage() {
             <Link href={`/app/interviews/${interview.id}/live`}>
               <Button
                 size="sm"
+                variant="action"
                 disabled={!canConductInterview}
                 className="h-8 gap-1.5"
               >
@@ -115,7 +117,7 @@ export default function InterviewDetailPage() {
               size="sm"
               variant="outline"
               onClick={() => setConfirmCancelOpen(true)}
-              className="h-8 text-rose-600 dark:text-rose-400 hover:bg-rose-500/10"
+              className="h-8 text-terra-600 dark:text-terra-400 hover:bg-terra-500/10 border-terra-500/30"
             >
               Cancel
             </Button>
@@ -134,11 +136,11 @@ export default function InterviewDetailPage() {
             />
             <div className="space-y-1">
               <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-lg font-bold text-foreground">
+                <h1 className="font-serif text-2xl font-normal text-foreground">
                   {interview.candidateName}
                 </h1>
-                <StatusBadge status={interview.status} size="sm" />
-                <Badge variant="outline" size="sm" className="text-[10px]">
+                <SessionPill status={interview.status} size="sm" />
+                <Badge variant="outline" size="sm" className="text-[10px] font-mono">
                   {interview.interviewType}
                 </Badge>
               </div>
@@ -210,7 +212,7 @@ export default function InterviewDetailPage() {
               </div>
               <div>
                 <span className="text-muted-foreground block text-[11px]">Session Recording</span>
-                <span className="font-semibold text-emerald-600 dark:text-emerald-400 mt-1 block">
+                <span className="font-semibold text-sage-700 dark:text-sage-400 mt-1 block">
                   {interview.recordingEnabled ? "Active (Encrypted)" : "Disabled"}
                 </span>
               </div>
@@ -235,19 +237,19 @@ export default function InterviewDetailPage() {
 
             <div className="grid grid-cols-2 gap-2 text-xs text-muted-foreground pt-1 border-t border-border/60">
               <div className="flex items-center gap-2 py-1">
-                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+                <CheckCircle2 className="h-3.5 w-3.5 text-sage-600 dark:text-sage-400" />
                 <span>Webcam Telemetry: <strong className="text-foreground">Active</strong></span>
               </div>
               <div className="flex items-center gap-2 py-1">
-                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+                <CheckCircle2 className="h-3.5 w-3.5 text-sage-600 dark:text-sage-400" />
                 <span>Gaze Baseline: <strong className="text-foreground">Calibrated</strong></span>
               </div>
               <div className="flex items-center gap-2 py-1">
-                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+                <CheckCircle2 className="h-3.5 w-3.5 text-sage-600 dark:text-sage-400" />
                 <span>Clipboard Tracking: <strong className="text-foreground">Active</strong></span>
               </div>
               <div className="flex items-center gap-2 py-1">
-                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+                <CheckCircle2 className="h-3.5 w-3.5 text-sage-600 dark:text-sage-400" />
                 <span>Screen Feed: <strong className="text-foreground">Required</strong></span>
               </div>
             </div>

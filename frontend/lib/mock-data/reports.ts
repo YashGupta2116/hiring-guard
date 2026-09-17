@@ -129,6 +129,20 @@ export const MOCK_REPORTS: Report[] = [
     ],
     integrityEvidence: [
       {
+        id: "evt-pdf-1",
+        timestamp: "00:14:32",
+        timestampSeconds: 872,
+        type: "Gaze deviation",
+        severity: "High",
+        title: "Sustained Off-Screen Gaze & Correlated Audio",
+        description: "Sustained off-screen gaze while a second voice was audible in the room.",
+        correlatedGroupId: "corr-1",
+        contextData: {
+          gazeAngle: "42° Off-Axis",
+          gazeDurationSeconds: 5.8,
+        },
+      },
+      {
         id: "evt-4",
         timestamp: "00:08:31",
         timestampSeconds: 511,

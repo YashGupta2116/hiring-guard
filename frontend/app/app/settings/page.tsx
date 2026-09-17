@@ -452,7 +452,7 @@ export default function SettingsPage() {
             <Button
               variant="outline"
               onClick={handleResetDemo}
-              className="gap-1.5 text-xs text-rose-600 dark:text-rose-400 hover:bg-rose-500/10"
+              className="gap-1.5 text-xs text-terra-600 dark:text-terra-400 hover:bg-terra-500/10 border-terra-500/30"
             >
               <RotateCcw className="h-3.5 w-3.5" /> Reset workspace data
             </Button>

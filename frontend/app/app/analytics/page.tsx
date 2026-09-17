@@ -56,9 +56,9 @@ export default function AnalyticsPage() {
   ];
 
   const outcomeDistributionData = [
-    { name: "Strong Hire / Hire", value: 16, color: "#10b981" },
-    { name: "Needs Review", value: 7, color: "#f59e0b" },
-    { name: "No Hire / Withdrawn", value: 5, color: "#f43f5e" },
+    { name: "Strong Hire / Hire", value: 16, color: "#4f6d54" },
+    { name: "Needs Review", value: 7, color: "#b47b2c" },
+    { name: "No Hire / Withdrawn", value: 5, color: "#963927" },
   ];
 
   return (
@@ -174,7 +174,7 @@ export default function AnalyticsPage() {
                     type="monotone"
                     dataKey="integrity"
                     name="Integrity Confidence"
-                    stroke="#10b981"
+                    stroke="#4f6d54"
                     strokeWidth={1.5}
                     fillOpacity={0}
                   />

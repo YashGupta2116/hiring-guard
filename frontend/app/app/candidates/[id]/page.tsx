@@ -379,13 +379,13 @@ export default function CandidateProfilePage() {
       {activeTab === "competencies" && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 animate-fade-in-up">
           <div className="rounded-lg border border-border bg-card p-4 space-y-3">
-            <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400 block">
+            <span className="text-xs font-semibold text-sage-700 dark:text-sage-400 block">
               Validated Technical Strengths
             </span>
             <ul className="space-y-1.5 text-xs">
               {candidate.strengths.map((str, i) => (
                 <li key={i} className="flex items-start gap-2 text-muted-foreground">
-                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-0.5" />
+                  <CheckCircle2 className="h-3.5 w-3.5 text-sage-600 dark:text-sage-400 shrink-0 mt-0.5" />
                   <span>{str}</span>
                 </li>
               ))}

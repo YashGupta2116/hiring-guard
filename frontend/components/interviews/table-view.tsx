@@ -4,6 +4,7 @@ import React from "react";
 import Link from "next/link";
 import { Interview } from "@/lib/types";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { SessionPill } from "@/components/ui/session-pill";
 import { Button } from "@/components/ui/button";
 import { CandidateAvatar } from "@/components/ui/candidate-avatar";
 import {
@@ -108,7 +109,7 @@ export function TableView({ interviews }: TableViewProps) {
 
               {/* Status */}
               <td className="px-3.5 py-2.5">
-                <StatusBadge status={interview.status} size="sm" />
+                <SessionPill status={interview.status} size="sm" />
               </td>
 
               {/* Interviewer */}
@@ -151,7 +152,7 @@ export function TableView({ interviews }: TableViewProps) {
                   {interview.status !== "Completed" && interview.status !== "Cancelled" && canDeleteInterview && (
                     <button
                       onClick={() => handleCancel(interview.id, interview.candidateName)}
-                      className="p-1 rounded text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10 transition-colors"
+                      className="p-1 rounded text-muted-foreground hover:text-terra-600 dark:hover:text-terra-400 hover:bg-terra-500/10 transition-colors"
                       title="Cancel Interview"
                     >
                       <Trash2 className="h-3 w-3" />

@@ -16,9 +16,9 @@ export const MOCK_INTERVIEWS: Interview[] = [
     interviewerId: "usr-interviewer-1",
     interviewerName: "Marcus Sterling",
     interviewerAvatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
-    token: "8F7K2M",
+    token: "VT-2049-XK",
     tokenExpiresAt: "2026-09-15T13:00:00Z",
-    candidateLink: "https://app.veritrust.ai/interview/8F7K2M",
+    candidateLink: "https://app.veritrust.ai/interview/VT-2049-XK",
     codingRoundConfig: {
       language: "typescript",
       starterCode: `// Problem: Optimizing React Re-renders in High-Frequency Telemetry Dashboard

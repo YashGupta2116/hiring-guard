@@ -4,6 +4,7 @@ import React from "react";
 import Link from "next/link";
 import { Interview } from "@/lib/types";
 import { StatusBadge } from "@/components/ui/status-badge";
+import { SessionPill } from "@/components/ui/session-pill";
 import { Button } from "@/components/ui/button";
 import { CandidateAvatar } from "@/components/ui/candidate-avatar";
 import { Clock, Calendar, ArrowRight, Radio } from "lucide-react";
@@ -54,7 +55,7 @@ export function ListView({ interviews }: ListViewProps) {
                     <span className="font-semibold text-foreground text-xs truncate">
                       {item.candidateName}
                     </span>
-                    <StatusBadge status={item.status} size="sm" />
+                    <SessionPill status={item.status} size="sm" />
                     <span className="hidden sm:inline text-muted-foreground text-[11px]">
                       • {item.interviewType}
                     </span>

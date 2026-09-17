@@ -190,7 +190,7 @@ export default function QuestionsPage() {
                   )}
                   {q.testCases && (
                     <span className="flex items-center gap-1 font-mono text-[10px]">
-                      <CheckCircle2 className="h-3 w-3 text-emerald-500" /> {q.testCases.length} Tests
+                      <CheckCircle2 className="h-3 w-3 text-sage-600 dark:text-sage-400" /> {q.testCases.length} Tests
                     </span>
                   )}
                 </div>
@@ -208,7 +208,7 @@ export default function QuestionsPage() {
 
                   <button
                     onClick={() => handleDelete(q.id, q.title)}
-                    className="p-1 rounded text-muted-foreground hover:text-rose-500 hover:bg-rose-500/10 transition-colors"
+                    className="p-1 rounded text-muted-foreground hover:text-terra-600 dark:hover:text-terra-400 hover:bg-terra-500/10 transition-colors"
                     title="Delete Question"
                   >
                     <Trash2 className="h-3.5 w-3.5" />

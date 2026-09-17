@@ -16,6 +16,9 @@ import {
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import { StatusBadge } from "../ui/status-badge";
+import { IntegrityGauge } from "../ui/integrity-gauge";
+import { ChannelBreakdown, DEFAULT_CHANNELS } from "../ui/channel-breakdown";
+import { FlagCard, FlagStatus } from "../ui/flag-card";
 import { cn } from "@/lib/utils";
 
 interface LiveSidebarProps {
@@ -148,7 +151,7 @@ export function LiveSidebar({
         >
           <Shield className="h-3 w-3" />
           <span>Telemetry</span>
-          <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+          <span className="h-1.5 w-1.5 rounded-full bg-sage-500" />
         </button>
 
         <button
@@ -195,77 +198,42 @@ export function LiveSidebar({
       <div className="flex-1 overflow-y-auto p-3.5 space-y-3.5">
         {/* Tab 1: Live Telemetry */}
         {activeTab === "telemetry" && (
-          <div className="space-y-3 animate-fade-in-up">
-            {/* Real-time confidence gauge (Restrained, Analytical) */}
-            <div className="rounded-lg border border-border bg-secondary/30 p-3 space-y-1.5">
-              <div className="flex items-center justify-between">
-                <span className="text-[11px] font-medium text-muted-foreground flex items-center gap-1.5">
-                  <Radio className="h-3 w-3 text-emerald-500" /> Baseline Confidence
-                </span>
-                <span className="text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
-                  Normal Variance
-                </span>
+          <div className="space-y-3.5 animate-fade-in-up">
+            {/* Real-time confidence gauge (PDF Page 2) */}
+            <div className="rounded-lg border border-border bg-card p-4 flex flex-col items-center justify-center text-center shadow-xs">
+              <IntegrityGauge score={84} size="md" />
+              <div className="mt-2 flex items-center justify-between w-full pt-2 border-t border-border/60 text-xs">
+                <span className="text-[10px] font-mono text-muted-foreground uppercase">Baseline</span>
+                <span className="text-[10px] font-medium text-sage-700 dark:text-sage-400">Consistent</span>
               </div>
-
-              <div className="flex items-baseline gap-2">
-                <span className="text-2xl font-bold text-foreground">
-                  84%
-                </span>
-                <span className="text-[11px] text-muted-foreground">
-                  Integrity Confidence Score
-                </span>
-              </div>
-
-              <div className="w-full bg-secondary rounded-full h-1 mt-1 overflow-hidden">
-                <div className="bg-foreground h-1 rounded-full w-[84%]" />
-              </div>
-
-              <p className="text-[10px] text-muted-foreground pt-1 leading-relaxed">
-                * Real-time cognitive baseline stability. Human review remains sovereign.
-              </p>
             </div>
 
-            {/* Observations stream */}
-            <div className="space-y-1.5">
+            {/* Channels Multimodal Breakdown (PDF Page 2) */}
+            <ChannelBreakdown title="CHANNELS · MULTIMODAL STREAM" />
+
+            {/* Live Flag Card with Adjudication (PDF Pages 2 & 3) */}
+            <div className="space-y-1.5 pt-1">
               <div className="flex items-center justify-between">
                 <h4 className="text-xs font-semibold text-foreground">
-                  Observations Stream
+                  Flagged Anomaly (Live)
                 </h4>
-                <span className="text-[10px] text-muted-foreground font-mono">LIVE FEED</span>
+                <span className="text-[10px] text-terra-600 dark:text-terra-400 font-mono font-semibold">
+                  ADJUDICATION
+                </span>
               </div>
 
-              <div className="space-y-1.5">
-                {telemetrySignals.map((sig) => (
-                  <div
-                    key={sig.id}
-                    className={cn(
-                      "flex items-start gap-2 p-2 rounded border text-xs leading-tight transition-colors",
-                      sig.status === "good"
-                        ? "border-border/70 bg-card text-foreground"
-                        : "border-border bg-secondary/50 text-foreground"
-                    )}
-                  >
-                    {sig.status === "good" ? (
-                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0 mt-0.5" />
-                    ) : (
-                      <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0 mt-0.5" />
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-1">
-                        <span className="font-medium text-[11px]">{sig.label}</span>
-                        <span className="text-[10px] font-mono text-muted-foreground shrink-0">
-                          {sig.time}
-                        </span>
-                      </div>
-                      {sig.status === "warn" && (
-                        <span className="inline-block mt-0.5 text-[10px] text-amber-600 dark:text-amber-400 font-medium">
-                          Behavioral anomaly flagged
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
+              <FlagCard
+                id="live-flag-1"
+                severity="HIGH"
+                timestamp="00:14:32"
+                status="OPEN"
+                narrative="Sustained off-screen gaze while a second voice was audible in the room."
+                channels={["GAZE", "AUDIO"]}
+                scoreDelta={-8}
+                onAdjudicate={(act) => {
+                  // Interactive adjudication feedback
+                }}
+              />
             </div>
           </div>
         )}
@@ -313,8 +281,8 @@ export function LiveSidebar({
           <div className="space-y-2.5 animate-fade-in-up">
             <div className="flex items-center justify-between text-[11px] text-muted-foreground">
               <span>Streaming Audio Transcript</span>
-              <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium flex items-center gap-1">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" /> Active
+              <span className="text-[10px] text-sage-700 dark:text-sage-400 font-medium flex items-center gap-1">
+                <span className="h-1.5 w-1.5 rounded-full bg-sage-500 animate-pulse" /> Active
               </span>
             </div>
 
