@@ -1,5 +1,5 @@
 import "express";
-import type { InterviewSession } from "../generated/prisma/client.js";
+import type { InterviewSession, JoinToken } from "../generated/prisma/client.js";
 import type { AccessTokenPayload } from "../utils/jwt.js";
 
 declare global {
@@ -13,6 +13,10 @@ declare global {
       user?: AccessTokenPayload;
       /** Set by middlewares/session-access.ts (requireSessionAccess). */
       sessionRecord?: InterviewSession;
+      /** Set by middlewares/join-token.ts (requireJoinToken) after signature + DB state checks. */
+      joinTokenRecord?: JoinToken;
+      /** Set by middlewares/candidate-token.ts (requireCandidateToken). */
+      candidateContext?: { sessionId: string; consentId: string };
     }
   }
 }

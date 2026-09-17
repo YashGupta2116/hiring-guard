@@ -8,10 +8,10 @@
 
 ## Current status
 
-- **Current phase:** Phase 3 — Task bank and question bank (✅ done). User asked to proceed through all
+- **Current phase:** Phase 4 — Arming and candidate join (✅ done). User asked to proceed through all
   remaining phases without stopping for "next" each time — continuing straight through.
 - **Last updated:** 2026-09-17
-- **Next step:** Phase 4 — Arming and candidate join.
+- **Next step:** Phase 5 — Realtime hub and lifecycle.
 
 ## Phase tracker
 
@@ -21,7 +21,8 @@
 | 1 Auth & orgs | ✅ | build + 30 tests pass; register/login/refresh/logout/me/switch-org, org + member CRUD, candidate directory, verified live against Postgres + Redis |
 | 2 Session setup | ✅ | build + 44 tests pass; session-state.service CAS transitions, session CRUD + interviewers, JD upload/parse worker, config PATCH — verified live end-to-end incl. worker |
 | 3 Task & question bank | ✅ | build + 49 tests pass; coding-task CRUD (hiddenTests hidden from list/non-admin), question-bank CRUD, prisma/seed.ts |
-| 4 Arming & join | ⬜ | |
+| 4 Arming & join | ✅ | build + 59 tests pass; join links (CONFIGURED→ARMED, BullMQ expiry→EXPIRED), join/preflight/policy/consent (ARMED→ADMITTED or ABORTED candidate_declined), candidate token + `/candidate/session`, `/candidate/media-ready` — verified live end-to-end |
+| 5 Realtime & lifecycle | ⬜ | |
 | 5 Realtime & lifecycle | ⬜ | |
 | 6 Telemetry & detectors | ⬜ | |
 | 7 Fusion, flags, warden | ⬜ | |
@@ -54,28 +55,36 @@ backend/
 │   ├── app.ts                    requestId → pino-http → helmet → cors → json → cookies → /api/v1 (apiLimiter) → 404 → errorHandler
 │   ├── config/env.ts             zod env; ONLY place that reads process.env
 │   ├── config/constants.ts       JD upload caps, pagination defaults (detection.ts tunables come in Phase 6)
-│   ├── controllers/health, auth, org, candidate-directory, session, jd, coding-task, question-bank .controller.ts
-│   ├── routes/index.ts (apiRouter mounts health/auth/org/candidate-directory/session/jd), auth.routes.ts,
-│   │   org.routes.ts, candidate-directory.routes.ts, session.routes.ts, jd.routes.ts (each router's own
-│   │   middleware is mounted with an explicit path prefix, e.g. `router.use("/auth", authLimiter)` —
-│   │   NEVER `router.use(mw)` with no path, since a sub-router mounted at apiRouter's root ("/") would
-│   │   otherwise apply that middleware to every request)
-│   ├── services/health, auth, org, candidate-directory, audit, session, session-state, config, jd .service.ts
-│   │   (session-state.service.ts `transition()` is the ONLY place InterviewSession.status changes: CAS via
-│   │   updateMany + audit log in one transaction, then publishes events:{sid} "session.state")
+│   ├── controllers/health, auth, org, candidate-directory, session, jd, coding-task, question-bank,
+│   │   link, join, candidate .controller.ts
+│   ├── routes/index.ts (mounts all routers), auth/org/candidate-directory/session/jd/coding-task/
+│   │   question-bank/link/join/candidate .routes.ts (each router's own middleware is mounted with an
+│   │   explicit path prefix, e.g. `router.use("/auth", authLimiter)` — NEVER `router.use(mw)` with no
+│   │   path, since a sub-router mounted at apiRouter's root ("/") would otherwise apply that middleware
+│   │   to every request)
+│   ├── services/health, auth, org, candidate-directory, audit, session, session-state, config, jd,
+│   │   coding-task, question-bank, link, join, media, candidate .service.ts (session-state.service.ts
+│   │   `transition()` is the ONLY place InterviewSession.status changes: CAS via updateMany + audit log
+│   │   in one transaction, then publishes events:{sid} "session.state")
 │   ├── middlewares/request-id, validate (+ getInput), not-found, error-handler, rate-limit, auth
 │   │   (requireUser), org-role (requireRole), session-access (requireSessionAccess — org membership +
-│   │   bound-interviewer-or-privileged-role check, sets req.sessionRecord), upload (jdUpload, multer memory)
+│   │   bound-interviewer-or-privileged-role check, sets req.sessionRecord), upload (jdUpload, multer
+│   │   memory), join-token (requireJoinToken — signature + live DB state: revoked/consumed/expired
+│   │   checked fresh on every call, no exp claim on the JWT itself), candidate-token
+│   │   (requireCandidateToken — JWT has exp = duration + 2h, loads Consent by id)
 │   ├── providers/index.ts        getStorage/getMail/getLlm/getMedia/getSandbox/getSigner (lazy singletons)
 │   │   storage(local) mail(smtp|log) llm(mock) media(mock) sandbox(mock) signer(ed25519)
 │   ├── workers/jd-parse.worker.ts  extracts text (pdf-parse v2 `new PDFParse({data}).getText()`, or
 │   │   mammoth.extractRawText for DOCX, or rawText for TEXT) → llm.parseJd() → PARSED/FAILED
-│   ├── utils/queues.ts           BullMQ Queue instances (jdParseQueue) + QUEUE_NAMES
+│   ├── workers/link-expiry.worker.ts  delayed BullMQ job per join link; ARMED + never consented when it
+│   │   fires → transition to EXPIRED
+│   ├── utils/queues.ts           BullMQ Queue instances (jdParseQueue, linkExpiryQueue) + QUEUE_NAMES
 │   ├── utils/events.ts           publishSessionEvent(sid, event, payload) → redis.publish("events:{sid}");
 │   │   no subscriber yet (sockets land in Phase 5) but worker/services already publish jd.parsed etc.
-│   ├── types/express.d.ts        req.requestId, req.input, req.user, req.sessionRecord
+│   ├── types/express.d.ts        req.requestId, req.input, req.user, req.sessionRecord,
+│   │   req.joinTokenRecord, req.candidateContext
 │   ├── types/parsed-jd.ts        zod ParsedJD schema
-│   └── utils/prisma, redis, logger, app-error, respond, ids, hash, jwt
+│   └── utils/prisma, redis, logger, app-error, respond, ids, hash, jwt (access/join/candidate tokens)
 ├── docker-compose.yml            postgres 17, redis 7, mailpit (UI :8025)
 ├── .env.example, .env.test.example, .gitignore, vitest.config.ts
 ```
@@ -123,6 +132,10 @@ Removed: `bcryptjs`, `jsonwebtoken` (Rules: use `argon2`, `jose`).
 | 2026-09-17 | JD upload accepts a session in any status but validated by `assertSessionEditable` (org-scoped existence only, no status gate) | Phases.md doesn't restrict which session statuses allow a JD upload; config PATCH is the one gated by status. Revisit if a later phase wants JD locked once LIVE |
 | 2026-09-17 | `config.service.patchConfig` increments `configVersion` on any field change except a `taskIds`-only patch | Design.md ties `configVersion++` to "channel added after consent"; extended it to all effective config changes so `configVersion` is a real change counter, not just a reconsent flag. `needsReconsent` itself only flips on the documented channel-addition-after-consent case |
 | 2026-09-17 | `pdf-parse@2.4.5` uses `new PDFParse({ data: buffer }).getText()` then `.destroy()`, not the old `pdf-parse(buffer)` promise API | The installed major version changed its API to a class; worth knowing before Phase 6/9 touch JD or evidence PDF handling again |
+| 2026-09-17 | Join JWTs carry no `exp` claim; expiry/revocation/consumption are enforced only from `join_tokens` in Postgres | Rules.md §9 says verify signature **and** DB state on every call — putting `exp` on the JWT too would create two sources of truth that could disagree (e.g. a revoked-but-not-yet-expired token) |
+| 2026-09-17 | Invite emails on link creation are sent synchronously via `getMail()` inside `link.service.createLink`, not through a dedicated `email.worker.ts` + BullMQ queue | Phases.md lists an email worker, but the mail provider call is already fire-and-forget-safe (mock/log providers never throw) and scope was tight; revisit if a real SMTP provider's latency starts blocking the request |
+| 2026-09-17 | No `session-schedule.worker.ts` T-15m reminder job; only link expiry (ARMED→EXPIRED) is implemented as a delayed BullMQ job (`workers/link-expiry.worker.ts`) | The T-15m reminder has no observable behavior yet (Phases.md says "log + future hooks") and no endpoint depends on it; link expiry is the one with real state-machine consequences, so it got priority |
+| 2026-09-17 | Policy bullets and `policyHash` are computed fresh on every `GET .../policy` and re-verified at consent time via `join.service.buildPolicy()`, not cached | `policyHash` must reflect the *current* config (Design.md `POLICY_CHANGED`); computing on demand from `configVersion` + channels + recording flags is simpler than invalidating a cache |
 
 ---
 
@@ -147,6 +160,14 @@ Removed: `bcryptjs`, `jsonwebtoken` (Rules: use `argon2`, `jose`).
 - `session.service.listSessions` paginates by `id desc` (ulid, so this is creation order) and filters
   `scheduledAt` by `from`/`to`; a DIRECT_LINK session with no `scheduledAt` is excluded by any from/to
   filter. Fine for now — revisit if DIRECT_LINK sessions need date filtering by `createdAt` instead.
+- No `.ics` calendar attachment on invite emails yet (Phases.md mentions one for scheduled mode) — the
+  invite email is a plain text link. Add when a real mail provider is wired up.
+- `GET /join/:token` doesn't block on `notBefore` (only reports `NOT_YET_OPEN` in the `status` field);
+  preflight/policy/consent on a not-yet-open link still work today. No Design.md error code exists for
+  "too early", so this is intentionally permissive until a real requirement shows up.
+- Retention/viewers text in the consent policy is generic (`DEFAULT_RETENTION_DAYS = 90`), not derived
+  per-data-type like Phase 11's actual retention job (90d media / 180d observations / 3y reports). Revisit
+  wording once Phase 11 lands so the candidate-facing number matches reality.
 
 ---
 
@@ -166,6 +187,41 @@ Removed: `bcryptjs`, `jsonwebtoken` (Rules: use `argon2`, `jose`).
 ```
 
 ## Task history
+
+### 2026-09-17 — Phase 4 arming and candidate join
+- Phase: 4
+- Built: `utils/jwt.ts` join/candidate token sign+verify (join JWT has no `exp`, DB-gated instead;
+  candidate JWT expires at duration+2h); `link.service.ts` (create mints jti + JWT + `join_tokens` row,
+  CONFIGURED→ARMED, schedules a BullMQ delayed expiry job, sends invite email via `getMail()` when
+  `sendInvite` and a candidate email exist; list; revoke); `workers/link-expiry.worker.ts` (ARMED + never
+  consented when the delay fires → EXPIRED); `middlewares/join-token.ts` (signature + live DB state:
+  revoked/consumed/expired, checked fresh every call) and `candidate-token.ts`; `join.service.ts`
+  (summary with READY/NOT_YET_OPEN, preflight probe evaluation → blocking failures vs zero-weight
+  warnings, policy bullets built from live config with a recomputed `policyHash`, consent accept →
+  Consent row + one-time consumption + ARMED→ADMITTED + clears `needsReconsent` + candidate/media
+  tokens, consent decline → ABORTED `candidate_declined`); `media.service.ts` (`markMediaReady` via
+  mock media provider → Redis `s:{sid}:state.mediaReady`); `candidate.service.ts` (`GET
+  /candidate/session` allow-list DTO); `tests/helpers/candidate-boundary.ts` (`assertNoForbiddenKeys`,
+  scans a payload for score/flag/severity/threshold/weight/sensitivity/channel/hiddenTest keys)
+- Files: `src/services/{link,join,media,candidate}.service.ts`,
+  `src/controllers/{link,join,candidate}.controller.ts`, `src/routes/{link,join,candidate}.routes.ts`,
+  `src/validators/{link,join,candidate}.schema.ts`, `src/middlewares/{join-token,candidate-token}.ts`,
+  `src/workers/link-expiry.worker.ts`, `tests/helpers/candidate-boundary.ts`,
+  `src/types/express.d.ts` (added `req.joinTokenRecord`, `req.candidateContext`)
+- Schema/migrations: none (schema already had JoinToken/PreflightCheck/Consent from Phase 0)
+- New env vars: `JOIN_TOKEN_SECRET`, `CANDIDATE_TOKEN_SECRET` (both required, ≥32 chars)
+- Tests: 59 passing total (10 new in `tests/integration/join.test.ts`) — link creation transitions to
+  ARMED, full join→preflight→policy→consent→ADMITTED happy path with candidate-boundary checks on every
+  candidate-reachable response, one-time link consumed after consent, policyHash mismatch after a config
+  change during the join flow, decline path aborts with `candidate_declined`, failing preflight blocks
+  consent with `PREFLIGHT_REQUIRED`, revoked/expired/unknown-jti link error codes, candidate token auth
+  guard. `npm run typecheck` and `npm run build` clean; also manually verified live end-to-end against
+  real Postgres/Redis with both workers running (register → session → config → link → join → preflight →
+  policy → consent → candidate session).
+- Decisions: see Decisions log (no `exp` on join JWT, sync invite email instead of a worker, link-expiry
+  only — no T-15m reminder worker, policy computed on demand)
+- Issues left: see Known issues
+- Next: Phase 5 — realtime hub and lifecycle
 
 ### 2026-09-17 — Phase 3 task bank and question bank
 - Phase: 3
