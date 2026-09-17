@@ -1,0 +1,951 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Get a free hosted Postgres database in seconds: `npx create-db`
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+
+// ============================================================================
+// ENUMS
+// ============================================================================
+
+enum OrgRole {
+  OWNER
+  ADMIN
+  INTERVIEWER
+  REVIEWER
+}
+
+enum InterviewMode {
+  SCHEDULED
+  DIRECT_LINK
+}
+
+// draft -> configured -> armed -> admitted -> live -> sealing -> processing -> complete
+// any -> aborted | armed -> expired
+enum SessionStatus {
+  DRAFT
+  CONFIGURED
+  ARMED
+  ADMITTED
+  LIVE
+  SEALING
+  PROCESSING
+  COMPLETE
+  ABORTED
+  EXPIRED
+}
+
+enum InterviewType {
+  TECHNICAL
+  CODING
+  SYSTEM_DESIGN
+  BEHAVIORAL
+  MIXED
+}
+
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum Sensitivity {
+  LOW
+  STANDARD
+  HIGH
+}
+
+enum MonitoringChannel {
+  GAZE
+  FACE
+  IDENTITY
+  SCENE
+  AUDIO
+  SCREEN
+  FOCUS
+  PASTE
+  RHYTHM
+  POINTER
+  ENVIRONMENT
+}
+
+enum JdSourceType {
+  TEXT
+  PDF
+  DOCX
+}
+
+enum ParseStatus {
+  PENDING
+  PROCESSING
+  PARSED
+  FAILED
+}
+
+enum JoinLinkKind {
+  ONE_TIME
+  REUSABLE
+}
+
+enum ObservationSource {
+  CLIENT
+  EDITOR
+  CV
+  ASR
+  GATEWAY
+}
+
+enum FlagSeverity {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum FlagStatus {
+  OPEN
+  CONFIRMED
+  DISMISSED
+  DOWNGRADED
+}
+
+enum FlagOrigin {
+  LIVE
+  OFFLINE
+}
+
+enum AdjudicationAction {
+  CONFIRM
+  DISMISS
+  DOWNGRADE
+}
+
+enum WarningTier {
+  NOTICE
+  WARNING
+  INTERRUPT
+}
+
+enum UnscoredReason {
+  CALIBRATION
+  SIGNAL_LOSS
+  QC_GATE
+  SEQUENCE_GAP
+  DETECTOR_DOWN
+}
+
+enum Speaker {
+  INTERVIEWER
+  CANDIDATE
+  UNKNOWN
+}
+
+enum SuggestionSource {
+  MODEL
+  QUESTION_BANK
+}
+
+enum EditChangeType {
+  TYPE
+  PASTE
+  AUTOCOMPLETE
+  UNDO
+}
+
+enum SnapshotReason {
+  INTERVAL
+  RUN
+  SUBMIT
+}
+
+enum ExecutionKind {
+  RUN
+  SUBMIT
+}
+
+enum ExecutionStatus {
+  QUEUED
+  RUNNING
+  PASSED
+  FAILED
+  ERROR
+  TIMEOUT
+}
+
+enum RecordingStatus {
+  PENDING
+  RECORDING
+  FINALIZING
+  READY
+  FAILED
+}
+
+enum PipelineStatus {
+  RUNNING
+  SUCCEEDED
+  DEGRADED
+  FAILED
+}
+
+enum PipelineStep {
+  SEAL_VERIFY
+  TRANSCRIPT_FINALIZE
+  INTEGRITY_RESCORE
+  CODE_EVALUATE
+  MEDIA_INDEX
+  ANSWER_GRADING
+  COMPOSITE_SCORE
+  RENDER_REPORT
+}
+
+enum StepStatus {
+  PENDING
+  RUNNING
+  SUCCEEDED
+  FAILED
+  SKIPPED
+}
+
+enum ActorType {
+  USER
+  CANDIDATE
+  SYSTEM
+}
+
+// ============================================================================
+// ORGS, USERS, AUTH
+// ============================================================================
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  members      OrgMember[]
+  candidates   Candidate[]
+  sessions     InterviewSession[]
+  codingTasks  CodingTask[]
+  questionBank QuestionBankItem[]
+  auditLogs    AuditLog[]
+
+  @@map("organizations")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  memberships         OrgMember[]
+  refreshTokens       RefreshToken[]
+  createdSessions     InterviewSession[]   @relation("SessionCreator")
+  interviewerOn       SessionInterviewer[]
+  joinTokens          JoinToken[]
+  notes               Note[]
+  adjudications       FlagAdjudication[]
+  acceptedSuggestions QuestionSuggestion[]
+
+  @@map("users")
+}
+
+model OrgMember {
+  id        String   @id @default(cuid())
+  orgId     String
+  userId    String
+  role      OrgRole  @default(INTERVIEWER)
+  createdAt DateTime @default(now())
+
+  org  Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, userId])
+  @@map("org_members")
+}
+
+model RefreshToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+model Candidate {
+  id        String   @id @default(cuid())
+  orgId     String
+  email     String
+  name      String?
+  createdAt DateTime @default(now())
+
+  org      Organization       @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  sessions InterviewSession[]
+
+  @@unique([orgId, email])
+  @@map("candidates")
+}
+
+// ============================================================================
+// SESSION SETUP  (Workflow 01, steps 1 to 5)
+// ============================================================================
+
+model InterviewSession {
+  id          String        @id // "ses_<ulid>", generated in app code
+  orgId       String
+  createdById String
+  candidateId String?
+  mode        InterviewMode
+  status      SessionStatus @default(DRAFT)
+
+  title           String?
+  scheduledAt     DateTime?
+  durationMinutes Int       @default(60)
+
+  // config (PATCH /sessions/:id/config)
+  interviewType  InterviewType?
+  difficulty     Difficulty?
+  recordVideo    Boolean             @default(true)
+  recordAudio    Boolean             @default(true)
+  recordScreen   Boolean             @default(true)
+  channels       MonitoringChannel[]
+  sensitivity    Sensitivity         @default(STANDARD)
+  topicBudgets   Json? // { topic: seconds }
+  configVersion  Int                 @default(0)
+  needsReconsent Boolean             @default(false) // channel added after consent
+
+  // lifecycle timestamps
+  armedAt    DateTime?
+  admittedAt DateTime?
+  startedAt  DateTime?
+  endedAt    DateTime?
+  sealedAt   DateTime?
+  endReason  String? // interviewer | duration_limit | candidate_abandon | fatal
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  org          Organization         @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  createdBy    User                 @relation("SessionCreator", fields: [createdById], references: [id])
+  candidate    Candidate?           @relation(fields: [candidateId], references: [id])
+  interviewers SessionInterviewer[]
+
+  jobDescription JobDescription?
+  tasks          SessionCodingTask[]
+  joinTokens     JoinToken[]
+  consents       Consent[]
+  preflights     PreflightCheck[]
+
+  observations    Observation[]
+  flags           Flag[]
+  warnings        Warning[]
+  unscoredWindows UnscoredWindow[]
+  integritySnaps  IntegritySnapshot[]
+  transcript      TranscriptSegment[]
+  suggestions     QuestionSuggestion[]
+  notes           Note[]
+  editorDeltas    EditorDelta[]
+  codeSnapshots   CodeSnapshot[]
+  executions      CodeExecution[]
+
+  recording    Recording?
+  manifest     EvidenceManifest?
+  pipelineRuns PipelineRun[]
+  qaPairs      QAPair[]
+  report       Report?
+  auditLogs    AuditLog[]
+
+  @@index([orgId, status])
+  @@index([scheduledAt])
+  @@map("interview_sessions")
+}
+
+model SessionInterviewer {
+  sessionId String
+  userId    String
+  isPrimary Boolean  @default(false)
+  addedAt   DateTime @default(now())
+
+  session InterviewSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([sessionId, userId])
+  @@map("session_interviewers")
+}
+
+model JobDescription {
+  id          String       @id @default(cuid())
+  sessionId   String       @unique
+  sourceType  JdSourceType
+  rawText     String?
+  rawUri      String? // s3://.../jd/original.pdf
+  fileName    String?
+  mimeType    String?
+  sizeBytes   Int?
+  parseStatus ParseStatus  @default(PENDING)
+  parseError  String?
+  parsed      Json? // ParsedJD: role, seniority, weighted skills, topics
+  edited      Boolean      @default(false) // any interviewer edit
+  parsedAt    DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  session InterviewSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@map("job_descriptions")
+}
+
+model CodingTask {
+  id           String     @id @default(cuid())
+  orgId        String
+  title        String
+  statement    String
+  difficulty   Difficulty
+  languages    String[]
+  starterCode  Json? // { language: code }
+  visibleTests Json
+  hiddenTests  Json // never returned to candidate
+  timeLimitMs  Int        @default(5000)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  org      Organization        @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  sessions SessionCodingTask[]
+
+  @@index([orgId])
+  @@map("coding_tasks")
+}
+
+model SessionCodingTask {
+  id          String    @id @default(cuid())
+  sessionId   String
+  taskId      String
+  position    Int
+  submittedAt DateTime? // editor freezes once set
+
+  session      InterviewSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  task         CodingTask       @relation(fields: [taskId], references: [id])
+  editorDeltas EditorDelta[]
+  snapshots    CodeSnapshot[]
+  executions   CodeExecution[]
+  evaluation   CodeEvaluation?
+
+  @@unique([sessionId, taskId])
+  @@map("session_coding_tasks")
+}
+
+model QuestionBankItem {
+  id         String     @id @default(cuid())
+  orgId      String
+  text       String
+  topic      String
+  skills     String[]
+  difficulty Difficulty
+  createdAt  DateTime   @default(now())
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId, topic])
+  @@map("question_bank_items")
+}
+
+// ============================================================================
+// JOIN, PREFLIGHT, CONSENT  (Workflow 03, steps 1 to 4)
+// ============================================================================
+
+model JoinToken {
+  id          String       @id @default(cuid())
+  jti         String       @unique
+  sessionId   String
+  kind        JoinLinkKind
+  notBefore   DateTime?
+  expiresAt   DateTime
+  usedAt      DateTime? // one-time link consumed on consent
+  useCount    Int          @default(0)
+  revokedAt   DateTime?
+  createdById String
+  createdAt   DateTime     @default(now())
+
+  session    InterviewSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  createdBy  User             @relation(fields: [createdById], references: [id])
+  consents   Consent[]
+  preflights PreflightCheck[]
+
+  @@index([sessionId])
+  @@map("join_tokens")
+}
+
+model PreflightCheck {
+  id          String   @id @default(cuid())
+  sessionId   String
+  joinTokenId String
+  passed      Boolean
+  failures    Json // blocking: no webrtc, no screen capture, no camera, low downlink
+  warnings    Json // e.g. extended display (zero weight)
+  probe       Json // raw capability probe
+  createdAt   DateTime @default(now())
+
+  session   InterviewSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  joinToken JoinToken        @relation(fields: [joinTokenId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@map("preflight_checks")
+}
+
+model Consent {
+  id             String              @id @default(cuid())
+  sessionId      String
+  joinTokenId    String
+  accepted       Boolean
+  channels       MonitoringChannel[]
+  scopeDisplayed Json // exact policy text/bullets shown
+  policyHash     String
+  configVersion  Int // matches InterviewSession.configVersion at consent time
+  retentionDays  Int
+  ipHash         String
+  uaHash         String
+  createdAt      DateTime            @default(now())
+
+  session   InterviewSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  joinToken JoinToken        @relation(fields: [joinTokenId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@map("consents")
+}
+
+// ============================================================================
+// LIVE EVIDENCE  (Workflow 01 step 8, Data flows 01 and 03)
+// ============================================================================
+
+model Observation {
+  id         BigInt            @id @default(autoincrement())
+  sessionId  String
+  seq        Int // per-session, gapless, gateway-assigned
+  source     ObservationSource
+  channel    MonitoringChannel
+  type       String // e.g. focus_loss, paste, face_count, second_voice
+  clientTs   DateTime?
+  ts         DateTime // clock-corrected
+  receivedAt DateTime          @default(now())
+  llr        Float? // calibrated log-likelihood ratio
+  payload    Json
+  prevHash   String
+  hash       String
+
+  session InterviewSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  flags   FlagObservation[]
+
+  @@unique([sessionId, seq])
+  @@index([sessionId, channel, ts])
+  @@map("observations")
+}
+
+model Flag {
+  id                    String              @id @default(cuid())
+  sessionId             String
+  origin                FlagOrigin          @default(LIVE)
+  type                  String
+  channel               MonitoringChannel
+  corroboratingChannels MonitoringChannel[]
+  severity              FlagSeverity
+  status                FlagStatus          @default(OPEN)
+  narrative             String
+  startTs               DateTime
+  endTs                 DateTime?
+  mediaOffsetMs         Int?
+  scoreDelta            Float // exact points deducted
+  mergedCount           Int                 @default(1) // repeats merged within 15 s
+  evidenceFrameUris     String[]
+  supersededByReview    Boolean             @default(false)
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+
+  session       InterviewSession   @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  observations  FlagObservation[]
+  adjudications FlagAdjudication[]
+  warnings      Warning[]
+
+  @@index([sessionId, status])
+  @@map("flags")
+}
+
+model FlagObservation {
+  flagId        String
+  observationId BigInt
+
+  flag        Flag        @relation(fields: [flagId], references: [id], onDelete: Cascade)
+  observation Observation @relation(fields: [observationId], references: [id], onDelete: Cascade)
+
+  @@id([flagId, observationId])
+  @@map("flag_observations")
+}
+
+model FlagAdjudication {
+  id           String             @id @default(cuid())
+  flagId       String
+  reviewerId   String
+  action       AdjudicationAction
+  fromSeverity FlagSeverity
+  toSeverity   FlagSeverity?
+  reason       String
+  createdAt    DateTime           @default(now())
+
+  flag     Flag @relation(fields: [flagId], references: [id], onDelete: Cascade)
+  reviewer User @relation(fields: [reviewerId], references: [id])
+
+  @@index([flagId])
+  @@map("flag_adjudications")
+}
+
+model Warning {
+  id             String      @id @default(cuid())
+  sessionId      String
+  flagId         String?
+  type           String
+  tier           WarningTier
+  message        String // templated, neutral wording
+  shownAt        DateTime    @default(now())
+  acknowledgedAt DateTime?
+  ackLatencyMs   Int?
+
+  session InterviewSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  flag    Flag?            @relation(fields: [flagId], references: [id], onDelete: SetNull)
+
+  @@index([sessionId, type])
+  @@map("warnings")
+}
+
+model UnscoredWindow {
+  id        String            @id @default(cuid())
+  sessionId String
+  channel   MonitoringChannel
+  reason    UnscoredReason
+  startTs   DateTime
+  endTs     DateTime?
+  detail    String?
+
+  session InterviewSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId])
+  @@map("unscored_windows")
+}
+
+model IntegritySnapshot {
+  id        BigInt   @id @default(autoincrement())
+  sessionId String
+  ts        DateTime
+  score     Float
+  channels  Json // per-channel split
+
+  session InterviewSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, ts])
+  @@map("integrity_snapshots")
+}
+
+model TranscriptSegment {
+  id           String    @id @default(cuid())
+  sessionId    String
+  speaker      Speaker   @default(UNKNOWN)
+  speakerLabel String? // cluster id from diarisation
+  text         String
+  startMs      Int
+  endMs        Int
+  isFinal      Boolean   @default(false)
+  words        Json? // word-level timings
+  supersededAt DateTime?
+  createdAt    DateTime  @default(now())
+
+  session InterviewSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@index([sessionId, startMs])
+  @@map("transcript_segments")
+}
+
+model QuestionSuggestion {
+  id           String           @id @default(cuid())
+  sessionId    String
+  batchId      String // 3 suggestions share a batch
+  rank         Int
+  text         String
+  rationale    String?
+  topic        String?
+  source       SuggestionSource @default(MODEL)
+  acceptedAt   DateTime?
+  acceptedById String?
+  createdAt    DateTime         @default(now())
+
+  session    InterviewSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  acceptedBy User?            @relation(fields: [acceptedById], references: [id])
+
+  @@index([sessionId, batchId])
+  @@map("question_suggestions")
+}
+
+model Note {
+  id            String   @id @default(cuid())
+  sessionId     String
+  authorId      String
+  body          String
+  ts            DateTime @default(now())
+  mediaOffsetMs Int?
+
+  session InterviewSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  author  User             @relation(fields: [authorId], references: [id])
+
+  @@index([sessionId, ts])
+  @@map("notes")
+}
+
+// ============================================================================
+// CODING ROUND  (Workflow 03 step 7)
+// ============================================================================
+
+model EditorDelta {
+  id             BigInt         @id @default(autoincrement())
+  sessionId      String
+  sessionTaskId  String
+  changeType     EditChangeType
+  rangeOffset    Int
+  insertedChars  Int
+  deletedChars   Int
+  text           String?
+  keystrokeStats Json? // intervals joined to insert position
+  ts             DateTime
+
+  session     InterviewSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  sessionTask SessionCodingTask @relation(fields: [sessionTaskId], references: [id], onDelete: Cascade)
+
+  @@index([sessionTaskId, ts])
+  @@map("editor_deltas")
+}
+
+model CodeSnapshot {
+  id            String         @id @default(cuid())
+  sessionId     String
+  sessionTaskId String
+  language      String
+  content       String
+  reason        SnapshotReason
+  createdAt     DateTime       @default(now())
+
+  session     InterviewSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  sessionTask SessionCodingTask @relation(fields: [sessionTaskId], references: [id], onDelete: Cascade)
+
+  @@index([sessionTaskId, createdAt])
+  @@map("code_snapshots")
+}
+
+model CodeExecution {
+  id             String          @id @default(cuid())
+  sessionId      String
+  sessionTaskId  String
+  kind           ExecutionKind
+  status         ExecutionStatus @default(QUEUED)
+  language       String
+  code           String
+  visibleResults Json?
+  hiddenResults  Json? // interviewer-only
+  stdout         String?
+  stderr         String?
+  exitCode       Int?
+  durationMs     Int?
+  createdAt      DateTime        @default(now())
+  finishedAt     DateTime?
+
+  session     InterviewSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  sessionTask SessionCodingTask @relation(fields: [sessionTaskId], references: [id], onDelete: Cascade)
+
+  @@index([sessionTaskId, createdAt])
+  @@map("code_executions")
+}
+
+// ============================================================================
+// SEAL AND POST-PROCESSING  (Workflow 02)
+// ============================================================================
+
+model Recording {
+  id              String          @id @default(cuid())
+  sessionId       String          @unique
+  egressId        String?
+  status          RecordingStatus @default(PENDING)
+  compositeUri    String?
+  hlsUri          String?
+  egressStartedAt DateTime? // anchors every media offset
+  endedAt         DateTime?
+  checksum        String?
+  mediaIndex      Json? // offset table, thumbnail track
+
+  session InterviewSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@map("recordings")
+}
+
+model EvidenceManifest {
+  id                String    @id @default(cuid())
+  sessionId         String    @unique
+  chainHead         String
+  lastSeq           Int
+  eventLogUri       String // evidence/events.ndjson.zst
+  manifestUri       String
+  signature         String
+  signingKeyId      String
+  detectorVersions  Json
+  weightsVersion    String
+  artifactChecksums Json?
+  sealedAt          DateTime  @default(now())
+  verifiedAt        DateTime?
+
+  session InterviewSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@map("evidence_manifests")
+}
+
+model PipelineRun {
+  id         String         @id @default(cuid())
+  sessionId  String
+  status     PipelineStatus @default(RUNNING)
+  startedAt  DateTime       @default(now())
+  finishedAt DateTime?
+
+  session InterviewSession  @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  steps   PipelineStepRun[]
+
+  @@index([sessionId])
+  @@map("pipeline_runs")
+}
+
+model PipelineStepRun {
+  id         String       @id @default(cuid())
+  runId      String
+  step       PipelineStep
+  status     StepStatus   @default(PENDING)
+  attempts   Int          @default(0)
+  error      String?
+  output     Json?
+  startedAt  DateTime?
+  finishedAt DateTime?
+
+  run PipelineRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@unique([runId, step])
+  @@map("pipeline_step_runs")
+}
+
+model QAPair {
+  id              String  @id @default(cuid())
+  sessionId       String
+  position        Int
+  questionText    String
+  answerText      String
+  topic           String?
+  questionStartMs Int
+  answerEndMs     Int
+
+  session InterviewSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  grade   AnswerGrade?
+
+  @@unique([sessionId, position])
+  @@map("qa_pairs")
+}
+
+model AnswerGrade {
+  id              String   @id @default(cuid())
+  qaPairId        String   @unique
+  correctness     Float
+  depth           Float
+  specificity     Float
+  structure       Float
+  handsOn         Float
+  strengths       Json
+  concerns        Json
+  positiveSignals Json // timestamped like flags
+  createdAt       DateTime @default(now())
+
+  qaPair QAPair @relation(fields: [qaPairId], references: [id], onDelete: Cascade)
+
+  @@map("answer_grades")
+}
+
+model CodeEvaluation {
+  id             String   @id @default(cuid())
+  sessionTaskId  String   @unique
+  hiddenPassed   Int
+  hiddenTotal    Int
+  staticAnalysis Json?
+  complexity     String?
+  typedRatio     Float?
+  burstRate      Float?
+  pasteMap       Json?
+  editTimeline   Json?
+  approachNotes  String?
+  createdAt      DateTime @default(now())
+
+  sessionTask SessionCodingTask @relation(fields: [sessionTaskId], references: [id], onDelete: Cascade)
+
+  @@map("code_evaluations")
+}
+
+model Report {
+  id                 String         @id @default(cuid())
+  sessionId          String         @unique
+  technicalScore     Float?
+  communicationScore Float?
+  integrityScore     Float?
+  compositeScore     Float? // null when integrity < 70 (review required)
+  reviewRequired     Boolean        @default(false)
+  degraded           Boolean        @default(false)
+  lostSteps          PipelineStep[]
+  model              Json // full report model
+  methodology        Json // detector versions, weights, unscored windows, superseded flags, chain hash
+  htmlUri            String?
+  pdfUri             String?
+  emailSentAt        DateTime?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  session InterviewSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  @@map("reports")
+}
+
+// ============================================================================
+// AUDIT
+// ============================================================================
+
+model AuditLog {
+  id         BigInt         @id @default(autoincrement())
+  orgId      String?
+  sessionId  String?
+  actorType  ActorType
+  actorId    String?
+  action     String // session.created, status.changed, flag.dismissed, retention.deleted ...
+  fromStatus SessionStatus?
+  toStatus   SessionStatus?
+  metadata   Json?
+  createdAt  DateTime       @default(now())
+
+  org     Organization?     @relation(fields: [orgId], references: [id], onDelete: SetNull)
+  session InterviewSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+
+  @@index([sessionId, createdAt])
+  @@index([orgId, createdAt])
+  @@map("audit_logs")
+}
