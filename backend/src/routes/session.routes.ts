@@ -3,10 +3,13 @@ import {
   addInterviewer,
   cancelSession,
   createSession,
+  endSession,
+  getLiveSnapshot,
   getSession,
   listSessions,
   patchConfig,
   removeInterviewer,
+  startSession,
   updateSession,
 } from "../controllers/session.controller.js";
 import { requireUser } from "../middlewares/auth.js";
@@ -32,6 +35,9 @@ sessionRouter.get("/sessions/:id", validate(sessionIdParamSchema), requireSessio
 sessionRouter.patch("/sessions/:id", validate(updateSessionSchema), requireSessionAccess({ write: true }), updateSession);
 sessionRouter.post("/sessions/:id/cancel", validate(sessionIdParamSchema), requireSessionAccess({ write: true }), cancelSession);
 sessionRouter.patch("/sessions/:id/config", validate(patchConfigSchema), requireSessionAccess({ write: true }), patchConfig);
+sessionRouter.post("/sessions/:id/start", validate(sessionIdParamSchema), requireSessionAccess({ write: true }), startSession);
+sessionRouter.post("/sessions/:id/end", validate(sessionIdParamSchema), requireSessionAccess({ write: true }), endSession);
+sessionRouter.get("/sessions/:id/live", validate(sessionIdParamSchema), requireSessionAccess(), getLiveSnapshot);
 sessionRouter.post(
   "/sessions/:id/interviewers",
   validate(addInterviewerSchema),

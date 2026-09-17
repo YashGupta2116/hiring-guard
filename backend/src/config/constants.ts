@@ -22,3 +22,11 @@ export const PREFLIGHT_MIN_CPU_CORES = 4;
 
 /** Candidate token stays valid past the interview end so a slow finish/report page load doesn't 401. */
 export const CANDIDATE_TOKEN_GRACE_HOURS = 2;
+
+export const CALIBRATION_MS = 60_000;
+export const FUSION_LEASE_TTL_MS = 5000;
+export const FUSION_LEASE_RENEW_MS = 2000;
+export const TIMER_TICK_MS = 1000;
+export const CANDIDATE_TIME_REMAINING_MS = 5000;
+export const CANDIDATE_ABANDON_GRACE_MS = 120_000;
+export const DASHBOARD_FRAME_BUFFER_SIZE = 2000;

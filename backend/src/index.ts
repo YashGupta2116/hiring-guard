@@ -1,6 +1,8 @@
 import { createServer } from "node:http";
 import { env } from "./config/env.js";
 import { createApp } from "./app.js";
+import { createSocketServer } from "./sockets/index.js";
+import { startEventSubscriber } from "./sockets/event-subscriber.js";
 import { logger } from "./utils/logger.js";
 import { prisma } from "./utils/prisma.js";
 import { redis } from "./utils/redis.js";
@@ -9,6 +11,8 @@ const SHUTDOWN_TIMEOUT_MS = 10_000;
 
 const app = createApp();
 const server = createServer(app);
+createSocketServer(server);
+startEventSubscriber();
 
 server.listen(env.PORT, () => {
   logger.info({ port: env.PORT, env: env.NODE_ENV }, `API listening on ${env.API_URL}`);

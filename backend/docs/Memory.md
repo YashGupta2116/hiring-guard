@@ -8,10 +8,10 @@
 
 ## Current status
 
-- **Current phase:** Phase 4 — Arming and candidate join (✅ done). User asked to proceed through all
+- **Current phase:** Phase 5 — Realtime hub and lifecycle (✅ done). User asked to proceed through all
   remaining phases without stopping for "next" each time — continuing straight through.
 - **Last updated:** 2026-09-17
-- **Next step:** Phase 5 — Realtime hub and lifecycle.
+- **Next step:** Phase 6 — Telemetry ingest, evidence chain, detectors.
 
 ## Phase tracker
 
@@ -22,7 +22,8 @@
 | 2 Session setup | ✅ | build + 44 tests pass; session-state.service CAS transitions, session CRUD + interviewers, JD upload/parse worker, config PATCH — verified live end-to-end incl. worker |
 | 3 Task & question bank | ✅ | build + 49 tests pass; coding-task CRUD (hiddenTests hidden from list/non-admin), question-bank CRUD, prisma/seed.ts |
 | 4 Arming & join | ✅ | build + 59 tests pass; join links (CONFIGURED→ARMED, BullMQ expiry→EXPIRED), join/preflight/policy/consent (ARMED→ADMITTED or ABORTED candidate_declined), candidate token + `/candidate/session`, `/candidate/media-ready` — verified live end-to-end |
-| 5 Realtime & lifecycle | ⬜ | |
+| 5 Realtime & lifecycle | ✅ | build + 72 tests pass; Socket.IO `/interviewer` + `/candidate` namespaces, frame-buffered dashboard emitter with replay, events:{sid} Redis subscriber, SessionRuntime (lease, 1s timer, candidate presence/abandon grace), start/end/live endpoints (ADMITTED→LIVE→SEALING→PROCESSING, seal stubbed) |
+| 6 Telemetry & detectors | ⬜ | |
 | 5 Realtime & lifecycle | ⬜ | |
 | 6 Telemetry & detectors | ⬜ | |
 | 7 Fusion, flags, warden | ⬜ | |
@@ -78,9 +79,29 @@ backend/
 │   │   mammoth.extractRawText for DOCX, or rawText for TEXT) → llm.parseJd() → PARSED/FAILED
 │   ├── workers/link-expiry.worker.ts  delayed BullMQ job per join link; ARMED + never consented when it
 │   │   fires → transition to EXPIRED
+│   ├── sockets/index.ts          Socket.IO server: /interviewer ns (access JWT in handshake.auth.token,
+│   │   client emits `session.join {sessionId, lastFrameSeq?}` with ack, server checks org+binding then
+│   │   joins room `session:{sid}` and replays buffered frames), /candidate ns (candidate JWT, auto-joins
+│   │   its session room, drives SessionRuntime.onCandidateConnected/Disconnected)
+│   ├── sockets/emitter.ts        emitToInterviewers (wraps in {frameSeq,sessionId,ts,data}, appends to
+│   │   Redis `s:{sid}:buf` capped at 2000, emits) + emitToCandidate (unbuffered, allow-list only) +
+│   │   replayFrom(sid, afterSeq)
+│   ├── sockets/event-subscriber.ts  psubscribe("events:*") → forwards worker-published events
+│   │   (utils/events.ts publishSessionEvent, e.g. jd.parsed) to emitToInterviewers
+│   ├── sockets/events.ts         INTERVIEWER_EVENTS / CANDIDATE_EVENTS name constants + session.join zod
+│   ├── live/session-runtime.ts   one per LIVE session: Redis fusion lease (SET NX/renew), 1s timer.tick,
+│   │   candidate presence + 120s abandon-grace timer → onEnd("candidate_abandon"), duration-limit timer
+│   │   → onEnd("duration_limit"). Detector/fusion ticks land in Phase 6-7
+│   ├── live/registry.ts          sid -> SessionRuntime in-memory map
+│   ├── live/timer.ts             computeTimerState(startedAt, durationMinutes, now) — pure, unit-tested;
+│   │   per-topic budget burn deferred to Phase 7 (no live topic tracking yet)
+│   ├── services/lifecycle.service.ts  startSession (guards: ADMITTED, !needsReconsent, Redis
+│   │   mediaReady==="1"; creates+starts SessionRuntime, ADMITTED→LIVE), endSession (idempotent once past
+│   │   LIVE; destroys runtime; LIVE→SEALING→PROCESSING — seal is a stub until Phase 9), getLiveSnapshot
+│   │   (dashboard-reload hydrate: status, elapsedMs/remainingMs, mediaReady, lastFrameSeq)
 │   ├── utils/queues.ts           BullMQ Queue instances (jdParseQueue, linkExpiryQueue) + QUEUE_NAMES
 │   ├── utils/events.ts           publishSessionEvent(sid, event, payload) → redis.publish("events:{sid}");
-│   │   no subscriber yet (sockets land in Phase 5) but worker/services already publish jd.parsed etc.
+│   │   now actually consumed by sockets/event-subscriber.ts and forwarded to the dashboard
 │   ├── types/express.d.ts        req.requestId, req.input, req.user, req.sessionRecord,
 │   │   req.joinTokenRecord, req.candidateContext
 │   ├── types/parsed-jd.ts        zod ParsedJD schema
@@ -136,6 +157,9 @@ Removed: `bcryptjs`, `jsonwebtoken` (Rules: use `argon2`, `jose`).
 | 2026-09-17 | Invite emails on link creation are sent synchronously via `getMail()` inside `link.service.createLink`, not through a dedicated `email.worker.ts` + BullMQ queue | Phases.md lists an email worker, but the mail provider call is already fire-and-forget-safe (mock/log providers never throw) and scope was tight; revisit if a real SMTP provider's latency starts blocking the request |
 | 2026-09-17 | No `session-schedule.worker.ts` T-15m reminder job; only link expiry (ARMED→EXPIRED) is implemented as a delayed BullMQ job (`workers/link-expiry.worker.ts`) | The T-15m reminder has no observable behavior yet (Phases.md says "log + future hooks") and no endpoint depends on it; link expiry is the one with real state-machine consequences, so it got priority |
 | 2026-09-17 | Policy bullets and `policyHash` are computed fresh on every `GET .../policy` and re-verified at consent time via `join.service.buildPolicy()`, not cached | `policyHash` must reflect the *current* config (Design.md `POLICY_CHANGED`); computing on demand from `configVersion` + channels + recording flags is simpler than invalidating a cache |
+| 2026-09-17 | `express@5.2`'s `app.set("trust proxy", 1)` plus `req.ip` is used for the consent IP hash; sockets run on the same `http.Server` as Express (`createSocketServer(server)`), not a separate port | Matches Architecture.md's single-process design; no separate realtime service to deploy |
+| 2026-09-17 | `endSession` is idempotent for any status past LIVE (SEALING/PROCESSING/COMPLETE/ABORTED/EXPIRED) — returns the current session instead of throwing | A duration-limit timer and an interviewer's own `POST /end` could race; the second caller should see success, not `INVALID_STATE_TRANSITION` |
+| 2026-09-17 | Seal (`LIVE→SEALING→PROCESSING`) is a stub in `lifecycle.service.endSession`: both transitions fire back-to-back with no real seal sequence | Phases.md Phase 5 says exactly this ("seal is a stub in this phase that goes straight to PROCESSING"); the real 9-step seal lands in Phase 9 |
 
 ---
 
@@ -168,6 +192,20 @@ Removed: `bcryptjs`, `jsonwebtoken` (Rules: use `argon2`, `jose`).
 - Retention/viewers text in the consent policy is generic (`DEFAULT_RETENTION_DAYS = 90`), not derived
   per-data-type like Phase 11's actual retention job (90d media / 180d observations / 3y reports). Revisit
   wording once Phase 11 lands so the candidate-facing number matches reality.
+- `timer.tick`'s `topics: [{name, budgetSeconds, usedSeconds}]` from Design.md §5.2 is not emitted yet —
+  only `{elapsedMs, remainingMs, frozen: false}`. There's no live topic-tracking mechanism until the
+  suggestion engine (Phase 7) exists. `frozen` is hardcoded `false` since clock-freeze (media grace) isn't
+  wired up until Phase 6.
+- `integrity.tick`, `flag.new/update`, `warn.issued`, `transcript.partial/final`, `qs.suggestions`,
+  `note.added`, `system.degraded`, `media.state` from Design.md §5.2 don't exist yet — those are Phase
+  6-8. `INTERVIEWER_EVENTS`/`CANDIDATE_EVENTS` in `sockets/events.ts` only list what's implemented so far;
+  add to those objects (not ad-hoc string literals) as each phase wires up its event.
+- Candidate-side `warn.show`, `task.frozen`, `media.required` aren't implemented (Phase 6-8). Only
+  `session.state` (mapped WAITING/LIVE/ENDED) and `session.ended` exist on `/candidate` today.
+- `session-runtime.test.ts` uses `vi.useFakeTimers()` + `vi.advanceTimersByTimeAsync()` around real Redis
+  I/O (lease set/renew) — this works because fake timers only intercept JS timer functions, not network
+  I/O, but keep that in mind if a future test needs to fake `Date.now()` too (would need `shouldAdvanceTime`
+  or explicit `Date` mocking to avoid skewing `computeTimerState`).
 
 ---
 
@@ -187,6 +225,34 @@ Removed: `bcryptjs`, `jsonwebtoken` (Rules: use `argon2`, `jose`).
 ```
 
 ## Task history
+
+### 2026-09-17 — Phase 5 realtime hub and lifecycle
+- Phase: 5
+- Built: Socket.IO server (`sockets/index.ts`) with `/interviewer` (access JWT, `session.join` event with
+  ack + replay) and `/candidate` (candidate JWT, auto-join) namespaces, both attached to the same
+  `http.Server` as Express; `sockets/emitter.ts` (frame-sequenced, Redis-buffered `emitToInterviewers`,
+  unbuffered `emitToCandidate`, `replayFrom`); `sockets/event-subscriber.ts` (Redis `events:*`
+  pattern-subscribe forwarding worker events, e.g. `jd.parsed`, to the dashboard — the subscriber
+  `utils/events.ts publishSessionEvent` was writing to since Phase 2 finally has a listener);
+  `live/session-runtime.ts` (per-session lease, 1s `timer.tick`, candidate presence + 120s abandon grace,
+  duration-limit timer), `live/registry.ts`, `live/timer.ts` (pure, unit-tested);
+  `services/lifecycle.service.ts` (`startSession` guards ADMITTED/!needsReconsent/mediaReady,
+  `endSession` idempotent past LIVE with a stubbed seal straight to PROCESSING, `getLiveSnapshot`);
+  `POST /sessions/:id/start`, `POST /sessions/:id/end`, `GET /sessions/:id/live`
+- Files: `src/sockets/*`, `src/live/*`, `src/services/lifecycle.service.ts`, edits to
+  `src/controllers/session.controller.ts`, `src/routes/session.routes.ts`, `src/index.ts`
+- Schema/migrations: none
+- New env vars: none
+- Tests: 72 passing total (13 new: `tests/unit/timer.test.ts`, `tests/integration/session-runtime.test.ts`
+  using fake timers for abandon-grace and duration-limit, `tests/integration/lifecycle.test.ts` using a
+  real ephemeral HTTP server + `socket.io-client` for auth rejection, room isolation via `session.join`
+  ack, buffered-frame replay, and the full start→LIVE→end→PROCESSING REST flow with guards). `npm run
+  typecheck` and `npm run build` clean; also smoke-tested `npm run dev` boots with sockets attached and
+  `/ready` still returns ok.
+- Decisions: see Decisions log (single-process sockets, idempotent endSession, stubbed seal, no exp on
+  join JWT already noted Phase 4)
+- Issues left: see Known issues (topic-budget timer fields, later-phase socket events not implemented yet)
+- Next: Phase 6 — telemetry ingest, evidence chain, detectors
 
 ### 2026-09-17 — Phase 4 arming and candidate join
 - Phase: 4

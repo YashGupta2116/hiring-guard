@@ -1,6 +1,7 @@
 import type { Request, Response } from "express";
 import { getInput } from "../middlewares/validate.js";
 import * as configService from "../services/config.service.js";
+import * as lifecycleService from "../services/lifecycle.service.js";
 import * as sessionService from "../services/session.service.js";
 import { created, list, noContent, ok } from "../utils/respond.js";
 import { patchConfigSchema } from "../validators/config.schema.js";
@@ -37,6 +38,21 @@ export async function updateSession(req: Request, res: Response): Promise<void> 
 export async function cancelSession(req: Request, res: Response): Promise<void> {
   const { params } = getInput(req, sessionIdParamSchema);
   ok(res, await sessionService.cancelSession(req.user!.orgId, params.id, req.user!.sub));
+}
+
+export async function startSession(req: Request, res: Response): Promise<void> {
+  const { params } = getInput(req, sessionIdParamSchema);
+  ok(res, await lifecycleService.startSession(req.user!.orgId, params.id, req.user!.sub));
+}
+
+export async function endSession(req: Request, res: Response): Promise<void> {
+  const { params } = getInput(req, sessionIdParamSchema);
+  ok(res, await lifecycleService.endSession(req.user!.orgId, params.id, "interviewer", req.user!.sub));
+}
+
+export async function getLiveSnapshot(req: Request, res: Response): Promise<void> {
+  const { params } = getInput(req, sessionIdParamSchema);
+  ok(res, await lifecycleService.getLiveSnapshot(req.user!.orgId, params.id));
 }
 
 export async function patchConfig(req: Request, res: Response): Promise<void> {
