@@ -30,6 +30,9 @@ const envSchema = z.object({
 
   HASH_PEPPER: z.string().min(32, "HASH_PEPPER must be at least 32 characters"),
 
+  JWT_ACCESS_SECRET: z.string().min(32, "JWT_ACCESS_SECRET must be at least 32 characters"),
+  JWT_REFRESH_TTL_DAYS: z.coerce.number().int().min(1).default(30),
+
   STORAGE_PROVIDER: z.enum(["local"]).default("local"),
   STORAGE_LOCAL_DIR: z.string().default("./storage"),
 
