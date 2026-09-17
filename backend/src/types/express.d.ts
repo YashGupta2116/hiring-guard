@@ -1,4 +1,5 @@
 import "express";
+import type { InterviewSession } from "../generated/prisma/client.js";
 import type { AccessTokenPayload } from "../utils/jwt.js";
 
 declare global {
@@ -10,6 +11,8 @@ declare global {
       input?: { body?: unknown; query?: unknown; params?: unknown };
       /** Set by middlewares/auth.ts (requireUser) from the access JWT. */
       user?: AccessTokenPayload;
+      /** Set by middlewares/session-access.ts (requireSessionAccess). */
+      sessionRecord?: InterviewSession;
     }
   }
 }

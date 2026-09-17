@@ -8,9 +8,9 @@
 
 ## Current status
 
-- **Current phase:** Phase 1 — Auth and organisations (✅ done)
+- **Current phase:** Phase 2 — Session setup (✅ done)
 - **Last updated:** 2026-09-17
-- **Next step:** Phase 2 — Session setup. Wait for "next" before starting.
+- **Next step:** Phase 3 — Task bank and question bank. Wait for "next" before starting.
 
 ## Phase tracker
 
@@ -18,6 +18,7 @@
 |---|---|---|
 | 0 Foundation | ✅ | build + 16 tests pass; /ready verified against real Postgres + Redis |
 | 1 Auth & orgs | ✅ | build + 30 tests pass; register/login/refresh/logout/me/switch-org, org + member CRUD, candidate directory, verified live against Postgres + Redis |
+| 2 Session setup | ✅ | build + 44 tests pass; session-state.service CAS transitions, session CRUD + interviewers, JD upload/parse worker, config PATCH — verified live end-to-end incl. worker |
 | 2 Session setup | ⬜ | |
 | 3 Task & question bank | ⬜ | |
 | 4 Arming & join | ⬜ | |
@@ -43,24 +44,38 @@ backend/
 │   └── init-test-db.sql          creates veritrust_test in docker postgres
 ├── tests/
 │   ├── setup.ts
-│   ├── integration/app.test.ts   health, 404, malformed JSON, request id, helmet
+│   ├── integration/app.test.ts, auth.test.ts, session.test.ts   health/404/JSON/helmet, auth flows,
+│   │   session CRUD + access control + state machine + config + JD upload/parse (worker called directly,
+│   │   not via a running BullMQ worker — see jd-parse test)
 │   └── unit/                     error handler + validate, hash utils, providers
 ├── src/
 │   ├── index.ts                  http server, graceful shutdown, fatal handlers
+│   ├── worker.ts                 BullMQ worker bootstrap (jd-parse); run with `npm run worker`
 │   ├── app.ts                    requestId → pino-http → helmet → cors → json → cookies → /api/v1 (apiLimiter) → 404 → errorHandler
 │   ├── config/env.ts             zod env; ONLY place that reads process.env
-│   ├── controllers/health, auth, org, candidate-directory .controller.ts
-│   ├── routes/index.ts (apiRouter mounts health/auth/org/candidate-directory), auth.routes.ts, org.routes.ts,
-│   │   candidate-directory.routes.ts (each router's own middleware is mounted with an explicit path prefix,
-│   │   e.g. `router.use("/auth", authLimiter)` — NEVER `router.use(mw)` with no path, since a sub-router
-│   │   mounted at apiRouter's root ("/") would otherwise apply that middleware to every request)
-│   ├── services/health.service.ts, auth.service.ts, org.service.ts, candidate-directory.service.ts, audit.service.ts
-│   ├── middlewares/request-id, validate (+ getInput), not-found, error-handler, rate-limit, auth (requireUser), org-role (requireRole)
+│   ├── config/constants.ts       JD upload caps, pagination defaults (detection.ts tunables come in Phase 6)
+│   ├── controllers/health, auth, org, candidate-directory, session, jd .controller.ts
+│   ├── routes/index.ts (apiRouter mounts health/auth/org/candidate-directory/session/jd), auth.routes.ts,
+│   │   org.routes.ts, candidate-directory.routes.ts, session.routes.ts, jd.routes.ts (each router's own
+│   │   middleware is mounted with an explicit path prefix, e.g. `router.use("/auth", authLimiter)` —
+│   │   NEVER `router.use(mw)` with no path, since a sub-router mounted at apiRouter's root ("/") would
+│   │   otherwise apply that middleware to every request)
+│   ├── services/health, auth, org, candidate-directory, audit, session, session-state, config, jd .service.ts
+│   │   (session-state.service.ts `transition()` is the ONLY place InterviewSession.status changes: CAS via
+│   │   updateMany + audit log in one transaction, then publishes events:{sid} "session.state")
+│   ├── middlewares/request-id, validate (+ getInput), not-found, error-handler, rate-limit, auth
+│   │   (requireUser), org-role (requireRole), session-access (requireSessionAccess — org membership +
+│   │   bound-interviewer-or-privileged-role check, sets req.sessionRecord), upload (jdUpload, multer memory)
 │   ├── providers/index.ts        getStorage/getMail/getLlm/getMedia/getSandbox/getSigner (lazy singletons)
 │   │   storage(local) mail(smtp|log) llm(mock) media(mock) sandbox(mock) signer(ed25519)
-│   ├── types/express.d.ts        req.requestId, req.input
+│   ├── workers/jd-parse.worker.ts  extracts text (pdf-parse v2 `new PDFParse({data}).getText()`, or
+│   │   mammoth.extractRawText for DOCX, or rawText for TEXT) → llm.parseJd() → PARSED/FAILED
+│   ├── utils/queues.ts           BullMQ Queue instances (jdParseQueue) + QUEUE_NAMES
+│   ├── utils/events.ts           publishSessionEvent(sid, event, payload) → redis.publish("events:{sid}");
+│   │   no subscriber yet (sockets land in Phase 5) but worker/services already publish jd.parsed etc.
+│   ├── types/express.d.ts        req.requestId, req.input, req.user, req.sessionRecord
 │   ├── types/parsed-jd.ts        zod ParsedJD schema
-│   └── utils/prisma, redis, logger, app-error, respond, ids, hash
+│   └── utils/prisma, redis, logger, app-error, respond, ids, hash, jwt
 ├── docker-compose.yml            postgres 17, redis 7, mailpit (UI :8025)
 ├── .env.example, .env.test.example, .gitignore, vitest.config.ts
 ```
@@ -78,7 +93,7 @@ backend/
 
 ## Installed versions (majors matter)
 
-express 5 · zod 4 · prisma/@prisma/client/@prisma/adapter-pg 7.10 · ioredis 6 · pino 10 · pino-http 11 · express-rate-limit 8 · rate-limit-redis 6 · helmet 8 · nodemailer 10 · ulid 3 · dotenv 17 · typescript 7 · tsx 4 · vitest 5 · supertest 7 · argon2 (latest) · jose (latest)
+express 5 · zod 4 · prisma/@prisma/client/@prisma/adapter-pg 7.10 · ioredis 6 · pino 10 · pino-http 11 · express-rate-limit 8 · rate-limit-redis 6 · helmet 8 · nodemailer 10 · ulid 3 · dotenv 17 · typescript 7 · tsx 4 · vitest 5 · supertest 7 · argon2 (latest) · jose (latest) · bullmq (latest) · multer (latest) · pdf-parse 2.4.5 (class-based `PDFParse` API, not the old callback/promise-of-buffer style) · mammoth (latest)
 
 Removed: `bcryptjs`, `jsonwebtoken` (Rules: use `argon2`, `jose`).
 
@@ -104,6 +119,10 @@ Removed: `bcryptjs`, `jsonwebtoken` (Rules: use `argon2`, `jose`).
 | 2026-09-17 | Added `familyId` to `RefreshToken` (migration `refresh_token_family`) | Schema had no way to scope rotation-family revocation to one login session; asked user, chose proper family tracking over revoking all of a user's sessions on reuse |
 | 2026-09-17 | Login/refresh pick the org from the membership with the oldest `createdAt` as the active org | Design.md doesn't specify tie-break; there's no "last used org" field yet. Revisit if a user needs a specific default org |
 | 2026-09-17 | `/auth/*` rate limiter uses limit 1000 (not 10) when `NODE_ENV=test` | The Design.md 10/min limit is real for prod; integration tests share one in-memory limiter instance per test file and register many users, which tripped 429s unrelated to the behaviour under test |
+| 2026-09-17 | `vitest.config.ts` sets `fileParallelism: false` | All integration tests share one real Postgres/Redis and each truncates tables in `beforeEach`; running test files in parallel raced those resets (flaky 409/undefined failures). Sequential files trade a little speed for determinism |
+| 2026-09-17 | JD upload accepts a session in any status but validated by `assertSessionEditable` (org-scoped existence only, no status gate) | Phases.md doesn't restrict which session statuses allow a JD upload; config PATCH is the one gated by status. Revisit if a later phase wants JD locked once LIVE |
+| 2026-09-17 | `config.service.patchConfig` increments `configVersion` on any field change except a `taskIds`-only patch | Design.md ties `configVersion++` to "channel added after consent"; extended it to all effective config changes so `configVersion` is a real change counter, not just a reconsent flag. `needsReconsent` itself only flips on the documented channel-addition-after-consent case |
+| 2026-09-17 | `pdf-parse@2.4.5` uses `new PDFParse({ data: buffer }).getText()` then `.destroy()`, not the old `pdf-parse(buffer)` promise API | The installed major version changed its API to a class; worth knowing before Phase 6/9 touch JD or evidence PDF handling again |
 
 ---
 
@@ -121,6 +140,13 @@ Removed: `bcryptjs`, `jsonwebtoken` (Rules: use `argon2`, `jose`).
   users typically belong to one org; revisit if multi-org UX needs a sticky default.
 - Org member endpoints require the target user to already exist (`addMember` looks up by email and 404s
   otherwise) — there's no invite-by-email-that-creates-a-user flow yet; not specified in Phases.md Phase 1.
+- `PATCH /sessions/:id/config` `taskIds` validates the tasks belong to the org (`coding_tasks.orgId`), but
+  there's no `/coding-tasks` CRUD yet (Phase 3) — untestable end-to-end until then.
+- JD parsing needs a running `npm run worker` process (BullMQ) to actually flip PENDING → PARSED/FAILED in
+  a real deployment; tests call `processJdParse()` directly instead of running the worker.
+- `session.service.listSessions` paginates by `id desc` (ulid, so this is creation order) and filters
+  `scheduledAt` by `from`/`to`; a DIRECT_LINK session with no `scheduledAt` is excluded by any from/to
+  filter. Fine for now — revisit if DIRECT_LINK sessions need date filtering by `createdAt` instead.
 
 ---
 
@@ -140,6 +166,35 @@ Removed: `bcryptjs`, `jsonwebtoken` (Rules: use `argon2`, `jose`).
 ```
 
 ## Task history
+
+### 2026-09-17 — Phase 2 session setup
+- Phase: 2
+- Built: `session-state.service.ts` (`transition()` CAS + audit, the only writer of
+  `InterviewSession.status`); session CRUD (`session.service.ts` — create with primary interviewer,
+  list with status/date/cursor filters, get, update basic fields gated to DRAFT/CONFIGURED/ARMED, cancel
+  → ABORTED, add/remove interviewers with primary protection); `middlewares/session-access.ts`
+  (`requireSessionAccess`); JD upload/parse (`jd.service.ts`, `middlewares/upload.ts` multer memory
+  storage + magic-byte check for PDF/DOCX, `utils/queues.ts` BullMQ `jd-parse` queue,
+  `workers/jd-parse.worker.ts` extracting text via `pdf-parse`/`mammoth`/raw text then
+  `llm.parseJd()`, `src/worker.ts` bootstrap); `config.service.ts` (`PATCH /sessions/:id/config`,
+  validates `taskIds` against the org's coding tasks, DRAFT→CONFIGURED, `needsReconsent` +
+  `configVersion` bump); `utils/events.ts` (`publishSessionEvent`, Redis pub/sub for later phases)
+- Files: `src/services/{session,session-state,config,jd}.service.ts`,
+  `src/controllers/{session,jd}.controller.ts`, `src/routes/{session,jd}.routes.ts`,
+  `src/validators/{session,config,jd}.schema.ts`, `src/middlewares/{session-access,upload}.ts`,
+  `src/workers/jd-parse.worker.ts`, `src/worker.ts`, `src/utils/{queues,events}.ts`,
+  `src/config/constants.ts`, `src/types/express.d.ts` (added `req.sessionRecord`)
+- Schema/migrations: none
+- New env vars: none
+- Tests: 44 passing total (14 new in `tests/integration/session.test.ts`) — session-state allowed/forbidden
+  transitions incl. cross-org 404, session CRUD, org-isolation and bound-interviewer access control,
+  edit-blocked-once-LIVE, cancel, primary-interviewer removal guard, config PATCH incl. task-ownership
+  validation and needsReconsent-after-consent, JD text upload → worker parse → PARSED, invalid ParsedJD
+  PATCH rejected. `npm run typecheck` and `npm run build` clean. Also fixed `vitest.config.ts`
+  (`fileParallelism: false`) since integration tests share one real Postgres/Redis.
+- Decisions: see Decisions log (fileParallelism, configVersion semantics, pdf-parse v2 API, JD status gate)
+- Issues left: see Known issues
+- Next: Phase 3 — task bank and question bank. Wait for "next".
 
 ### 2026-09-17 — Phase 1 auth and organisations
 - Phase: 1
