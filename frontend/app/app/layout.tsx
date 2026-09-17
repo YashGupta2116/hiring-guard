@@ -12,14 +12,15 @@ export default function AppLayout({
   const [collapsed, setCollapsed] = useState(false);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background text-foreground antialiased">
-      {/* Collapsible Sidebar */}
-      <Sidebar collapsed={collapsed} setCollapsed={setCollapsed} />
+    <div className="flex h-screen flex-col overflow-hidden bg-[#FAF9F6] dark:bg-background text-foreground antialiased">
+      {/* Full-width Top Global Header */}
+      <Header collapsed={collapsed} setCollapsed={setCollapsed} />
 
-      {/* Main Content Area */}
-      <div className="flex h-screen min-w-0 flex-1 flex-col overflow-hidden">
-        <Header />
-        <main className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 md:p-8 max-w-7xl w-full mx-auto animate-fade-in-up">
+      {/* Main Container: Sidebar + Content */}
+      <div className="flex min-h-0 flex-1 overflow-hidden">
+        <Sidebar collapsed={collapsed} setCollapsed={setCollapsed} />
+
+        <main className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-4 sm:p-6 md:p-8 max-w-[1600px] w-full mx-auto animate-fade-in-up">
           {children}
         </main>
       </div>

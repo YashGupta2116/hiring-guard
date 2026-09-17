@@ -143,7 +143,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   };
 
   const getInterviewById = (id: string) => {
-    return interviews.find((i) => i.id === id);
+    return interviews.find((i) => i.id === id || i.token.toLowerCase() === id.toLowerCase());
   };
 
   const getInterviewByToken = (token: string) => {

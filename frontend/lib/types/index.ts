@@ -71,7 +71,15 @@ export interface Interview {
   recordingEnabled: boolean;
   notes?: string;
   timeline: {
-    stage: "Created" | "Scheduled" | "Candidate Joined" | "Interview Started" | "Interview Completed" | "Report Generated";
+    stage:
+      | "Created"
+      | "Scheduled"
+      | "Reminder Sent"
+      | "Upcoming"
+      | "Candidate Joined"
+      | "Interview Started"
+      | "Interview Completed"
+      | "Report Generated";
     timestamp: string;
     description: string;
   }[];

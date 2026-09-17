@@ -94,6 +94,8 @@ export function AccessibleMultiSelect() {
     timeline: [
       { stage: "Created", timestamp: "2026-09-13 14:20", description: "Interview created by Sarah Lin" },
       { stage: "Scheduled", timestamp: "2026-09-13 14:22", description: "Candidate token active" },
+      { stage: "Reminder Sent", timestamp: "2026-09-14 10:00", description: "Calendar invite sent to candidate" },
+      { stage: "Upcoming", timestamp: "2026-09-15 15:00", description: "Interview starts in 2 hours" },
     ],
   },
   {
@@ -190,7 +192,7 @@ export function AccessibleMultiSelect() {
     candidateName: "Liam O'Connor",
     candidateEmail: "liam.oconnor@dublin-eng.ie",
     candidateAvatar: "https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?w=150&auto=format&fit=crop&q=80",
-    jobRole: "Senior Security & Platform Engineer",
+    jobRole: "Backend Engineer",
     interviewType: "Backend Engineering",
     date: "2026-09-18",
     time: "16:00",

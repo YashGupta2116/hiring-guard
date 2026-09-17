@@ -1,12 +1,10 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
+import Link from "next/link";
 import { useStore } from "@/lib/store/interview-store";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/empty-state";
-import { PageHeader } from "@/components/ui/page-header";
 import { ScheduleModal } from "@/components/interviews/schedule-modal";
 import { TableView } from "@/components/interviews/table-view";
 import { CalendarView } from "@/components/interviews/calendar-view";
@@ -17,7 +15,8 @@ import {
   List as ListIcon,
   Plus,
   Search,
-  Radio,
+  SlidersHorizontal,
+  Home,
 } from "lucide-react";
 import { usePermissions } from "@/components/auth/role-guard";
 import { cn } from "@/lib/utils";
@@ -27,7 +26,7 @@ export default function InterviewsPage() {
   const { canCreateInterview } = usePermissions();
 
   const [activeTab, setActiveTab] = useState<"All" | "Upcoming" | "Live" | "Completed" | "Drafts">("All");
-  const [viewMode, setViewMode] = useState<"table" | "calendar" | "list">("table");
+  const [viewMode, setViewMode] = useState<"table" | "calendar" | "list">("list");
   const [searchQuery, setSearchQuery] = useState("");
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
 
@@ -74,142 +73,171 @@ export default function InterviewsPage() {
 
   return (
     <div className="space-y-5 animate-fade-in-up">
-      {/* 8. Page Header */}
-      <PageHeader
-        title="Interviews"
-        description="Manage scheduled and completed technical interviews across synchronized views."
-      >
-        {/* Segmented View Switcher: Table | Calendar | List */}
-        <div className="inline-flex rounded-md border border-border bg-secondary/50 p-0.5">
-          <button
-            onClick={() => handleViewChange("table")}
-            className={cn(
-              "flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded transition-colors",
-              viewMode === "table"
-                ? "bg-card text-foreground shadow-2xs font-semibold"
-                : "text-muted-foreground hover:text-foreground"
-            )}
-            title="Table View"
-          >
-            <TableIcon className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Table</span>
-          </button>
+      {/* Breadcrumb */}
+      <div className="flex items-center gap-1.5 text-xs text-neutral-400">
+        <Home className="h-3.5 w-3.5 text-neutral-400" />
+        <span className="text-neutral-300 dark:text-neutral-700">›</span>
+        <Link
+          href="/app/dashboard"
+          className="text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 transition-colors"
+        >
+          Dashboard
+        </Link>
+        <span className="text-neutral-300 dark:text-neutral-700">›</span>
+        <span className="text-neutral-600 dark:text-neutral-400">Interviews</span>
+      </div>
 
-          <button
-            onClick={() => handleViewChange("calendar")}
-            className={cn(
-              "flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded transition-colors",
-              viewMode === "calendar"
-                ? "bg-card text-foreground shadow-2xs font-semibold"
-                : "text-muted-foreground hover:text-foreground"
-            )}
-            title="Calendar View"
-          >
-            <CalendarDays className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Calendar</span>
-          </button>
-
-          <button
-            onClick={() => handleViewChange("list")}
-            className={cn(
-              "flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded transition-colors",
-              viewMode === "list"
-                ? "bg-card text-foreground shadow-2xs font-semibold"
-                : "text-muted-foreground hover:text-foreground"
-            )}
-            title="List View"
-          >
-            <ListIcon className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">List</span>
-          </button>
+      {/* Page Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-neutral-900 dark:text-white">
+            Interviews
+          </h1>
+          <p className="text-xs text-neutral-500 mt-1">
+            Manage scheduled and completed technical interviews across synchronized views.
+          </p>
         </div>
 
-        <Button
-          size="sm"
-          onClick={() => setScheduleModalOpen(true)}
-          disabled={!canCreateInterview}
-          className="text-xs h-8 gap-1.5"
-        >
-          <Plus className="h-3.5 w-3.5" /> Schedule interview
-        </Button>
-      </PageHeader>
+        <div className="flex items-center gap-3">
+          {/* Segmented View Switcher: Table | Calendar | List */}
+          <div className="inline-flex items-center rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 p-0.5 text-xs text-neutral-500 shadow-2xs">
+            <button
+              onClick={() => handleViewChange("table")}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-md font-medium transition-colors",
+                viewMode === "table"
+                  ? "bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900 shadow-xs"
+                  : "hover:text-neutral-900 dark:hover:text-white"
+              )}
+              title="Table View"
+            >
+              <TableIcon className="h-3.5 w-3.5" />
+              <span>Table</span>
+            </button>
+
+            <button
+              onClick={() => handleViewChange("calendar")}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-md font-medium transition-colors",
+                viewMode === "calendar"
+                  ? "bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900 shadow-xs"
+                  : "hover:text-neutral-900 dark:hover:text-white"
+              )}
+              title="Calendar View"
+            >
+              <CalendarDays className="h-3.5 w-3.5" />
+              <span>Calendar</span>
+            </button>
+
+            <button
+              onClick={() => handleViewChange("list")}
+              className={cn(
+                "flex items-center gap-1.5 px-3 py-1.5 rounded-md font-medium transition-colors",
+                viewMode === "list"
+                  ? "bg-neutral-900 text-white dark:bg-neutral-100 dark:text-neutral-900 shadow-xs"
+                  : "hover:text-neutral-900 dark:hover:text-white"
+              )}
+              title="List View"
+            >
+              <ListIcon className="h-3.5 w-3.5" />
+              <span>List</span>
+            </button>
+          </div>
+
+          <Button
+            onClick={() => setScheduleModalOpen(true)}
+            disabled={!canCreateInterview}
+            className="bg-neutral-900 hover:bg-neutral-800 text-white font-medium px-3.5 py-2 rounded-lg text-xs flex items-center gap-1.5 shadow-xs h-9"
+          >
+            <Plus className="h-3.5 w-3.5" /> Schedule Interview
+          </Button>
+        </div>
+      </div>
 
       {/* Filter Tabs & Search Bar */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 pt-1">
         {/* Status Tabs */}
-        <div className="flex flex-wrap items-center gap-1">
+        <div className="flex flex-wrap items-center gap-1.5">
           <button
             onClick={() => setActiveTab("All")}
             className={cn(
-              "px-3 py-1.5 text-xs font-medium rounded-md transition-colors",
+              "px-3.5 py-1.5 text-xs font-medium rounded-full transition-colors",
               activeTab === "All"
-                ? "bg-secondary text-foreground font-semibold"
-                : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
+                ? "bg-neutral-200/80 text-neutral-900 font-semibold dark:bg-neutral-800 dark:text-white"
+                : "text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800/60"
             )}
           >
-            All <span className="ml-1 text-[10px] opacity-70">({interviews.length})</span>
+            All ({interviews.length})
           </button>
 
           <button
             onClick={() => setActiveTab("Upcoming")}
             className={cn(
-              "px-3 py-1.5 text-xs font-medium rounded-md transition-colors",
+              "px-3.5 py-1.5 text-xs font-medium rounded-full transition-colors",
               activeTab === "Upcoming"
-                ? "bg-secondary text-foreground font-semibold"
-                : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
+                ? "bg-neutral-200/80 text-neutral-900 font-semibold dark:bg-neutral-800 dark:text-white"
+                : "text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800/60"
             )}
           >
-            Upcoming <span className="ml-1 text-[10px] opacity-70">({upcomingCount})</span>
+            Upcoming ({upcomingCount})
           </button>
 
           <button
             onClick={() => setActiveTab("Live")}
             className={cn(
-              "px-3 py-1.5 text-xs font-medium rounded-md transition-colors flex items-center gap-1.5",
+              "px-3.5 py-1.5 text-xs font-medium rounded-full transition-colors flex items-center gap-1.5",
               activeTab === "Live"
-                ? "bg-terra-500/10 text-terra-700 dark:text-terra-400 font-semibold"
-                : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
+                ? "bg-neutral-200/80 text-neutral-900 font-semibold dark:bg-neutral-800 dark:text-white"
+                : "text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800/60"
             )}
           >
-            <span className="h-1.5 w-1.5 rounded-full bg-terra-500 animate-pulse" />
-            Live <span className="ml-0.5 text-[10px] opacity-70">({liveCount})</span>
+            <span className="h-1.5 w-1.5 rounded-full bg-rose-500 animate-pulse" />
+            Live ({liveCount})
           </button>
 
           <button
             onClick={() => setActiveTab("Completed")}
             className={cn(
-              "px-3 py-1.5 text-xs font-medium rounded-md transition-colors",
+              "px-3.5 py-1.5 text-xs font-medium rounded-full transition-colors",
               activeTab === "Completed"
-                ? "bg-secondary text-foreground font-semibold"
-                : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
+                ? "bg-neutral-200/80 text-neutral-900 font-semibold dark:bg-neutral-800 dark:text-white"
+                : "text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800/60"
             )}
           >
-            Completed <span className="ml-1 text-[10px] opacity-70">({completedCount})</span>
+            Completed ({completedCount})
           </button>
 
           <button
             onClick={() => setActiveTab("Drafts")}
             className={cn(
-              "px-3 py-1.5 text-xs font-medium rounded-md transition-colors",
+              "px-3.5 py-1.5 text-xs font-medium rounded-full transition-colors",
               activeTab === "Drafts"
-                ? "bg-secondary text-foreground font-semibold"
-                : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground"
+                ? "bg-neutral-200/80 text-neutral-900 font-semibold dark:bg-neutral-800 dark:text-white"
+                : "text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800/60"
             )}
           >
-            Drafts <span className="ml-1 text-[10px] opacity-70">({draftCount})</span>
+            Drafts ({draftCount})
           </button>
         </div>
 
-        {/* Search Filter */}
-        <div className="relative w-full md:w-72">
-          <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-          <input
-            type="text"
-            placeholder="Search candidate, role, token..."
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full rounded-md border border-input bg-background/60 pl-8 pr-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:border-foreground/40 focus:outline-none transition-colors"
-          />
+        {/* Search & Filter */}
+        <div className="flex items-center gap-2">
+          <div className="relative w-full sm:w-72">
+            <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-neutral-400" />
+            <input
+              type="text"
+              placeholder="Search candidate, role, token..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 pl-9 pr-3 py-1.5 text-xs text-neutral-900 dark:text-neutral-100 placeholder:text-neutral-400 focus:border-neutral-400 focus:outline-none transition-colors"
+            />
+          </div>
+          <button
+            className="h-8 w-8 rounded-lg border border-neutral-200 dark:border-neutral-800 bg-white dark:bg-neutral-900 flex items-center justify-center text-neutral-600 dark:text-neutral-400 hover:bg-neutral-50 dark:hover:bg-neutral-800 shrink-0 transition-colors"
+            title="Filters"
+          >
+            <SlidersHorizontal className="h-3.5 w-3.5" />
+          </button>
         </div>
       </div>
 
