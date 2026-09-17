@@ -8,9 +8,10 @@
 
 ## Current status
 
-- **Current phase:** Phase 2 — Session setup (✅ done)
+- **Current phase:** Phase 3 — Task bank and question bank (✅ done). User asked to proceed through all
+  remaining phases without stopping for "next" each time — continuing straight through.
 - **Last updated:** 2026-09-17
-- **Next step:** Phase 3 — Task bank and question bank. Wait for "next" before starting.
+- **Next step:** Phase 4 — Arming and candidate join.
 
 ## Phase tracker
 
@@ -19,8 +20,7 @@
 | 0 Foundation | ✅ | build + 16 tests pass; /ready verified against real Postgres + Redis |
 | 1 Auth & orgs | ✅ | build + 30 tests pass; register/login/refresh/logout/me/switch-org, org + member CRUD, candidate directory, verified live against Postgres + Redis |
 | 2 Session setup | ✅ | build + 44 tests pass; session-state.service CAS transitions, session CRUD + interviewers, JD upload/parse worker, config PATCH — verified live end-to-end incl. worker |
-| 2 Session setup | ⬜ | |
-| 3 Task & question bank | ⬜ | |
+| 3 Task & question bank | ✅ | build + 49 tests pass; coding-task CRUD (hiddenTests hidden from list/non-admin), question-bank CRUD, prisma/seed.ts |
 | 4 Arming & join | ⬜ | |
 | 5 Realtime & lifecycle | ⬜ | |
 | 6 Telemetry & detectors | ⬜ | |
@@ -54,7 +54,7 @@ backend/
 │   ├── app.ts                    requestId → pino-http → helmet → cors → json → cookies → /api/v1 (apiLimiter) → 404 → errorHandler
 │   ├── config/env.ts             zod env; ONLY place that reads process.env
 │   ├── config/constants.ts       JD upload caps, pagination defaults (detection.ts tunables come in Phase 6)
-│   ├── controllers/health, auth, org, candidate-directory, session, jd .controller.ts
+│   ├── controllers/health, auth, org, candidate-directory, session, jd, coding-task, question-bank .controller.ts
 │   ├── routes/index.ts (apiRouter mounts health/auth/org/candidate-directory/session/jd), auth.routes.ts,
 │   │   org.routes.ts, candidate-directory.routes.ts, session.routes.ts, jd.routes.ts (each router's own
 │   │   middleware is mounted with an explicit path prefix, e.g. `router.use("/auth", authLimiter)` —
@@ -166,6 +166,22 @@ Removed: `bcryptjs`, `jsonwebtoken` (Rules: use `argon2`, `jose`).
 ```
 
 ## Task history
+
+### 2026-09-17 — Phase 3 task bank and question bank
+- Phase: 3
+- Built: coding task CRUD (`coding-task.service.ts` — list/get exclude `hiddenTests` unless caller is
+  OWNER/ADMIN; delete blocked if attached to any session), question bank CRUD with topic/difficulty
+  filters (`question-bank.service.ts`), `prisma/seed.ts` (demo org, owner + interviewer user, 3 coding
+  tasks, 20 question bank items; `npm run db:seed`, also wired as `prisma.seed` for `prisma db seed`)
+- Files: `src/{services,controllers,routes,validators}/{coding-task,question-bank}.*`, `prisma/seed.ts`
+- Schema/migrations: none
+- New env vars: none
+- Tests: 49 passing total (5 new in `tests/integration/coding-task.test.ts`) — hiddenTests hidden from
+  list and from non-admin single-task reads, role guard on writes, delete-blocked-when-attached,
+  question-bank topic filter, role guard on question delete
+- Decisions: none new
+- Issues left: none
+- Next: Phase 4 — arming and candidate join
 
 ### 2026-09-17 — Phase 2 session setup
 - Phase: 2
