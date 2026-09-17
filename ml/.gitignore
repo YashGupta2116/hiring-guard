@@ -1,0 +1,15 @@
+.claude/
+__pycache__/
+*.pyc
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+*.egg-info/
+build/
+dist/
+fixtures/raw/*.mp4
+fixtures/raw/*.webm
+reports/*.png
+reports/*.svg
+.DS_Store
