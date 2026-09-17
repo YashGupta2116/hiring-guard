@@ -91,6 +91,7 @@ Layer-based, matching the existing project (`controllers/`, `routes/`, `utils/`)
 
 ```
 backend/
+├── docs/                          # PRD, Architecture, Rules, Phases, Design, Memory
 ├── prisma/
 │   ├── schema.prisma
 │   └── migrations/
