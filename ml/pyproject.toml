@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "vtml"
+version = "0.1.0"
+description = "VeriTrust integrity evidence-fusion engine"
+requires-python = ">=3.11"
+dependencies = [
+    "pydantic>=2.5",
+    "numpy>=1.26",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-benchmark",
+    "scikit-learn",
+    "pandas",
+    "matplotlib",
+    "mypy",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

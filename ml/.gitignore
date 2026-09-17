@@ -13,3 +13,4 @@ fixtures/raw/*.webm
 reports/*.png
 reports/*.svg
 .DS_Store
+docs/
