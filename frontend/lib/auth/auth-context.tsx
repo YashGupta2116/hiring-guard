@@ -5,6 +5,7 @@ import { usePathname, useRouter } from "next/navigation";
 import * as authApi from "@/lib/api/auth";
 import type { AuthUser } from "@/lib/api/auth";
 import { setSessionExpiredHandler } from "@/lib/api/client";
+import { clearOverviewCache } from "@/lib/api/overview";
 import { Loader2 } from "lucide-react";
 
 type AuthStatus = "loading" | "authenticated" | "unauthenticated";
@@ -53,12 +54,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signIn = useCallback(async (email: string, password: string) => {
     const next = await authApi.login(email, password);
+    clearOverviewCache();
     setUser(next);
     setStatus("authenticated");
   }, []);
 
   const signUp = useCallback(async (input: { name: string; email: string; password: string; orgName: string }) => {
     const next = await authApi.register(input);
+    clearOverviewCache();
     setUser(next);
     setStatus("authenticated");
   }, []);
@@ -67,6 +70,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       await authApi.logout();
     } finally {
+      clearOverviewCache();
       setUser(null);
       setStatus("unauthenticated");
     }

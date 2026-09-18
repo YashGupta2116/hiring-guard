@@ -13,36 +13,32 @@ import {
   Settings,
   Plus,
   UserPlus,
-  Crown,
-  ArrowRight,
-  MoreVertical,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useStore } from "@/lib/store/interview-store";
+import { isUpcoming } from "@/lib/api/overview";
+import { useOverview } from "@/lib/api/use-overview";
+import { usePermissions } from "@/components/auth/role-guard";
 import { ScheduleModal } from "@/components/interviews/schedule-modal";
 import { AddCandidateModal } from "@/components/candidates/add-candidate-modal";
-import { GenerateQuestionModal } from "@/components/questions/generate-question-modal";
 
 interface SidebarProps {
   collapsed: boolean;
   setCollapsed: (collapsed: boolean) => void;
 }
 
-export function Sidebar({ collapsed, setCollapsed }: SidebarProps) {
+export function Sidebar({ collapsed }: SidebarProps) {
   const pathname = usePathname();
-  const { interviews, candidates } = useStore();
+  const { canCreateInterview, canManageCandidates } = usePermissions();
+  const { data, reload } = useOverview(pathname);
 
-  // Quick Action Modal States
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
   const [candidateModalOpen, setCandidateModalOpen] = useState(false);
-  const [questionModalOpen, setQuestionModalOpen] = useState(false);
 
-  // Counter badges matching user's design screenshot (7 interviews, 10 candidates)
-  const interviewCount =
-    interviews.filter((i) => i.status === "Scheduled" || i.status === "Live").length || 7;
-  const candidateCount = candidates.length || 10;
+  // Badges are real counts and stay hidden until the first load (or if it fails) rather than showing a guess.
+  const interviewCount = data ? data.sessions.filter((s) => isUpcoming(s) || s.status === "LIVE").length : undefined;
+  const candidateCount = data?.candidates.total;
 
-  const navItems = [
+  const navItems: { title: string; href: string; icon: typeof LayoutGrid; badge?: number }[] = [
     {
       title: "Dashboard",
       href: "/app/dashboard",
@@ -52,13 +48,13 @@ export function Sidebar({ collapsed, setCollapsed }: SidebarProps) {
       title: "Interviews",
       href: "/app/interviews",
       icon: CalendarDays,
-      badge: 7, // Exactly 7 as in screenshot
+      badge: interviewCount,
     },
     {
       title: "Candidates",
       href: "/app/candidates",
       icon: Users,
-      badge: 10, // Exactly 10 as in screenshot
+      badge: candidateCount,
     },
     {
       title: "Reports",
@@ -166,8 +162,10 @@ export function Sidebar({ collapsed, setCollapsed }: SidebarProps) {
               <button
                 type="button"
                 onClick={() => setScheduleModalOpen(true)}
+                disabled={!canCreateInterview}
                 title={collapsed ? "Schedule Interview" : undefined}
                 className={cn(
+                  "disabled:opacity-50 disabled:cursor-not-allowed",
                   "group flex items-center justify-between w-full rounded-2xl bg-[#EFECE6] dark:bg-stone-800/70 hover:bg-[#EAE5DC] dark:hover:bg-stone-800 text-left transition-colors cursor-pointer",
                   collapsed ? "justify-center p-2 rounded-xl" : "px-3 py-2.5"
                 )}
@@ -188,8 +186,10 @@ export function Sidebar({ collapsed, setCollapsed }: SidebarProps) {
               <button
                 type="button"
                 onClick={() => setCandidateModalOpen(true)}
+                disabled={!canManageCandidates}
                 title={collapsed ? "Add Candidate" : undefined}
                 className={cn(
+                  "disabled:opacity-50 disabled:cursor-not-allowed",
                   "group flex items-center justify-between w-full rounded-xl hover:bg-stone-200/50 dark:hover:bg-stone-800/40 text-left transition-colors cursor-pointer",
                   collapsed ? "justify-center p-2" : "px-3 py-2"
                 )}
@@ -206,13 +206,12 @@ export function Sidebar({ collapsed, setCollapsed }: SidebarProps) {
                 </div>
               </button>
 
-              {/* Create Question Action */}
-              <button
-                type="button"
-                onClick={() => setQuestionModalOpen(true)}
-                title={collapsed ? "Create Question" : undefined}
+              {/* Questions are managed on their own page */}
+              <Link
+                href="/app/questions"
+                title={collapsed ? "Question Bank" : undefined}
                 className={cn(
-                  "group flex items-center justify-between w-full rounded-xl hover:bg-stone-200/50 dark:hover:bg-stone-800/40 text-left transition-colors cursor-pointer",
+                  "group flex items-center justify-between w-full rounded-xl hover:bg-stone-200/50 dark:hover:bg-stone-800/40 text-left transition-colors",
                   collapsed ? "justify-center p-2" : "px-3 py-2"
                 )}
               >
@@ -222,29 +221,19 @@ export function Sidebar({ collapsed, setCollapsed }: SidebarProps) {
                   </div>
                   {!collapsed && (
                     <span className="text-sm font-medium text-stone-700 dark:text-stone-300 group-hover:text-stone-900 dark:group-hover:text-stone-100 truncate">
-                      Create Question
+                      Question Bank
                     </span>
                   )}
                 </div>
-              </button>
+              </Link>
             </div>
           </div>
         </div>
       </aside>
 
       {/* Embedded Modals for Quick Actions */}
-      <ScheduleModal
-        open={scheduleModalOpen}
-        onOpenChange={setScheduleModalOpen}
-      />
-      <AddCandidateModal
-        open={candidateModalOpen}
-        onOpenChange={setCandidateModalOpen}
-      />
-      <GenerateQuestionModal
-        open={questionModalOpen}
-        onOpenChange={setQuestionModalOpen}
-      />
+      <ScheduleModal open={scheduleModalOpen} onOpenChange={setScheduleModalOpen} onCreated={reload} />
+      <AddCandidateModal open={candidateModalOpen} onOpenChange={setCandidateModalOpen} onCreated={reload} />
     </>
   );
 }

@@ -1,14 +1,13 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useState, useSyncExternalStore } from "react";
 import { useTheme } from "next-themes";
-import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
 import {
   Sun,
   Moon,
-  Laptop,
   Bell,
-  Search,
   Plus,
   Menu,
   Shield,
@@ -18,7 +17,14 @@ import {
 } from "lucide-react";
 import { useAuth, useCurrentUser } from "@/lib/auth/auth-context";
 import { useToast } from "@/components/ui/toast";
+import { usePermissions } from "@/components/auth/role-guard";
+import { GlobalSearch } from "@/components/layout/global-search";
+import { useOverview } from "@/lib/api/use-overview";
+import { timeAgo } from "@/lib/api/overview";
+import { sessionCandidateName, sessionRole } from "@/lib/api/sessions";
 import { ScheduleModal } from "@/components/interviews/schedule-modal";
+
+const subscribeNever = () => () => {};
 
 interface HeaderProps {
   collapsed: boolean;
@@ -31,15 +37,13 @@ export function Header({ collapsed, setCollapsed }: HeaderProps) {
   const currentUser = useCurrentUser();
   const { signOut } = useAuth();
   const { toast } = useToast();
-  const [mounted, setMounted] = useState(false);
+  const mounted = useSyncExternalStore(subscribeNever, () => true, () => false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState("");
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  const pathname = usePathname();
+  const { canCreateInterview } = usePermissions();
+  const { data: overview } = useOverview(pathname);
 
   const handleLogout = async () => {
     try {
@@ -50,20 +54,29 @@ export function Header({ collapsed, setCollapsed }: HeaderProps) {
     router.replace("/login");
   };
 
-  const notifications = [
-    {
-      id: "n-1",
-      title: "Integrity Report Generated",
-      time: "2 mins ago",
-      desc: "Report for Alexei Petrov is ready for review.",
-    },
-    {
-      id: "n-2",
-      title: "Active Live Session",
-      time: "15 mins ago",
-      desc: "Maya Chen joined room #8F7K2M.",
-    },
-  ];
+  // No notification service exists, so this is a live view of what the org's data says right now:
+  // sessions in progress and the newest reports. There is no read/unread state to fake.
+  const liveSessions = overview?.sessions.filter((s) => s.status === "LIVE") ?? [];
+  const activity = overview
+    ? [
+        ...liveSessions.map((s) => ({
+          id: `live-${s.id}`,
+          title: "Session in progress",
+          desc: `${sessionCandidateName(s)}: ${sessionRole(s)}`,
+          time: s.startedAt ? timeAgo(s.startedAt) : "now",
+          at: Number.MAX_SAFE_INTEGER, // in-progress sessions sort above reports
+          href: `/app/interviews/${s.id}/live`,
+        })),
+        ...overview.reports.slice(0, 4).map((r) => ({
+          id: `report-${r.id}`,
+          title: "Report ready",
+          desc: `${r.session.candidate ? r.session.candidate.name?.trim() || r.session.candidate.email : "No candidate"}: ${r.session.title?.trim() || "Untitled interview"}`,
+          time: timeAgo(r.createdAt),
+          at: new Date(r.createdAt).getTime(),
+          href: `/app/reports/${r.id}`,
+        })),
+      ].sort((x, y) => y.at - x.at)
+    : [];
 
   return (
     <>
@@ -95,19 +108,7 @@ export function Header({ collapsed, setCollapsed }: HeaderProps) {
 
         {/* Center: Search Bar */}
         <div className="flex-1 max-w-md mx-6 hidden md:block">
-          <div className="relative w-full">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-stone-400" />
-            <input
-              type="text"
-              placeholder="Search candidates, interviews, questions, reports..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full rounded-xl border border-stone-200/90 dark:border-stone-800 bg-white/70 dark:bg-stone-900/60 pl-9 pr-14 py-2 text-xs text-stone-900 dark:text-stone-100 placeholder:text-stone-400 focus:outline-none focus:ring-1 focus:ring-stone-400 dark:focus:ring-stone-600 transition-all shadow-2xs"
-            />
-            <kbd className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 flex h-5 select-none items-center gap-1 rounded border border-stone-200 dark:border-stone-700 bg-stone-100 dark:bg-stone-800 px-1.5 font-mono text-[10px] text-stone-500">
-              ⌘ K
-            </kbd>
-          </div>
+          <GlobalSearch sessions={overview?.sessions ?? []} />
         </div>
 
         {/* Right: Actions */}
@@ -123,8 +124,8 @@ export function Header({ collapsed, setCollapsed }: HeaderProps) {
           {/* + Schedule Button */}
           <button
             onClick={() => setScheduleModalOpen(true)}
-            disabled={currentUser.role === "Viewer"}
-            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-stone-900 hover:bg-stone-800 text-white dark:bg-stone-100 dark:hover:bg-stone-200 dark:text-stone-900 text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+            disabled={!canCreateInterview}
+            className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-stone-900 hover:bg-stone-800 text-white dark:bg-stone-100 dark:hover:bg-stone-200 dark:text-stone-900 text-xs font-semibold shadow-xs transition-colors cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
           >
             <Plus className="h-3.5 w-3.5 stroke-[2.5]" />
             <span>Schedule</span>
@@ -138,31 +139,34 @@ export function Header({ collapsed, setCollapsed }: HeaderProps) {
                 setShowUserMenu(false);
               }}
               className="relative p-2 rounded-xl text-stone-500 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-100 hover:bg-stone-200/50 dark:hover:bg-stone-800 transition-colors"
-              title="Notifications"
+              title="Recent activity" aria-label="Recent activity"
             >
               <Bell className="h-4 w-4" />
-              <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-red-500 ring-2 ring-[#FAF9F6] dark:ring-[#181510]" />
+              {liveSessions.length > 0 && (
+                <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-[#FAF9F6] dark:ring-[#181510]" />
+              )}
             </button>
 
             {showNotifications && (
               <div className="absolute right-0 top-10 w-72 rounded-xl border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 p-2.5 shadow-xl z-50 animate-in fade-in-50 zoom-in-95">
-                <div className="flex items-center justify-between pb-1.5 border-b border-stone-100 dark:border-stone-800 px-1">
-                  <span className="text-xs font-semibold text-stone-900 dark:text-stone-100">Notifications</span>
-                  <span className="text-[10px] text-stone-500 cursor-pointer hover:underline">
-                    Mark read
-                  </span>
+                <div className="pb-1.5 border-b border-stone-100 dark:border-stone-800 px-1">
+                  <span className="text-xs font-semibold text-stone-900 dark:text-stone-100">Recent activity</span>
                 </div>
-                <div className="divide-y divide-stone-100 dark:divide-stone-800">
-                  {notifications.map((n) => (
-                    <div key={n.id} className="py-2 px-1 text-xs text-left">
-                      <div className="flex items-center justify-between">
-                        <span className="font-medium text-stone-900 dark:text-stone-100 text-[11px]">{n.title}</span>
-                        <span className="text-[10px] text-stone-400">{n.time}</span>
-                      </div>
-                      <p className="text-[11px] text-stone-500 mt-0.5">{n.desc}</p>
-                    </div>
-                  ))}
-                </div>
+                {activity.length === 0 ? (
+                  <p className="py-3 px-1 text-[11px] text-stone-500">Nothing yet. Live sessions and new reports appear here.</p>
+                ) : (
+                  <div className="divide-y divide-stone-100 dark:divide-stone-800">
+                    {activity.map((n) => (
+                      <Link key={n.id} href={n.href} onClick={() => setShowNotifications(false)} className="block py-2 px-1 text-xs text-left hover:bg-stone-50 dark:hover:bg-stone-800/50 rounded">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-medium text-stone-900 dark:text-stone-100 text-[11px]">{n.title}</span>
+                          <span className="text-[10px] text-stone-400 shrink-0">{n.time}</span>
+                        </div>
+                        <p className="text-[11px] text-stone-500 mt-0.5 truncate">{n.desc}</p>
+                      </Link>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
           </div>
