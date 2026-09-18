@@ -3,6 +3,8 @@
 > Source of truth for data: `backend/prisma/schema.prisma`.
 > Source of truth for API shapes and socket events: `Design.md`.
 > What to build and in what order: `Phases.md`.
+> This backend's relationship to `ml/` (a separate, non-integrated fusion engine — do not treat it as
+> this component's scoring implementation): [`../../docs/cross-component-architecture.md`](../../docs/cross-component-architecture.md).
 
 ---
 
@@ -88,6 +90,16 @@ External (later): LiveKit server, CV service, ASR service, LLM provider
 ## 4. Folder structure
 
 Layer-based, matching the existing project (`controllers/`, `routes/`, `utils/`).
+
+> This tree is the target across **all** phases (0–11), not what exists after Phase 9 (current status,
+> `docs/Memory.md`). Phase 10 (`pipeline/`, `scoring.service.ts`, `report.service.ts`,
+> `evidence.routes.ts`, `webhook.routes.ts`) and Phase 11 (`retention.service.ts`, `types/telemetry.ts`,
+> `utils/time.ts`) are not built yet. A few filenames below are also aspirational, not just
+> unbuilt — e.g. `task.routes.ts` here is `coding-task.routes.ts` in the actual tree, and there is no
+> `live.routes.ts` or `report.routes.ts`; flag/note/suggestion/evidence-verify endpoints live under
+> `session.routes.ts` and `flag.routes.ts` instead. `docs/Memory.md`'s "What exists right now" section
+> is the actual, current file map — treat this tree as the plan it was written from, not as a live
+> listing.
 
 ```
 backend/

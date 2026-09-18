@@ -1,0 +1,127 @@
+{
+  "$schema": "internal://veritrust/detector-registry",
+  "_readme": [
+    "Single source of truth for the vocabulary that crosses the backend/ml boundary.",
+    "backend/ (TypeScript) is the canonical live scorer: src/config/detection.ts owns LLR_TABLE,",
+    "MonitoringChannel is defined in backend/prisma/schema.prisma.",
+    "ml/ (Python) is the offline calibration + evaluation lab: src/vtml/detectors/schema.py owns",
+    "REGISTRY, Channel is defined in src/vtml/types.py.",
+    "Neither file imports the other today. This file exists so the two vocabularies are recorded",
+    "side by side instead of drifting silently -- see docs/cross-component-architecture.md.",
+    "",
+    "HOW TO KEEP THIS IN SYNC:",
+    "1. backend/prisma/schema.prisma's `enum MonitoringChannel` is authoritative for",
+    "   monitoringChannels.values -- if you change the enum, update this file in the same change.",
+    "2. ml/src/vtml/detectors/schema.py's REGISTRY is authoritative for mlDetectorTypes -- if you",
+    "   add/remove/rename a DetectorType or its wire_channel, update this file in the same change.",
+    "3. backend/src/config/detection.ts's LLR_TABLE is authoritative for backendDetectorTypes --",
+    "   same rule.",
+    "4. backend/tests/unit/detection-contract.test.ts and ml/tests/test_contract.py both load this",
+    "   file and fail if their local source drifts from it. Run both before merging a change here.",
+    "5. `typeMapping` is documentation, not code -- nothing enforces it at runtime yet. It exists so",
+    "   a future integration (ml priors informing backend LLRs, or a CV/ASR producer emitting ml-",
+    "   shaped types at the internal API) has one agreed mapping to build against instead of",
+    "   guessing from two independently-invented vocabularies."
+  ],
+
+  "monitoringChannels": {
+    "_source": "backend/prisma/schema.prisma enum MonitoringChannel",
+    "values": ["GAZE", "FACE", "IDENTITY", "SCENE", "AUDIO", "SCREEN", "FOCUS", "PASTE", "RHYTHM", "POINTER", "ENVIRONMENT"]
+  },
+
+  "mlChannels": {
+    "_source": "ml/src/vtml/types.py class Channel",
+    "values": ["gaze", "scene", "focus", "input", "network", "audio"]
+  },
+
+  "channelMapping": {
+    "_readme": "ml's 6 channels are coarser than backend's 11. This is the mapping ml/src/vtml/wire.py already implements at the observation level (via wire_channel per detector type, not a flat channel-to-channel map) -- recorded here at channel granularity for quick reference.",
+    "gaze": ["GAZE"],
+    "scene": ["SCENE"],
+    "focus": ["FOCUS"],
+    "input": ["PASTE", "RHYTHM"],
+    "network": [],
+    "audio": []
+  },
+  "channelMappingNotes": {
+    "network": "No MonitoringChannel value exists for it. ml/wire.py turns a network observation into an UnscoredWindow (reason SIGNAL_LOSS) instead -- a dropped connection is never scored, on either side (backend Architecture.md §6.6 agrees independently).",
+    "audio": "Declared on both sides but inert in v1. ml/wire.py never puts it on the wire. Backend's `second_voice` LLR_TABLE entry exists but is not emitted by any backend detector -- reserved for a future ASR producer.",
+    "POINTER": "Backend MonitoringChannel value with no ml equivalent -- PRD names no pointer/mouse-movement detector in ml v1 (ml/docs/Memory.md, 2026-09-18 decision).",
+    "IDENTITY, SCREEN, ENVIRONMENT": "Backend MonitoringChannel values with no ml equivalent at all -- backend-only concepts (device/environment change detectors, identity checks) that ml's 6-channel model never modeled."
+  },
+
+  "backendDetectorTypes": {
+    "_source": "backend/src/config/detection.ts LLR_TABLE keys",
+    "_readmeEmitted": "emittedByClientDetector: types actually produced by backend/src/live/detectors/*.ts today.",
+    "emittedByClientDetector": {
+      "focus_loss": "focus.detector.ts",
+      "focus_resume": "focus.detector.ts",
+      "paste_large": "paste.detector.ts",
+      "pointer_leave": "pointer.detector.ts",
+      "pointer_return": "pointer.detector.ts",
+      "rhythm_anomaly": "rhythm.detector.ts",
+      "rhythm_normal": "rhythm.detector.ts",
+      "multi_screen": "env.detector.ts",
+      "device_change": "env.detector.ts",
+      "network_anomaly": "env.detector.ts",
+      "typed_ratio_low": "authorship.detector.ts (coding round)",
+      "typing_burst": "authorship.detector.ts (coding round)"
+    },
+    "_readmeReserved": "reservedForExternalProducer: types with an LLR_TABLE entry but no client detector -- only reachable today via POST /api/v1/internal/:id/observations (CV/ASR producers, backend Architecture.md §2). No producer sends these yet.",
+    "reservedForExternalProducer": {
+      "visibility_loss": "intended for a screen/camera-visibility CV signal",
+      "face_absent": "intended for a face-detection CV signal",
+      "multiple_faces": "intended for a face-count CV signal",
+      "gaze_away": "intended for a gaze-tracking CV signal",
+      "second_voice": "intended for a second-speaker ASR signal"
+    },
+    "openQuestion": "visibility_loss and face_absent carry near-identical LLR values (0.8/1.2/1.8 vs 0.9/1.4/2.0) and no detector distinguishes their intended trigger. Worth resolving with whoever wires the first CV producer, not decided here."
+  },
+
+  "mlDetectorTypes": {
+    "_source": "ml/src/vtml/detectors/schema.py REGISTRY (DetectorType enum)",
+    "values": {
+      "gaze.offscreen_glance": { "channel": "gaze", "wire_channel": "GAZE" },
+      "gaze.persistent_offscreen": { "channel": "gaze", "wire_channel": "GAZE" },
+      "gaze.fixed_external_focus": { "channel": "gaze", "wire_channel": "GAZE" },
+      "scene.face_absent": { "channel": "scene", "wire_channel": "SCENE" },
+      "scene.multiple_faces": { "channel": "scene", "wire_channel": "SCENE" },
+      "focus.tab_hidden": { "channel": "focus", "wire_channel": "FOCUS" },
+      "focus.window_blur": { "channel": "focus", "wire_channel": "FOCUS" },
+      "focus.fullscreen_exit": { "channel": "focus", "wire_channel": "FOCUS" },
+      "input.large_paste": { "channel": "input", "wire_channel": "PASTE" },
+      "input.low_typed_ratio": { "channel": "input", "wire_channel": "PASTE" },
+      "input.burst_rate": { "channel": "input", "wire_channel": "RHYTHM" },
+      "input.rhythm_shift": { "channel": "input", "wire_channel": "RHYTHM" },
+      "network.telemetry_gap": { "channel": "network", "wire_channel": null },
+      "network.clock_anomaly": { "channel": "network", "wire_channel": null },
+      "network.client_inconsistency": { "channel": "network", "wire_channel": null },
+      "audio.second_voice": { "channel": "audio", "wire_channel": null }
+    }
+  },
+
+  "_readmeTypeMapping": "typeMapping: ml detector type -> the backend detector type it is conceptually equivalent to. Not wired anywhere today -- see docs/cross-component-architecture.md for why (backend types are coarser: 12 vs ml's 16, and several ml types collapse into one backend type). Reference for whoever builds the first real integration.",
+  "typeMapping": {
+    "gaze.offscreen_glance": "gaze_away",
+    "gaze.persistent_offscreen": "gaze_away",
+    "gaze.fixed_external_focus": "gaze_away",
+    "scene.face_absent": "face_absent",
+    "scene.multiple_faces": "multiple_faces",
+    "focus.tab_hidden": "focus_loss",
+    "focus.window_blur": "focus_loss",
+    "focus.fullscreen_exit": "focus_loss",
+    "input.large_paste": "paste_large",
+    "input.low_typed_ratio": "typed_ratio_low",
+    "input.burst_rate": "typing_burst",
+    "input.rhythm_shift": "rhythm_anomaly",
+    "audio.second_voice": "second_voice",
+    "network.telemetry_gap": null,
+    "network.clock_anomaly": null,
+    "network.client_inconsistency": null
+  },
+  "typeMappingNotes": {
+    "network.*": "No backend equivalent -- backend never scores network/signal-loss as evidence (see channelMappingNotes.network). These three ml types would all become an UnscoredWindow, never an LLR_TABLE lookup.",
+    "unmapped_backend_types": ["multi_screen", "device_change"],
+    "unmapped_backend_types_note": "No ml equivalent -- ml's 6-channel model has no device/screen-count concept."
+  }
+}

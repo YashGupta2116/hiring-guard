@@ -3,11 +3,24 @@
 Component: `veritrust-ml`
 Version: 1.0
 
+> This component's relationship to `backend/` — a separate, non-integrated fusion engine that is the
+> one actually scoring live sessions — is documented in
+> [`../../docs/cross-component-architecture.md`](../../docs/cross-component-architecture.md). Read
+> that before assuming anything below is wired into the product.
+
 ---
 
 ## 1. Shape of the thing
 
 One Python package with two entry points that share all of their logic.
+
+**Current state, not the design below:** only the OFFLINE side runs, and only by hand
+(`python -m vtml.replay`, `python -m vtml.evaluate`). The RUNTIME side — API Gateway, `vtml.handler`,
+DynamoDB — was never built: Phase 5 (Lambda packaging) is cut, `handler.py` does not exist, and there
+is no `weights.json` (Phase 3, fitting the curves that file would hold, is cut too). The diagram and
+sections 3, 8 and 9 below are the design this was originally scoped to reach, kept because nothing in
+them is wrong, just unbuilt — see `docs/Phases.md`, "What remains undone overall," and
+`docs/Memory.md`'s Known issues for the authoritative current-state list.
 
 ```
                  OFFLINE                              RUNTIME
@@ -169,10 +182,11 @@ veritrust-ml/
                                   # only other place besides vtml.mplstyle
                                   # allowed to name a colour
       report.py                  # writes reports/eval-<version>.md
-    handler.py                   # Lambda entry, the only AWS-aware module
-  weights/
-    weights.json                 # the shipped artifact
-    weights.schema.json
+    handler.py                   # Lambda entry, the only AWS-aware module.
+                                  # Phase 5, cut -- does not exist.
+  weights/                       # Phase 3, cut -- does not exist. No fitted
+    weights.json                 # curve has ever been produced; the shipped
+    weights.schema.json          # artifact this represents was never built.
   fixtures/
     raw/*.jsonl
     labels/*.json

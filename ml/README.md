@@ -56,3 +56,5 @@ Every detector type string, its channel, its backend wire mapping, and its hand-
 ## Status
 
 Phase 0 (scaffold), Phase 1 (fusion core), Phase 2 (detector registry, ingest, baselines), Phase 4 (evaluation harness and report), and Phase 6 (demo fixture, replay, walkthrough) are complete -- Phase 6 was the last phase. Phase 3 (fixture capture and calibration) and Phase 5 (Lambda packaging) are cut for the hackathon. See `docs/Memory.md` for current state and key decisions, and `docs/Phases.md` for what remains undone overall.
+
+This component is not wired into `backend/`, which runs its own independent fusion engine live. See [`../docs/cross-component-architecture.md`](../docs/cross-component-architecture.md) for how the two relate and why.

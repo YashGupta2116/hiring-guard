@@ -5,6 +5,15 @@ Phase: 6, Demo session -- complete. This was the last phase (Phase 3 and Phase 5
 Last session: 2026-09-18
 Next action: none scoped. Phases.md's "What remains undone overall" lists what a post-submission session would pick up.
 
+Cross-component note (2026-09-18, out-of-phase): `backend/` runs its own independent fusion engine
+live and does not import or call anything in `ml/`. This was reviewed and the decision recorded in
+`../../docs/cross-component-architecture.md` -- `backend/`'s TypeScript engine stays canonical for
+live scoring; this component stays the offline calibration/evaluation lab. Nothing in `src/vtml/`
+changed as part of that review except `tests/test_contract.py` (new), which checks `Channel` and
+`detectors/schema.py::REGISTRY` against the shared `../../contracts/detector-registry.json` so the
+two components' detector vocabularies stop drifting silently. No fusion constant, prior, or test in
+`tests/test_regression_baseline.py` was touched. `pytest -q`: 89 passed (84 before + 5 new).
+
 ## Done
 - [x] Phase 0: scaffold, types, config, synthetic generator
 - [x] Phase 1: fusion core

@@ -4,6 +4,7 @@
  * `type` and the session's sensitivity to a calibrated log-likelihood ratio.
  */
 import type { MonitoringChannel, Sensitivity } from "../generated/prisma/enums.js";
+import { logger } from "../utils/logger.js";
 
 export const DETECTOR_VERSION = "2026.09.1";
 export const WEIGHTS_VERSION = "2026.09.1";
@@ -33,8 +34,44 @@ export const LLR_TABLE: Record<string, BySensitivity> = {
   rhythm_normal: { LOW: -0.3, STANDARD: -0.3, HIGH: -0.3 },
 };
 
+/**
+ * Detector types this process has already warned about, so a repeatedly-misbehaving producer logs
+ * once per type instead of flooding — but every occurrence still counts (see
+ * `unknownDetectorTypeCounts`), since a silently-zeroed observation on an integrity score is the
+ * kind of thing that needs to be countable, not just loggable.
+ */
+const warnedUnknownTypes = new Set<string>();
+const unknownTypeCounts = new Map<string, number>();
+
+/**
+ * An unrecognised `type` here means an observation crossed a channel weight and a corroboration
+ * window and then contributed exactly zero to the score — never a thrown error, never a dropped
+ * row, just silence. That is indistinguishable from a clean signal on the dashboard, which is the
+ * worst failure mode for an integrity product. Most likely cause today: a CV/ASR producer (or a
+ * future ml/ integration, see docs/cross-component-architecture.md) emitting a `type` string this
+ * table doesn't have a row for — the two components' detector vocabularies are not the same, see
+ * `contracts/detector-registry.json`.
+ */
 export function getLlr(type: string, sensitivity: Sensitivity): number {
-  return LLR_TABLE[type]?.[sensitivity] ?? 0;
+  const row = LLR_TABLE[type];
+  if (row === undefined) {
+    unknownTypeCounts.set(type, (unknownTypeCounts.get(type) ?? 0) + 1);
+    if (!warnedUnknownTypes.has(type)) {
+      warnedUnknownTypes.add(type);
+      logger.warn(
+        { detectorType: type, sensitivity },
+        "getLlr: unrecognised detector type, scoring as LLR=0 (observation accepted, contributes nothing). " +
+          "Check contracts/detector-registry.json — the sender's vocabulary may not match LLR_TABLE.",
+      );
+    }
+    return 0;
+  }
+  return row[sensitivity];
+}
+
+/** For health checks / diagnostics: detector types seen that have no LLR_TABLE row, and how often. */
+export function getUnknownDetectorTypeCounts(): ReadonlyMap<string, number> {
+  return unknownTypeCounts;
 }
 
 export const CHANNEL_WEIGHTS: Record<MonitoringChannel, number> = {
