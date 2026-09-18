@@ -1,10 +1,20 @@
 import type { Request, Response } from "express";
 import { getInput } from "../middlewares/validate.js";
 import * as configService from "../services/config.service.js";
+import * as flagService from "../services/flag.service.js";
 import * as lifecycleService from "../services/lifecycle.service.js";
+import * as noteService from "../services/note.service.js";
 import * as sessionService from "../services/session.service.js";
-import { created, list, noContent, ok } from "../utils/respond.js";
+import * as suggestionService from "../services/suggestion.service.js";
+import { accepted, created, list, noContent, ok } from "../utils/respond.js";
 import { patchConfigSchema } from "../validators/config.schema.js";
+import {
+  acceptSuggestionSchema,
+  addNoteSchema,
+  listFlagsSchema,
+  listNotesSchema,
+  suggestionsRefreshSchema,
+} from "../validators/live.schema.js";
 import {
   addInterviewerSchema,
   createSessionSchema,
@@ -69,4 +79,29 @@ export async function removeInterviewer(req: Request, res: Response): Promise<vo
   const { params } = getInput(req, removeInterviewerSchema);
   await sessionService.removeInterviewer(req.user!.orgId, params.id, params.userId);
   noContent(res);
+}
+
+export async function getFlags(req: Request, res: Response): Promise<void> {
+  const { params, query } = getInput(req, listFlagsSchema);
+  ok(res, await flagService.listFlags(req.user!.orgId, params.id, query));
+}
+
+export async function getNotes(req: Request, res: Response): Promise<void> {
+  const { params } = getInput(req, listNotesSchema);
+  ok(res, await noteService.listNotes(params.id));
+}
+
+export async function addNote(req: Request, res: Response): Promise<void> {
+  const { params, body } = getInput(req, addNoteSchema);
+  created(res, await noteService.addNote(params.id, req.user!.sub, body.body));
+}
+
+export async function refreshSuggestions(req: Request, res: Response): Promise<void> {
+  const { params } = getInput(req, suggestionsRefreshSchema);
+  accepted(res, await suggestionService.refreshSuggestions(req.user!.orgId, params.id));
+}
+
+export async function acceptSuggestion(req: Request, res: Response): Promise<void> {
+  const { params } = getInput(req, acceptSuggestionSchema);
+  ok(res, await suggestionService.acceptSuggestion(req.user!.orgId, params.id, params.suggestionId, req.user!.sub));
 }
