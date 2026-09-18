@@ -5,6 +5,14 @@ measured against. If this test fails, scoring behaviour changed: either
 the change was intended and this file gets a new expected value with a
 reason, or something regressed. Never relax the assertions to make it
 pass.
+
+2026-09-18: baseline moved from 93.11 to 94.28386762280083. `Engine.
+_process_one` used to accumulate LLR for observations inside the 60s
+calibration window and only gate flag emission; five of this fixture's
+sixteen observations land inside that window (t=12425..52802) and were
+being charged against the candidate during the window the product
+promises is observe-only (PRD section 3). Fixing that raised the score --
+see docs/Memory.md for the full before/after. This is not drift.
 """
 
 from __future__ import annotations
@@ -21,7 +29,7 @@ from vtml.types import Channel, Observation, SessionResult
 _FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "synthetic" / "honest_seed7.jsonl"
 
 # Filled in from the first run. See the module docstring before editing.
-_EXPECTED_SCORE = 93.11
+_EXPECTED_SCORE = 94.28386762280083
 
 
 def _load(path: Path) -> list[Observation]:
@@ -66,9 +74,9 @@ def test_channel_contributions_are_unchanged(honest_result: SessionResult) -> No
     # exactly zero: a non-zero value there means evidence appeared on a
     # channel the generator never wrote to.
     expected = {
-        Channel.GAZE: 0.21648255031641855,
+        Channel.GAZE: 0.1582772816645856,
         Channel.SCENE: 0.0,
-        Channel.FOCUS: 0.32380731655958755,
+        Channel.FOCUS: 0.26348787968391063,
         Channel.INPUT: 0.0,
         Channel.NETWORK: 0.0,
         Channel.AUDIO: 0.0,

@@ -12,10 +12,14 @@ from vtml.types import Channel, Observation, Source
 
 
 def _gaze_llr_for(duration_ms: int) -> float:
+    # t_ms=60_000 is the first non-calibrating instant (calibrating is
+    # obs.t_ms < calibration_window_s * 1000): this helper tests the pure
+    # duration-scaling formula, which has nothing to do with the
+    # calibration window, so the observation just needs to land outside it.
     engine = Engine(STANDARD, Weights())
     obs = Observation(
         seq=0,
-        t_ms=0,
+        t_ms=60_000,
         channel=Channel.GAZE,
         type="gaze.offscreen_glance",
         confidence=0.5,
@@ -25,7 +29,7 @@ def _gaze_llr_for(duration_ms: int) -> float:
         source=Source.SYNTHETIC,
     )
     engine.ingest([obs])
-    return engine.finalise(0).channels[Channel.GAZE]
+    return engine.finalise(60_000).channels[Channel.GAZE]
 
 
 def test_single_observation_llr_after_duration_scaling() -> None:

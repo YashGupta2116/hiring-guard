@@ -97,15 +97,18 @@ def test_same_gaze_stream_against_two_baselines_gives_different_flag_counts() ->
     assert len(result_a.flags) > len(result_b.flags)
 
 
-def test_calibration_window_suppresses_flags_but_still_records_evidence() -> None:
+def test_calibration_window_suppresses_flags_and_evidence_but_still_feeds_baseline() -> None:
     # A persistent_offscreen event well within the flag-threshold LLR
-    # range, but entirely inside the 60 s calibration window: no flag,
-    # even though the same event past the window would flag (per the
-    # test above).
+    # range, but entirely inside the 60 s calibration window: no flag and
+    # no accumulated evidence -- the window is observe-only, literally
+    # (PRD section 3). It still counts as accepted, and the baseline
+    # builder still saw it: that's the one thing the window has to do.
     observations = [_gaze_obs(0, 5_000, yaw=90.0, duration_ms=8000)]
     engine = Engine(_CONFIG, Weights())
-    engine.ingest(observations)
+    ingest = engine.ingest(observations)
     result = engine.finalise(59_000)
+
+    assert ingest.accepted == 1
     assert result.flags == []
-    # Evidence still accumulated: the gaze channel is non-zero.
-    assert result.channels[Channel.GAZE] != 0.0
+    assert result.channels[Channel.GAZE] == 0.0
+    assert engine._baseline_builder._gaze_points == [(90.0, 0.0)]

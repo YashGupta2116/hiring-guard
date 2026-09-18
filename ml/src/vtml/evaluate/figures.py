@@ -17,6 +17,7 @@ matplotlib.use("Agg")  # this module only ever writes files, never a window
 
 import matplotlib.pyplot as plt
 from matplotlib import font_manager
+from matplotlib.axes import Axes
 from matplotlib.figure import Figure
 from matplotlib.ticker import FuncFormatter
 
@@ -89,6 +90,19 @@ def configure_style() -> list[str]:
 def _mmss(t_ms: float, _pos: object = None) -> str:
     total_s = int(t_ms // 1000)
     return f"{total_s // 60:02d}:{total_s % 60:02d}"
+
+
+def _draw_calibration_hatch(ax: Axes, calibration_end_ms: float) -> None:
+    """Design.md section 2 rule 2: unscored is `sand/400` plus 45-degree
+    `///` hatching, never a flat fill -- it must be unmistakable next to a
+    flag in greyscale. Matplotlib's hatch colour follows the patch's
+    `edgecolor` (rcParam `hatch.color: edge`), so an explicit edgecolor
+    and a non-zero linewidth are required or the hatch silently does not
+    render at all, leaving a plain block."""
+    ax.axvspan(
+        0, calibration_end_ms, facecolor=TOKENS["sand/400"],
+        edgecolor=TOKENS["sand/500"], hatch="///", linewidth=0.8,
+    )
 
 
 def figure_score_distribution(honest: FixtureRun, staged: FixtureRun) -> Figure:
@@ -224,9 +238,17 @@ def _build_timeline(
             _boost, corroborated_by = corroborate.compute_boost(
                 engine._channels, next_obs.channel, next_obs.t_ms, config
             )
-            ingest_result = engine.ingest([next_obs])
-            if ingest_result.accepted:
-                evidence = engine._channels[next_obs.channel].recent[-1]
+            state = engine._channels[next_obs.channel]
+            recent_before = len(state.recent)
+            engine.ingest([next_obs])
+            # A calibration-window observation is accepted but never
+            # reaches state.add() (fusion/engine.py::_process_one) -- no
+            # evidence, no tick, matching the hatched "nothing scored here"
+            # region drawn behind it. Comparing recent's length, rather
+            # than trusting IngestResult.accepted, is what actually
+            # detects that distinction.
+            if len(state.recent) > recent_before:
+                evidence = state.recent[-1]
                 ticks.append(
                     _EvidenceTick(
                         t_ms=next_obs.t_ms,
@@ -263,7 +285,7 @@ def figure_session_timeline(
     # -- Track 1: score -------------------------------------------------
     for _band, lo, hi in _BAND_RANGES:
         ax_score.axhspan(lo, hi, color=_BAND_COLOR[_band], alpha=0.12, lw=0)
-    ax_score.axvspan(0, calibration_end_ms, color=TOKENS["sand/400"], hatch="///", lw=0)
+    _draw_calibration_hatch(ax_score, calibration_end_ms)
     scored = [s for s in samples if s.score is not None]
     ax_score.plot([s.t_ms for s in scored], [s.score for s in scored], color=TOKENS["clay/600"])
     ax_score.set_ylim(0, 100)
@@ -272,11 +294,18 @@ def figure_session_timeline(
     # -- Track 2: evidence -----------------------------------------------
     channels_order = list(Channel)
     row_of = {c: i for i, c in enumerate(channels_order)}
-    ax_evidence.axvspan(0, calibration_end_ms, color=TOKENS["sand/400"], hatch="///", lw=0)
+    _draw_calibration_hatch(ax_evidence, calibration_end_ms)
     max_llr = max((abs(t.llr) for t in ticks), default=1.0) or 1.0
+    # A floor height so background noise (LLR ~0.15-0.35) still reads as a
+    # visible mark instead of a sub-pixel hairline -- the corroboration
+    # argument this track exists to make needs constant, mostly-nothing
+    # evidence to actually be seen. Proportional scaling continues above
+    # the floor, linearly (no log scale): a flagged spike still reads as
+    # clearly larger than background noise, not just "present".
+    min_height, max_height = 0.12, 0.42
     for t in ticks:
         row = row_of[t.channel]
-        height = 0.42 * min(abs(t.llr) / max_llr, 1.0)
+        height = min_height + (max_height - min_height) * min(abs(t.llr) / max_llr, 1.0)
         color = TOKENS["clay/600"] if t.corroborated else TOKENS["clay/400"]
         ax_evidence.vlines(t.t_ms, row - height, row + height, color=color, linewidth=1.2)
     ax_evidence.set_yticks(list(row_of.values()))
@@ -285,7 +314,7 @@ def figure_session_timeline(
     ax_evidence.set_ylabel("Evidence")
 
     # -- Track 3: flags ---------------------------------------------------
-    ax_flags.axvspan(0, calibration_end_ms, color=TOKENS["sand/400"], hatch="///", lw=0)
+    _draw_calibration_hatch(ax_flags, calibration_end_ms)
     for i, flag in enumerate(flags):
         color = _SEVERITY_COLOR[flag.severity]
         ax_flags.plot(

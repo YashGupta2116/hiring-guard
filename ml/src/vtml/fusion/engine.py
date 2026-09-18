@@ -134,15 +134,26 @@ class Engine:
             self._bump("unknown_detector")
             return False
 
-        # Architecture.md section 2 step 2: observe-only for the first
-        # calibration_window_s (Rules.md section 5) of session time.
-        # Evidence still accumulates below; only flag emission is gated.
+        # Architecture.md section 2 step 2 / PRD section 3: the first
+        # calibration_window_s of session time is observe-only, literally --
+        # an in-window observation feeds BaselineBuilder and nothing else.
+        # It never reaches state.add(), so it never enters `recent` (a later
+        # observation cannot corroborate against it -- the window is a hard
+        # boundary for evidence) and contributes no LLR, directly or via
+        # decay (there is nothing on the channel yet to decay). The decay
+        # loop above still runs every step regardless, so `last_update`
+        # tracks forward through the window; the first scored observation
+        # therefore decays from wherever the window left off, not from a
+        # frozen "session open" timestamp.
         calibrating = obs.t_ms < self._config.calibration_window_s * 1000
         if not self._baseline_closed:
             self._baseline_builder.observe(obs)
             if not calibrating:
                 self._baseline = self._baseline_builder.finalise(obs.t_ms)
                 self._baseline_closed = True
+
+        if calibrating:
+            return True
 
         llr = self._observation_llr(obs.duration_ms, prior)
         llr = self._apply_personalisation(obs, llr)
@@ -157,7 +168,7 @@ class Engine:
         self._score, degraded = score_mod.safe_score(self._channels, self._config, self._score)
         self._degraded = self._degraded or degraded
 
-        if not calibrating and evidence.llr >= self._config.flag_threshold:
+        if evidence.llr >= self._config.flag_threshold:
             narrative = narrate_mod.narrate(obs.type, obs.duration_ms, corroborated_by)
             self._flag_counter += 1
             flags_mod.emit_or_merge(

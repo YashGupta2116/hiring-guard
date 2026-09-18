@@ -89,7 +89,10 @@ def test_repeated_snapshots_on_honest_fixture_do_not_change_final_score() -> Non
         engine.snapshot(t_ms)
 
     result = engine.finalise(last_t_ms)
-    assert result.score == pytest.approx(93.11, abs=0.005)
+    # 94.28386762280083, not the old 93.11: the calibration window no
+    # longer charges the candidate for evidence gathered before it closes
+    # (docs/Memory.md, 2026-09-18). Same fixture as test_regression_baseline.py.
+    assert result.score == pytest.approx(94.28386762280083, abs=0.005)
     assert result.band == "clear"
     assert result.flags == []
 
