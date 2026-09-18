@@ -52,6 +52,8 @@ interface ScheduleModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   defaultCandidateId?: string;
+  /** Preselects a coding task (the Question Bank's "Use" button). */
+  defaultTaskId?: string;
   /** Called once the interview and its candidate link exist, so a list behind the modal can refresh. */
   onCreated?: (session: ApiSession) => void;
 }
@@ -221,7 +223,7 @@ function defaultSlot(): { date: string; time: string } {
   return { date: localDateKey(d), time: formatClock(d) };
 }
 
-export function ScheduleModal({ open, onOpenChange, defaultCandidateId, onCreated }: ScheduleModalProps) {
+export function ScheduleModal({ open, onOpenChange, defaultCandidateId, defaultTaskId, onCreated }: ScheduleModalProps) {
   const router = useRouter();
   const currentUser = useCurrentUser();
   const { toast } = useToast();
@@ -240,7 +242,7 @@ export function ScheduleModal({ open, onOpenChange, defaultCandidateId, onCreate
   const [time, setTime] = useState(() => defaultSlot().time);
   const [duration, setDuration] = useState<number>(60);
   const [interviewType, setInterviewType] = useState<InterviewTypeCode>("TECHNICAL");
-  const [taskId, setTaskId] = useState("");
+  const [taskId, setTaskId] = useState(defaultTaskId ?? "");
   const [recordingEnabled, setRecordingEnabled] = useState(true);
   const [monitoring, setMonitoring] = useState<Record<MonitoringKey, boolean>>({
     webcam: true,
@@ -300,7 +302,7 @@ export function ScheduleModal({ open, onOpenChange, defaultCandidateId, onCreate
     setProgress(EMPTY_PROGRESS);
     setError(null);
     setNotes("");
-    setTaskId("");
+    setTaskId(defaultTaskId ?? "");
     setExtraInterviewerId("");
     const slot = defaultSlot();
     setDate(slot.date);
