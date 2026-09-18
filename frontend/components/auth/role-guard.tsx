@@ -67,6 +67,7 @@ export function usePermissions() {
     canCreateInterview: isAdmin || isInterviewer,
     canEditInterview: isAdmin || isInterviewer,
     canDeleteInterview: isAdmin,
+    canManageCandidates: isAdmin || isInterviewer,
     canManageSettings: isAdmin,
     canManageTeam: isAdmin,
   };

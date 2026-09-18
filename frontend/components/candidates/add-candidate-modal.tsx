@@ -7,14 +7,16 @@ import {
   DialogTitle,
   DialogDescription,
 } from "../ui/dialog";
-import { useStore } from "@/lib/store/interview-store";
-import { Candidate } from "@/lib/types";
+import { createCandidate } from "@/lib/api/candidates";
+import { ApiError } from "@/lib/api/client";
 import { useToast } from "../ui/toast";
-import { UserPlus, User, Mail, Briefcase, MapPin, BarChart3, Tag, FileText } from "lucide-react";
+import { UserPlus, User, Mail, Briefcase, MapPin, BarChart3, Tag, FileText, Phone } from "lucide-react";
 
 interface AddCandidateModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** Called after the candidate is saved, so the caller can refresh its list. */
+  onCreated?: () => void;
 }
 
 const BIO_MAX = 1000;
@@ -53,62 +55,64 @@ function IconInput({
   );
 }
 
-export function AddCandidateModal({ open, onOpenChange }: AddCandidateModalProps) {
-  const { addCandidate } = useStore();
+export function AddCandidateModal({ open, onOpenChange, onCreated }: AddCandidateModalProps) {
   const { toast } = useToast();
 
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
-  const [appliedRole, setAppliedRole] = useState("Senior Distributed Systems Engineer");
-  const [location, setLocation] = useState("San Francisco, CA (Remote)");
-  const [experienceYears, setExperienceYears] = useState(5);
-  const [skills, setSkills] = useState("TypeScript, React, Node.js, Go");
+  const [phone, setPhone] = useState("");
+  const [appliedRole, setAppliedRole] = useState("");
+  const [location, setLocation] = useState("");
+  const [experienceYears, setExperienceYears] = useState("");
+  const [skills, setSkills] = useState("");
   const [bio, setBio] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const reset = () => {
+    setName("");
+    setEmail("");
+    setPhone("");
+    setAppliedRole("");
+    setLocation("");
+    setExperienceYears("");
+    setSkills("");
+    setBio("");
+    setError(null);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
     setIsLoading(true);
-
-    const newCand: Candidate = {
-      id: `cand-${Date.now()}`,
-      name,
-      email,
-      avatar: `https://images.unsplash.com/photo-${1534528741775 + Math.floor(Math.random() * 1000)}?w=150&auto=format&fit=crop&q=80`,
-      appliedRole,
-      experienceYears,
-      location,
-      interviewsTaken: 0,
-      lastInterviewDate: "Never",
-      averageScore: 0,
-      status: "Interviewing",
-      bio: bio || `Software engineer with ${experienceYears} years of experience specializing in ${appliedRole}.`,
-      skills: skills.split(",").map((s) => s.trim()).filter(Boolean),
-      strengths: ["Strong problem-solving mindset"],
-      weaknesses: ["Needs domain specific onboarding"],
-      notes: "Newly added candidate to the pipeline.",
-      radarScores: [
-        { skill: "Core Engineering", score: 85, benchmark: 75 },
-        { skill: "Architecture", score: 80, benchmark: 70 },
-        { skill: "Code Speed", score: 82, benchmark: 72 },
-        { skill: "Communication", score: 88, benchmark: 68 },
-        { skill: "System Design", score: 78, benchmark: 75 },
-      ],
-    };
-
-    setTimeout(() => {
-      addCandidate(newCand);
-      setIsLoading(false);
+    try {
+      const saved = await createCandidate({
+        email: email.trim(),
+        name: name.trim(),
+        appliedRole: appliedRole.trim() || undefined,
+        phone: phone.trim() || undefined,
+        location: location.trim() || undefined,
+        experienceYears: experienceYears === "" ? undefined : Number(experienceYears),
+        skills: skills.split(",").map((s) => s.trim()).filter(Boolean),
+        bio: bio.trim() || undefined,
+      });
       toast({
-        title: "Candidate Profile Added",
-        description: `${name} has been enrolled in the talent pipeline.`,
+        title: "Candidate saved",
+        description: `${saved.name ?? saved.email} is in your talent pipeline.`,
         type: "success",
       });
-      setName("");
-      setEmail("");
-      setBio("");
+      reset();
       onOpenChange(false);
-    }, 400);
+      onCreated?.();
+    } catch (err) {
+      if (err instanceof ApiError && err.fields.length > 0) {
+        setError(err.fields.map((f) => `${f.path}: ${f.message}`).join(" · "));
+      } else {
+        setError(err instanceof ApiError ? err.message : "Could not save the candidate. Please try again.");
+      }
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -160,11 +164,25 @@ export function AddCandidateModal({ open, onOpenChange }: AddCandidateModalProps
               </div>
 
               <div className="space-y-1.5">
+                <FieldLabel>Phone</FieldLabel>
+                <IconInput
+                  icon={<Phone className="h-4 w-4" />}
+                  type="tel"
+                  placeholder="+1 555 0100"
+                  maxLength={40}
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                />
+                <FieldHint>Optional contact number.</FieldHint>
+              </div>
+
+              <div className="space-y-1.5">
                 <FieldLabel required>Applied Role</FieldLabel>
                 <IconInput
                   icon={<Briefcase className="h-4 w-4" />}
                   type="text"
                   required
+                  placeholder="e.g. Senior Backend Engineer"
                   value={appliedRole}
                   onChange={(e) => setAppliedRole(e.target.value)}
                 />
@@ -176,6 +194,7 @@ export function AddCandidateModal({ open, onOpenChange }: AddCandidateModalProps
                 <IconInput
                   icon={<MapPin className="h-4 w-4" />}
                   type="text"
+                  placeholder="e.g. Berlin, Germany"
                   value={location}
                   onChange={(e) => setLocation(e.target.value)}
                 />
@@ -188,9 +207,10 @@ export function AddCandidateModal({ open, onOpenChange }: AddCandidateModalProps
                   icon={<BarChart3 className="h-4 w-4" />}
                   type="number"
                   min={0}
-                  max={35}
+                  max={60}
+                  placeholder="e.g. 5"
                   value={experienceYears}
-                  onChange={(e) => setExperienceYears(Number(e.target.value))}
+                  onChange={(e) => setExperienceYears(e.target.value)}
                 />
                 <FieldHint>Total professional experience.</FieldHint>
               </div>
@@ -200,6 +220,7 @@ export function AddCandidateModal({ open, onOpenChange }: AddCandidateModalProps
                 <IconInput
                   icon={<Tag className="h-4 w-4" />}
                   type="text"
+                  placeholder="e.g. TypeScript, React, Go"
                   value={skills}
                   onChange={(e) => setSkills(e.target.value)}
                 />
@@ -230,6 +251,12 @@ export function AddCandidateModal({ open, onOpenChange }: AddCandidateModalProps
               <FieldHint>Give a quick summary to help interviewers prepare.</FieldHint>
             </div>
           </div>
+
+          {error && (
+            <div role="alert" className="mt-2 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-600 dark:text-red-400">
+              {error}
+            </div>
+          )}
 
           <div className="flex items-center justify-end gap-2 pt-3 mt-1 border-t border-border shrink-0">
             <button

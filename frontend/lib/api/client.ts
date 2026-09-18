@@ -96,7 +96,7 @@ export type RequestOptions = {
   auth?: boolean;
 };
 
-export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
+async function execute(path: string, options: RequestOptions): Promise<RawResponse> {
   const { method = "GET", body, auth = true } = options;
 
   const attempt = () => {
@@ -118,6 +118,17 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   }
 
   if (raw.status >= 400) throw toApiError(raw);
+  return raw;
+}
+
+export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  const raw = await execute(path, options);
   if (raw.status === 204) return undefined as T;
   return (raw.body as { data: T }).data;
+}
+
+/** For list endpoints that answer `{ data, meta }` (cursor pagination). */
+export async function apiRequestPage<T, M>(path: string, options: RequestOptions = {}): Promise<{ data: T; meta: M }> {
+  const raw = await execute(path, options);
+  return raw.body as { data: T; meta: M };
 }

@@ -24,6 +24,14 @@ enum OrgRole {
   REVIEWER
 }
 
+enum CandidateStatus {
+  UNDER_REVIEW
+  SHORTLISTED
+  INTERVIEWING
+  HIRED
+  REJECTED
+}
+
 enum InterviewMode {
   SCHEDULED
   DIRECT_LINK
@@ -292,16 +300,25 @@ model RefreshToken {
 }
 
 model Candidate {
-  id        String   @id @default(cuid())
-  orgId     String
-  email     String
-  name      String?
-  createdAt DateTime @default(now())
+  id              String          @id @default(cuid())
+  orgId           String
+  email           String
+  name            String?
+  phone           String?
+  appliedRole     String?
+  location        String?
+  experienceYears Int?
+  bio             String?
+  skills          String[]
+  notes           String?
+  status          CandidateStatus @default(UNDER_REVIEW)
+  createdAt       DateTime        @default(now())
 
   org      Organization       @relation(fields: [orgId], references: [id], onDelete: Cascade)
   sessions InterviewSession[]
 
   @@unique([orgId, email])
+  @@index([orgId, status])
   @@map("candidates")
 }
 
