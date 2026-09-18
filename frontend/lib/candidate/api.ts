@@ -9,6 +9,8 @@ export type JoinSummary = {
   scheduledAt: string | null;
   durationMinutes: number;
   status: "READY" | "NOT_YET_OPEN";
+  /** When the waiting room opens (ISO), if it is restricted. */
+  opensAt: string | null;
 };
 
 export type PreflightProbe = {

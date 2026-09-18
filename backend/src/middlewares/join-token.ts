@@ -1,4 +1,5 @@
 import type { RequestHandler } from "express";
+import { assertJoinWindowOpen } from "../services/join.service.js";
 import { AppError } from "../utils/app-error.js";
 import { verifyJoinToken } from "../utils/jwt.js";
 import { prisma } from "../utils/prisma.js";
@@ -39,4 +40,14 @@ export const requireJoinToken: RequestHandler = async (req, _res, next) => {
 
   req.joinTokenRecord = record;
   next();
+};
+
+/** Must run after requireJoinToken. Blocks preflight, policy and consent until the interview window opens. */
+export const requireJoinWindowOpen: RequestHandler = async (req, _res, next) => {
+  try {
+    await assertJoinWindowOpen(req.joinTokenRecord!);
+    next();
+  } catch (err) {
+    next(err);
+  }
 };

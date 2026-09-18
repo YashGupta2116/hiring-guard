@@ -52,6 +52,15 @@ export function JoinFlow({ token }: { token: string }) {
     loadSummary();
   }, [token, loadSummary]);
 
+  // While the waiting room is closed, check again when it opens so the candidate never has to refresh.
+  const opensAtIso = summary?.status === "NOT_YET_OPEN" ? summary.opensAt : null;
+  useEffect(() => {
+    if (phase !== "intro" || !opensAtIso) return;
+    const delay = Math.min(Math.max(new Date(opensAtIso).getTime() - Date.now(), 1000), 2_000_000_000);
+    const timer = setTimeout(loadSummary, delay);
+    return () => clearTimeout(timer);
+  }, [phase, opensAtIso, loadSummary]);
+
   if (phase === "loading") {
     return (
       <JoinShell>
@@ -105,7 +114,10 @@ export function JoinFlow({ token }: { token: string }) {
           </dl>
 
           {summary.status === "NOT_YET_OPEN" ? (
-            <p className="rounded-lg border border-border bg-background p-3 text-sm text-muted-foreground">This interview isn&apos;t open yet. Please come back to this link closer to the start time.</p>
+            <p className="rounded-lg border border-border bg-background p-3 text-sm text-muted-foreground">
+              This interview isn&apos;t open yet.{" "}
+              {summary.opensAt ? `You can start the setup checks from ${new Date(summary.opensAt).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" })}. Keep this page open and it will continue automatically.` : "Please come back to this link closer to the start time."}
+            </p>
           ) : (
             <>
               <p className="text-xs text-muted-foreground leading-relaxed">

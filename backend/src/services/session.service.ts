@@ -157,6 +157,8 @@ export async function updateSession(orgId: string, id: string, patch: UpdateSess
   const candidateId =
     patch.candidateEmail !== undefined ? await upsertCandidate(orgId, patch.candidateEmail, patch.candidateName ?? undefined) : undefined;
 
+  const candidateChanged = candidateId !== undefined && candidateId !== session.candidateId;
+
   await prisma.interviewSession.update({
     where: { id },
     data: {
@@ -166,6 +168,12 @@ export async function updateSession(orgId: string, id: string, patch: UpdateSess
       ...(candidateId !== undefined ? { candidateId } : {}),
     },
   });
+
+  if (candidateChanged) {
+    // Links were issued for the previous candidate; they must not admit the new one (or stay live for the old one).
+    const revoked = await prisma.joinToken.updateMany({ where: { sessionId: id, revokedAt: null }, data: { revokedAt: new Date() } });
+    await log({ orgId, sessionId: id, actorType: "USER", action: "session.candidate_changed", metadata: { candidateId, linksRevoked: revoked.count } });
+  }
 
   return toDto(await findSessionOrThrow(orgId, id));
 }

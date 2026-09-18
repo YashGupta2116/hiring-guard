@@ -113,6 +113,7 @@ Validation errors:
 | `LINK_EXPIRED` | 410 | join link outside window |
 | `LINK_CONSUMED` | 410 | one-time link already used |
 | `LINK_REVOKED` | 410 | join link revoked |
+| `INTERVIEW_NOT_OPEN` | 403 | join window not open yet (preflight/policy/consent, or starting the live room); `details.opensAt` |
 | `PAYLOAD_TOO_LARGE` | 413 | file over 10 MB |
 | `UNSUPPORTED_MEDIA_TYPE` | 415 | not PDF/DOCX/text |
 | `RATE_LIMITED` | 429 | too many requests |
@@ -224,7 +225,7 @@ Test case shape: `{ "input": "...", "expectedOutput": "..." }`.
 ### 4.7 Links
 | Method | Path | Auth | Notes |
 |---|---|---|---|
-| POST | `/sessions/:id/links` | U (I,O,A) | `{ kind, validFrom?, expiresAt, sendInvite?: boolean }` → 201 `{ linkId, url, kind, expiresAt }`; CONFIGURED→ARMED |
+| POST | `/sessions/:id/links` | U (I,O,A) | `{ kind, validFrom?, expiresAt, sendInvite?: boolean }` → 201 `{ linkId, url, kind, expiresAt }`; CONFIGURED→ARMED (also allowed from ARMED to replace a revoked link) |
 | GET | `/sessions/:id/links` | U | list (no token strings after creation, only ids/state) |
 | POST | `/sessions/:id/links/:linkId/revoke` | U (I,O,A) | |
 
@@ -233,7 +234,7 @@ Test case shape: `{ "input": "...", "expectedOutput": "..." }`.
 ### 4.8 Candidate join (public, join token in path)
 | Method | Path | Auth | Body → Response |
 |---|---|---|---|
-| GET | `/join/:token` | J | `{ sessionTitle, orgName, interviewerNames, scheduledAt, durationMinutes, status: "READY" \| "NOT_YET_OPEN" }` |
+| GET | `/join/:token` | J | `{ sessionTitle, orgName, interviewerNames, scheduledAt, durationMinutes, status: "READY" \| "NOT_YET_OPEN", opensAt: ISO \| null }`. `opensAt` = start minus 15 min (or link `notBefore` if later) |
 | POST | `/join/:token/preflight` | J | probe (below) → `{ preflightId, passed, failures: [{code, message}], warnings: [{code, message}] }` |
 | GET | `/join/:token/policy` | J | `{ bullets: string[], recording: {...}, retentionDays, viewers: string, policyHash }` |
 | POST | `/join/:token/consent` | J | `{ preflightId, policyHash, accepted, scrolledToEnd: true }` → accepted: `{ candidateToken, media: { url, token } }` · declined: `{ ended: true }` |

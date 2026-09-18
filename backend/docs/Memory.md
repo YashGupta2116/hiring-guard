@@ -409,9 +409,15 @@ Removed: `bcryptjs`, `jsonwebtoken` (Rules: use `argon2`, `jose`).
   filter. Fine for now — revisit if DIRECT_LINK sessions need date filtering by `createdAt` instead.
 - No `.ics` calendar attachment on invite emails yet (Phases.md mentions one for scheduled mode) — the
   invite email is a plain text link. Add when a real mail provider is wired up.
-- `GET /join/:token` doesn't block on `notBefore` (only reports `NOT_YET_OPEN` in the `status` field);
-  preflight/policy/consent on a not-yet-open link still work today. No Design.md error code exists for
-  "too early", so this is intentionally permissive until a real requirement shows up.
+- Join window (resolved): a candidate can open the waiting room from `JOIN_EARLY_MINUTES` (15, constants.ts)
+  before `scheduledAt`, or from the link's `notBefore` if later. `GET /join/:token` still answers (status
+  `NOT_YET_OPEN` plus `opensAt`) so the page can say when; preflight, policy and consent are refused with
+  `INTERVIEW_NOT_OPEN` (403) until then, and `startSession` applies the same check. Sessions with no
+  `scheduledAt` (direct links) are unrestricted. Nothing stops the interviewer being late or the candidate
+  joining after the start; that is bounded only by the link's `expiresAt`.
+- Changing a session's candidate (`PATCH /sessions/:id` with `candidateEmail`) revokes every unrevoked link
+  for that session, since they were issued for the previous candidate. `POST /sessions/:id/links` is allowed
+  from CONFIGURED or ARMED so a replacement link can be issued (the status stays ARMED).
 - Retention/viewers text in the consent policy is generic (`DEFAULT_RETENTION_DAYS = 90`), not derived
   per-data-type like Phase 11's actual retention job (90d media / 180d observations / 3y reports). Revisit
   wording once Phase 11 lands so the candidate-facing number matches reality.

@@ -14,11 +14,12 @@ import { useToast } from "@/components/ui/toast";
 import { usePermissions } from "@/components/auth/role-guard";
 import { useCurrentUser } from "@/lib/auth/auth-context";
 import { ApiError } from "@/lib/api/client";
-import { candidateAvatarUrl, getCandidate, type CandidateDetail } from "@/lib/api/candidates";
+import { candidateAvatarUrl, candidateDisplayName, getCandidate, listCandidates, type CandidateDetail, type DirectoryCandidate } from "@/lib/api/candidates";
 import { memberAvatarUrl } from "@/lib/api/org";
 import {
   addSessionNote,
   cancelSession,
+  createSessionLink,
   formatClock,
   getSession,
   interviewTypeLabel,
@@ -59,6 +60,8 @@ import {
   X,
   Ban,
   Link2Off,
+  Link2,
+  UserPlus,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -169,6 +172,8 @@ export default function InterviewDetailPage() {
 
   const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
   const [confirmRevokeId, setConfirmRevokeId] = useState<string | null>(null);
+  const [candidateDialogOpen, setCandidateDialogOpen] = useState(false);
+  const [generatingLink, setGeneratingLink] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [noteText, setNoteText] = useState("");
   const [isAddingNote, setIsAddingNote] = useState(false);
@@ -212,6 +217,22 @@ export default function InterviewDetailPage() {
 
   const activeLink = useMemo(() => links?.find((l) => l.active) ?? null, [links]);
   const latestLink = links?.[0] ?? null;
+
+  /** Links stay valid for a day past the start, like the ones the scheduler creates. */
+  const handleGenerateLink = async () => {
+    if (!session) return;
+    setGeneratingLink(true);
+    try {
+      const base = Math.max(Date.now(), session.scheduledAt ? new Date(session.scheduledAt).getTime() : 0);
+      await createSessionLink(id, { kind: "ONE_TIME", expiresAt: new Date(base + 24 * 3600 * 1000).toISOString(), sendInvite: false });
+      toast({ title: "New link created", description: "Copy it from this page and send it to the candidate. No email was sent.", type: "success" });
+      reload();
+    } catch (err) {
+      toast({ title: "Couldn't create a link", description: err instanceof ApiError ? err.message : "Please try again.", type: "error" });
+    } finally {
+      setGeneratingLink(false);
+    }
+  };
 
   const handleCancelConfirm = async () => {
     try {
@@ -391,8 +412,17 @@ export default function InterviewDetailPage() {
             </div>
           </div>
 
-          {session.candidate && (
-            <div className="shrink-0">
+          <div className="shrink-0 flex flex-wrap items-center gap-2">
+            {canEdit && (
+              <Button
+                variant="outline"
+                onClick={() => setCandidateDialogOpen(true)}
+                className="text-xs font-medium px-3.5 py-2 rounded-lg flex items-center gap-1.5 h-9"
+              >
+                <UserPlus className="h-3.5 w-3.5" /> {session.candidate ? "Change candidate" : "Add candidate"}
+              </Button>
+            )}
+            {session.candidate && (
               <Link href={`/app/candidates/${session.candidate.id}`}>
                 <Button
                   variant="outline"
@@ -401,8 +431,8 @@ export default function InterviewDetailPage() {
                   View Full Profile <ArrowUpRight className="h-3.5 w-3.5" />
                 </Button>
               </Link>
-            </div>
-          )}
+            )}
+          </div>
         </div>
       </div>
 
@@ -428,6 +458,13 @@ export default function InterviewDetailPage() {
                     : "This link has expired."
             }
           />
+          {!activeLink && canEdit && (
+            <div className="flex justify-end">
+              <Button size="sm" onClick={handleGenerateLink} disabled={generatingLink || !session.candidate} title={session.candidate ? undefined : "Add a candidate first"} className="text-xs h-8 gap-1.5">
+                <Link2 className="h-3.5 w-3.5" /> {generatingLink ? "Creating…" : "Generate new link"}
+              </Button>
+            </div>
+          )}
           {activeLink && canConductInterview && (
             <div className="flex justify-end">
               <button
@@ -440,8 +477,13 @@ export default function InterviewDetailPage() {
           )}
         </div>
       ) : (
-        <div className="rounded-xl border border-dashed border-neutral-300 dark:border-neutral-700 p-5 text-xs text-neutral-500">
-          No candidate link has been generated for this interview yet.
+        <div className="rounded-xl border border-dashed border-neutral-300 dark:border-neutral-700 p-5 text-xs text-neutral-500 flex items-center justify-between gap-3">
+          <span>No candidate link has been generated for this interview yet.</span>
+          {canEdit && (
+            <Button size="sm" onClick={handleGenerateLink} disabled={generatingLink || !session.candidate} title={session.candidate ? undefined : "Add a candidate first"} className="text-xs h-8 gap-1.5 shrink-0">
+              <Link2 className="h-3.5 w-3.5" /> {generatingLink ? "Creating…" : "Generate link"}
+            </Button>
+          )}
         </div>
       )}
 
@@ -721,11 +763,22 @@ export default function InterviewDetailPage() {
         open={confirmRevokeId !== null}
         onOpenChange={(open) => !open && setConfirmRevokeId(null)}
         title="Revoke candidate link?"
-        description="The candidate will no longer be able to join with this link. A new link can't be generated for this interview."
+        description="The candidate will no longer be able to join with this link. You can generate a new link afterwards."
         confirmText="Revoke link"
         variant="destructive"
         onConfirm={handleRevoke}
       />
+
+      {candidateDialogOpen && (
+        <CandidateDialog
+          session={session}
+          onOpenChange={setCandidateDialogOpen}
+          onSaved={() => {
+            setCandidateDialogOpen(false);
+            reload();
+          }}
+        />
+      )}
 
       {editOpen && (
         <EditScheduleDialog
@@ -738,6 +791,131 @@ export default function InterviewDetailPage() {
         />
       )}
     </div>
+  );
+}
+
+function CandidateDialog({ session, onOpenChange, onSaved }: { session: ApiSession; onOpenChange: (open: boolean) => void; onSaved: () => void }) {
+  const { toast } = useToast();
+  const [candidates, setCandidates] = useState<DirectoryCandidate[] | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [mode, setMode] = useState<"existing" | "new">("existing");
+  const [selectedId, setSelectedId] = useState("");
+  const [email, setEmail] = useState("");
+  const [newName, setNewName] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    listCandidates({ limit: 100 })
+      .then((res) => {
+        if (!cancelled) setCandidates(res.items);
+      })
+      .catch((err) => {
+        if (!cancelled) setLoadError(err instanceof ApiError ? err.message : "Couldn't load candidates.");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const chosen = candidates?.find((c) => c.id === selectedId);
+  const canSave = mode === "existing" ? !!chosen && chosen.id !== session.candidate?.id : email.trim().length > 0;
+  const hadCandidate = !!session.candidate;
+
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!canSave) return;
+    setSaving(true);
+    setError(null);
+    try {
+      const target = mode === "existing" && chosen ? { email: chosen.email, name: chosen.name } : { email: email.trim(), name: newName.trim() || null };
+      await updateSession(session.id, { candidateEmail: target.email, candidateName: target.name });
+      toast({
+        title: hadCandidate ? "Candidate changed" : "Candidate added",
+        description: hadCandidate ? "Links for the previous candidate were revoked. Generate a new link for the new one." : target.email,
+        type: "success",
+      });
+      onSaved();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Couldn't update the candidate.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const field = "w-full h-10 rounded-lg border border-input bg-background px-3 text-sm text-foreground focus:border-foreground/40 focus:outline-none";
+  const tab = (active: boolean) =>
+    `flex-1 rounded-md px-3 py-1.5 text-xs font-medium transition-colors ${active ? "bg-secondary text-foreground" : "text-muted-foreground hover:text-foreground"}`;
+
+  return (
+    <Dialog open onOpenChange={onOpenChange}>
+      <DialogHeader>
+        <DialogTitle>{hadCandidate ? "Change candidate" : "Add candidate"}</DialogTitle>
+        <DialogDescription>
+          {hadCandidate
+            ? "Pick someone else for this interview. Any link already issued stops working, and you can generate a new one."
+            : "Choose who is being interviewed. You can then generate their link."}
+        </DialogDescription>
+      </DialogHeader>
+      <form onSubmit={handleSave} className="space-y-4">
+        <div className="flex gap-1 rounded-lg border border-border p-1">
+          <button type="button" className={tab(mode === "existing")} onClick={() => setMode("existing")}>
+            Existing candidate
+          </button>
+          <button type="button" className={tab(mode === "new")} onClick={() => setMode("new")}>
+            New candidate
+          </button>
+        </div>
+
+        {mode === "existing" ? (
+          loadError ? (
+            <p role="alert" className="text-xs text-red-600 dark:text-red-400">{loadError}</p>
+          ) : !candidates ? (
+            <p className="text-xs text-muted-foreground">Loading candidates…</p>
+          ) : candidates.length === 0 ? (
+            <p className="text-xs text-muted-foreground">No candidates yet. Use &quot;New candidate&quot; to add one.</p>
+          ) : (
+            <div className="space-y-1.5">
+              <label htmlFor="candidate-pick" className="text-xs font-semibold text-foreground">Candidate</label>
+              <select id="candidate-pick" className={field} value={selectedId} onChange={(e) => setSelectedId(e.target.value)}>
+                <option value="">Select a candidate…</option>
+                {candidates.map((c) => (
+                  <option key={c.id} value={c.id} disabled={c.id === session.candidate?.id}>
+                    {candidateDisplayName(c)} ({c.email}){c.id === session.candidate?.id ? " · current" : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <label htmlFor="candidate-email" className="text-xs font-semibold text-foreground">Email</label>
+              <input id="candidate-email" type="email" required className={field} value={email} onChange={(e) => setEmail(e.target.value)} placeholder="candidate@example.com" />
+            </div>
+            <div className="space-y-1.5">
+              <label htmlFor="candidate-name" className="text-xs font-semibold text-foreground">Name (optional)</label>
+              <input id="candidate-name" className={field} value={newName} onChange={(e) => setNewName(e.target.value)} maxLength={120} />
+            </div>
+          </div>
+        )}
+
+        {error && (
+          <div role="alert" className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-600 dark:text-red-400">
+            {error}
+          </div>
+        )}
+        <div className="flex items-center justify-end gap-2 pt-1">
+          <button type="button" onClick={() => onOpenChange(false)} className="rounded-lg border border-input bg-background px-3.5 py-1.5 text-xs font-semibold text-foreground hover:bg-muted transition-colors">
+            Cancel
+          </button>
+          <button type="submit" disabled={saving || !canSave} className="rounded-lg bg-foreground px-3.5 py-1.5 text-xs font-semibold text-background hover:opacity-90 transition-opacity disabled:opacity-60">
+            {saving ? "Saving…" : hadCandidate ? "Change candidate" : "Add candidate"}
+          </button>
+        </div>
+      </form>
+    </Dialog>
   );
 }
 

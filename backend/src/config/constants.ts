@@ -21,6 +21,9 @@ export const DEFAULT_RETENTION_DAYS = 90;
 export const PREFLIGHT_MIN_DOWNLINK_MBPS = 2;
 export const PREFLIGHT_MIN_CPU_CORES = 4;
 
+/** A candidate may open the waiting room (preflight, consent) this many minutes before the scheduled start, and not earlier. */
+export const JOIN_EARLY_MINUTES = 15;
+
 /** Candidate token stays valid past the interview end so a slow finish/report page load doesn't 401. */
 export const CANDIDATE_TOKEN_GRACE_HOURS = 2;
 

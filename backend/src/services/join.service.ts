@@ -1,4 +1,4 @@
-import { CANDIDATE_TOKEN_GRACE_HOURS, DEFAULT_RETENTION_DAYS, PREFLIGHT_MIN_CPU_CORES, PREFLIGHT_MIN_DOWNLINK_MBPS } from "../config/constants.js";
+import { CANDIDATE_TOKEN_GRACE_HOURS, DEFAULT_RETENTION_DAYS, JOIN_EARLY_MINUTES, PREFLIGHT_MIN_CPU_CORES, PREFLIGHT_MIN_DOWNLINK_MBPS } from "../config/constants.js";
 import type { InterviewSession, JoinToken } from "../generated/prisma/client.js";
 import type { MonitoringChannel } from "../generated/prisma/enums.js";
 import { getMedia } from "../providers/index.js";
@@ -63,9 +63,28 @@ async function loadSession(sessionId: string): Promise<InterviewSession & { org:
   return session;
 }
 
+/**
+ * When the candidate may first enter: JOIN_EARLY_MINUTES before a scheduled start, or the link's own
+ * `notBefore` if that is later. Null means there is no restriction (e.g. a direct link with no start time).
+ */
+export function joinOpensAt(scheduledAt: Date | null, notBefore: Date | null): Date | null {
+  const scheduled = scheduledAt ? new Date(scheduledAt.getTime() - JOIN_EARLY_MINUTES * 60_000) : null;
+  if (scheduled && notBefore) return scheduled > notBefore ? scheduled : notBefore;
+  return scheduled ?? notBefore;
+}
+
+export async function assertJoinWindowOpen(joinToken: JoinToken): Promise<void> {
+  const session = await prisma.interviewSession.findUnique({ where: { id: joinToken.sessionId }, select: { scheduledAt: true } });
+  const opensAt = joinOpensAt(session?.scheduledAt ?? null, joinToken.notBefore);
+  if (opensAt && opensAt > new Date()) {
+    throw new AppError("INTERVIEW_NOT_OPEN", "This interview isn't open yet. Please come back closer to the start time.", { opensAt: opensAt.toISOString() });
+  }
+}
+
 export async function getJoinSummary(joinToken: JoinToken) {
   const session = await loadSession(joinToken.sessionId);
-  const notYetOpen = joinToken.notBefore ? joinToken.notBefore > new Date() : false;
+  const opensAt = joinOpensAt(session.scheduledAt, joinToken.notBefore);
+  const notYetOpen = opensAt ? opensAt > new Date() : false;
 
   return {
     sessionTitle: session.title,
@@ -74,6 +93,7 @@ export async function getJoinSummary(joinToken: JoinToken) {
     scheduledAt: session.scheduledAt,
     durationMinutes: session.durationMinutes,
     status: notYetOpen ? "NOT_YET_OPEN" : "READY",
+    opensAt: opensAt ? opensAt.toISOString() : null,
   };
 }
 

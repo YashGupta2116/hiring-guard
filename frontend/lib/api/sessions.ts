@@ -193,7 +193,14 @@ export function createSession(input: CreateSessionInput): Promise<ApiSession> {
   return apiRequest<ApiSession>("/sessions", { method: "POST", body: input });
 }
 
-export type UpdateSessionInput = Partial<{ title: string | null; scheduledAt: string | null; durationMinutes: number }>;
+export type UpdateSessionInput = Partial<{
+  title: string | null;
+  scheduledAt: string | null;
+  durationMinutes: number;
+  /** Assigns (or replaces) the candidate; links issued for the previous candidate are revoked by the server. */
+  candidateEmail: string;
+  candidateName: string | null;
+}>;
 
 export function updateSession(id: string, patch: UpdateSessionInput): Promise<ApiSession> {
   return apiRequest<ApiSession>(`/sessions/${encodeURIComponent(id)}`, { method: "PATCH", body: patch });

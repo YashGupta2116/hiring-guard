@@ -16,8 +16,9 @@ export async function createLink(orgId: string, sessionId: string, actorId: stri
   if (!session) {
     throw new AppError("NOT_FOUND", "Session not found.");
   }
-  if (session.status !== "CONFIGURED") {
-    throw new AppError("INVALID_STATE_TRANSITION", "Session must be CONFIGURED to create a join link.", {
+  // ARMED is allowed so a new link can replace a revoked one, or one revoked because the candidate changed.
+  if (session.status !== "CONFIGURED" && session.status !== "ARMED") {
+    throw new AppError("INVALID_STATE_TRANSITION", "Session must be CONFIGURED or ARMED to create a join link.", {
       currentStatus: session.status,
     });
   }
@@ -37,7 +38,9 @@ export async function createLink(orgId: string, sessionId: string, actorId: stri
     },
   });
 
-  await transition(sessionId, ["CONFIGURED"], "ARMED", { orgId, actorType: "USER", actorId });
+  if (session.status === "CONFIGURED") {
+    await transition(sessionId, ["CONFIGURED"], "ARMED", { orgId, actorType: "USER", actorId });
+  }
 
   const delay = Math.max(0, expiresAt.getTime() - Date.now());
   await linkExpiryQueue.add("expire", { sessionId, joinTokenId: joinToken.id }, { delay });

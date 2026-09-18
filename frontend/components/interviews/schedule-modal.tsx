@@ -9,6 +9,7 @@ import { useToast } from "../ui/toast";
 import { useCurrentUser } from "@/lib/auth/auth-context";
 import { ApiError } from "@/lib/api/client";
 import { candidateAvatarUrl, candidateDisplayName, listCandidates, type DirectoryCandidate } from "@/lib/api/candidates";
+import { AddCandidateModal } from "@/components/candidates/add-candidate-modal";
 import { difficultyLabel, listCodingTasks, type CodingTaskSummary } from "@/lib/api/coding-tasks";
 import { listMembers, memberAvatarUrl, type OrgMember } from "@/lib/api/org";
 import {
@@ -254,6 +255,7 @@ export function ScheduleModal({ open, onOpenChange, defaultCandidateId, defaultT
   const [notes, setNotes] = useState("");
 
   const [isSaving, setIsSaving] = useState(false);
+  const [addCandidateOpen, setAddCandidateOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<Progress>(EMPTY_PROGRESS);
 
@@ -408,6 +410,7 @@ export function ScheduleModal({ open, onOpenChange, defaultCandidateId, defaultT
   const createdCandidate = candidates.find((c) => c.id === candidateId);
 
   return (
+    <>
     <Dialog open={open} onOpenChange={handleClose}>
       <div className="flex flex-col max-h-[80vh]">
         <div className="shrink-0">
@@ -480,9 +483,9 @@ export function ScheduleModal({ open, onOpenChange, defaultCandidateId, defaultT
               {!loadingOptions && !optionsError && candidates.length === 0 && (
                 <div className="rounded-md border border-border bg-muted/50 px-3 py-2.5 text-xs text-muted-foreground">
                   You have no candidates yet.{" "}
-                  <Link href="/app/candidates" onClick={handleClose} className="font-semibold text-foreground underline">
+                  <button type="button" onClick={() => setAddCandidateOpen(true)} className="font-semibold text-foreground underline">
                     Add a candidate
-                  </Link>{" "}
+                  </button>{" "}
                   before scheduling an interview.
                 </div>
               )}
@@ -493,6 +496,11 @@ export function ScheduleModal({ open, onOpenChange, defaultCandidateId, defaultT
                     <User className="h-3.5 w-3.5" /> Candidate
                   </label>
                   <PersonSelect value={candidateId} onChange={setCandidateId} options={candidateOptions} subtitle={(c) => c.role} />
+                  {!progress.session && (
+                    <button type="button" onClick={() => setAddCandidateOpen(true)} className="text-[11px] font-medium text-muted-foreground underline underline-offset-2 hover:text-foreground">
+                      + New candidate
+                    </button>
+                  )}
                 </div>
 
                 <div className="space-y-1.5">
@@ -709,5 +717,15 @@ export function ScheduleModal({ open, onOpenChange, defaultCandidateId, defaultT
         )}
       </div>
     </Dialog>
+    <AddCandidateModal
+      open={addCandidateOpen}
+      onOpenChange={setAddCandidateOpen}
+      onCreated={(created) => {
+        // Show the new person in the picker and select them, so scheduling carries on without a detour.
+        setCandidates((prev) => [created, ...prev.filter((c) => c.id !== created.id)]);
+        setCandidateId(created.id);
+      }}
+    />
+    </>
   );
 }

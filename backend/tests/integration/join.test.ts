@@ -193,6 +193,87 @@ describe("full join -> preflight -> policy -> consent -> ADMITTED", () => {
   });
 });
 
+describe("join window", () => {
+  async function scheduledSession(accessToken: string, scheduledAt: Date) {
+    const created = await request(app)
+      .post("/api/v1/sessions")
+      .set("Authorization", `Bearer ${accessToken}`)
+      .send({ mode: "SCHEDULED", candidateEmail: "candidate@example.com", scheduledAt: scheduledAt.toISOString(), durationMinutes: 60 });
+    expect(created.status).toBe(201);
+    const sessionId = created.body.data.id as string;
+    await request(app).patch(`/api/v1/sessions/${sessionId}/config`).set("Authorization", `Bearer ${accessToken}`).send({ channels: ["FOCUS", "PASTE"] }).expect(200);
+    return sessionId;
+  }
+
+  it("keeps a candidate out of the waiting room until 15 minutes before the start, then lets them in", async () => {
+    const owner = await registerOwner();
+    const sessionId = await scheduledSession(owner.accessToken, new Date(Date.now() + 3 * 3600_000));
+    const { rawToken } = await createLink(owner.accessToken, sessionId, "REUSABLE");
+
+    const summary = await request(app).get(`/api/v1/join/${rawToken}`);
+    expect(summary.status).toBe(200);
+    expect(summary.body.data.status).toBe("NOT_YET_OPEN");
+    expect(new Date(summary.body.data.opensAt).getTime()).toBeGreaterThan(Date.now() + 2 * 3600_000);
+
+    for (const res of [
+      await request(app).post(`/api/v1/join/${rawToken}/preflight`).send(passingProbe()),
+      await request(app).get(`/api/v1/join/${rawToken}/policy`),
+      await request(app).post(`/api/v1/join/${rawToken}/consent`).send({ preflightId: "x", policyHash: "x", accepted: true, scrolledToEnd: true }),
+    ]) {
+      expect(res.status).toBe(403);
+      expect(res.body.error.code).toBe("INTERVIEW_NOT_OPEN");
+    }
+
+    // Moving the start to 10 minutes from now puts "now" inside the 15-minute window.
+    await request(app)
+      .patch(`/api/v1/sessions/${sessionId}`)
+      .set("Authorization", `Bearer ${owner.accessToken}`)
+      .send({ scheduledAt: new Date(Date.now() + 10 * 60_000).toISOString() })
+      .expect(200);
+    const open = await request(app).get(`/api/v1/join/${rawToken}`);
+    expect(open.body.data.status).toBe("READY");
+    const preflight = await request(app).post(`/api/v1/join/${rawToken}/preflight`).send(passingProbe());
+    expect(preflight.status).toBe(200);
+  });
+
+  it("does not restrict a link for a session with no scheduled time", async () => {
+    const owner = await registerOwner();
+    const sessionId = await createConfiguredSession(owner.accessToken);
+    const { rawToken } = await createLink(owner.accessToken, sessionId);
+    const summary = await request(app).get(`/api/v1/join/${rawToken}`);
+    expect(summary.body.data.status).toBe("READY");
+    expect(summary.body.data.opensAt).toBeNull();
+  });
+});
+
+describe("changing the candidate on a session", () => {
+  it("assigns the new candidate and revokes links issued for the previous one", async () => {
+    const owner = await registerOwner();
+    const sessionId = await createConfiguredSession(owner.accessToken);
+    const { rawToken } = await createLink(owner.accessToken, sessionId);
+
+    const res = await request(app)
+      .patch(`/api/v1/sessions/${sessionId}`)
+      .set("Authorization", `Bearer ${owner.accessToken}`)
+      .send({ candidateEmail: "new.candidate@example.com", candidateName: "New Candidate" });
+    expect(res.status).toBe(200);
+    expect(res.body.data.candidate.email).toBe("new.candidate@example.com");
+
+    const old = await request(app).get(`/api/v1/join/${rawToken}`);
+    expect(old.status).toBe(410);
+    expect(old.body.error.code).toBe("LINK_REVOKED");
+
+    // Re-saving the same candidate is not a change and revokes nothing.
+    const fresh = await createLink(owner.accessToken, sessionId);
+    await request(app)
+      .patch(`/api/v1/sessions/${sessionId}`)
+      .set("Authorization", `Bearer ${owner.accessToken}`)
+      .send({ candidateEmail: "new.candidate@example.com" })
+      .expect(200);
+    await request(app).get(`/api/v1/join/${fresh.rawToken}`).expect(200);
+  });
+});
+
 describe("join link error states", () => {
   it("returns LINK_REVOKED for a revoked link", async () => {
     const owner = await registerOwner();

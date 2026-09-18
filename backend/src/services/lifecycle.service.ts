@@ -1,3 +1,4 @@
+import { JOIN_EARLY_MINUTES } from "../config/constants.js";
 import { registry } from "../live/registry.js";
 import { SessionRuntime, type EndReason } from "../live/session-runtime.js";
 import { broadcastSessionState } from "../sockets/session-broadcast.js";
@@ -24,6 +25,10 @@ export async function startSession(orgId: string, sessionId: string, actorId: st
   }
   if (session.needsReconsent) {
     throw new AppError("RECONSENT_REQUIRED", "The candidate must re-consent before this session can start.");
+  }
+  // The join window already stops a candidate being admitted early; this covers a session whose time moved.
+  if (session.scheduledAt && session.scheduledAt.getTime() - JOIN_EARLY_MINUTES * 60_000 > Date.now()) {
+    throw new AppError("INTERVIEW_NOT_OPEN", "This interview is scheduled for later and can't be started yet.", { scheduledAt: session.scheduledAt.toISOString() });
   }
   const mediaReady = await redis.hget(`s:${sessionId}:state`, "mediaReady");
   if (mediaReady !== "1") {

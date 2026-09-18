@@ -7,7 +7,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "../ui/dialog";
-import { createCandidate } from "@/lib/api/candidates";
+import { createCandidate, type DirectoryCandidate } from "@/lib/api/candidates";
 import { ApiError } from "@/lib/api/client";
 import { useToast } from "../ui/toast";
 import { UserPlus, User, Mail, Briefcase, MapPin, BarChart3, Tag, FileText, Phone } from "lucide-react";
@@ -16,7 +16,8 @@ interface AddCandidateModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** Called after the candidate is saved, so the caller can refresh its list. */
-  onCreated?: () => void;
+  /** Called with the saved candidate, so a caller can select it straight away. */
+  onCreated?: (candidate: DirectoryCandidate) => void;
 }
 
 const BIO_MAX = 1000;
@@ -103,7 +104,7 @@ export function AddCandidateModal({ open, onOpenChange, onCreated }: AddCandidat
       });
       reset();
       onOpenChange(false);
-      onCreated?.();
+      onCreated?.(saved);
     } catch (err) {
       if (err instanceof ApiError && err.fields.length > 0) {
         setError(err.fields.map((f) => `${f.path}: ${f.message}`).join(" · "));
