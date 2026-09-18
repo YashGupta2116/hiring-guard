@@ -147,7 +147,7 @@ export function AddCandidateModal({ open, onOpenChange, onCreated }: AddCandidat
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                 />
-                <FieldHint>Enter the candidate's legal name.</FieldHint>
+                <FieldHint>Enter the candidate&apos;s legal name.</FieldHint>
               </div>
 
               <div className="space-y-1.5">
@@ -160,7 +160,7 @@ export function AddCandidateModal({ open, onOpenChange, onCreated }: AddCandidat
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                 />
-                <FieldHint>We'll send interview invitations to this email.</FieldHint>
+                <FieldHint>Interview invitations go to this email.</FieldHint>
               </div>
 
               <div className="space-y-1.5">
@@ -198,7 +198,7 @@ export function AddCandidateModal({ open, onOpenChange, onCreated }: AddCandidat
                   value={location}
                   onChange={(e) => setLocation(e.target.value)}
                 />
-                <FieldHint>Candidate's current location or preferred work setup.</FieldHint>
+                <FieldHint>Candidate&apos;s current location or preferred work setup.</FieldHint>
               </div>
 
               <div className="space-y-1.5">

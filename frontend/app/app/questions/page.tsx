@@ -323,9 +323,9 @@ export default function QuestionsPage() {
         </>
       )}
 
-      <CodingTaskModal key={taskModal.task?.id ?? "new-task"} open={taskModal.open} onOpenChange={(open) => setTaskModal((s) => ({ ...s, open }))} task={taskModal.task} onSaved={reload} />
+      <CodingTaskModal key={`task-modal-${taskModal.task?.id ?? "new"}`} open={taskModal.open} onOpenChange={(open) => setTaskModal((s) => ({ ...s, open }))} task={taskModal.task} onSaved={reload} />
       <QuestionModal open={questionModal.open} onOpenChange={(open) => setQuestionModal((s) => ({ ...s, open }))} question={questionModal.question} onSaved={reload} />
-      {scheduleTask && <ScheduleModal key={scheduleTask.id} open onOpenChange={(open) => !open && setScheduleTask(null)} defaultTaskId={scheduleTask.id} />}
+      {scheduleTask && <ScheduleModal key={`schedule-${scheduleTask.id}`} open onOpenChange={(open) => !open && setScheduleTask(null)} defaultTaskId={scheduleTask.id} />}
       <ConfirmDialog
         open={pendingDelete !== null}
         onOpenChange={(open) => !open && !deleting && setPendingDelete(null)}

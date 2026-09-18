@@ -71,7 +71,7 @@ function LoginForm() {
             Decision Intelligence for Technical Interviews
           </div>
           <h1 className="text-3xl font-serif font-semibold tracking-tight text-sand-50 leading-tight">
-            "Don't just watch the candidate. Understand the behavioral telemetry."
+            &ldquo;Don&apos;t just watch the candidate. Understand the behavioral telemetry.&rdquo;
           </h1>
           <p className="text-sand-300 text-sm leading-relaxed">
             VeriTrust combines behavioral telemetry, coding dynamics, response latency, and video observation into explainable decision intelligence. Human judgment remains sovereign.
@@ -95,14 +95,9 @@ function LoginForm() {
           </div>
         </div>
 
-        {/* Footer Meta */}
-        <div className="relative z-10 text-xs text-sand-400 flex items-center justify-between font-mono">
-          <span>VeriTrust System v2.4</span>
-          <span>SOC2 Type II & GDPR Compliant</span>
-        </div>
       </div>
 
-      {/* Right Column: Authentication & Persona Switcher */}
+      {/* Right Column: Authentication */}
       <div className="flex-1 flex flex-col justify-center items-center p-6 sm:p-12 md:p-16">
         <div className="w-full max-w-md space-y-7">
           {/* Mobile Brand */}
@@ -170,7 +165,7 @@ function LoginForm() {
           </form>
 
           <p className="text-center text-xs text-muted-foreground">
-            Don't have an enterprise account?{" "}
+            Don&apos;t have an enterprise account?{" "}
             <Link href="/signup" className="font-medium text-foreground hover:underline">
               Register organization
             </Link>

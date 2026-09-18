@@ -676,7 +676,7 @@ export default function DesignSystemPage() {
         {/* Bottom Rule Banner (PDF Page 4) */}
         <div className="pt-8 border-t border-border/80 text-center">
           <p className="font-serif text-xs text-muted-foreground italic">
-            "Terracotta replaces red throughout · no pure white or black · hairline structure · one accent per screen."
+            &ldquo;Terracotta replaces red throughout · no pure white or black · hairline structure · one accent per screen.&rdquo;
           </p>
         </div>
       </section>

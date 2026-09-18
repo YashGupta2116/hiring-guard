@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -43,6 +43,29 @@ const tabButton = (active: boolean) =>
       : "text-neutral-600 hover:text-neutral-900 hover:bg-neutral-100 dark:text-neutral-400 dark:hover:bg-neutral-800/60",
   );
 
+const VIEW_KEY = "veritrust_interview_view";
+const VIEW_EVENT = "veritrust:interview-view";
+
+/** The last-used view is a per-browser preference, read from localStorage without an effect (falls back to the list). */
+function readView(): ViewMode {
+  try {
+    const saved = localStorage.getItem(VIEW_KEY);
+    if (saved === "table" || saved === "calendar" || saved === "list") return saved;
+  } catch {
+    // Storage can be unavailable (private mode); the default view is fine.
+  }
+  return "list";
+}
+
+function subscribeView(onChange: () => void): () => void {
+  window.addEventListener(VIEW_EVENT, onChange);
+  window.addEventListener("storage", onChange);
+  return () => {
+    window.removeEventListener(VIEW_EVENT, onChange);
+    window.removeEventListener("storage", onChange);
+  };
+}
+
 export default function InterviewsPage() {
   const { canCreateInterview } = usePermissions();
 
@@ -53,27 +76,17 @@ export default function InterviewsPage() {
   const [reloadKey, setReloadKey] = useState(0);
 
   const [activeTab, setActiveTab] = useState<Tab>("All");
-  const [viewMode, setViewMode] = useState<ViewMode>("list");
+  const viewMode = useSyncExternalStore(subscribeView, readView, () => "list" as ViewMode);
   const [searchQuery, setSearchQuery] = useState("");
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
 
-  // Restore the last-used view (a per-browser preference, not data).
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem("veritrust_interview_view");
-      if (saved === "table" || saved === "calendar" || saved === "list") setViewMode(saved);
-    } catch {
-      // Storage can be unavailable (private mode); the default view is fine.
-    }
-  }, []);
-
   const handleViewChange = (mode: ViewMode) => {
-    setViewMode(mode);
     try {
-      localStorage.setItem("veritrust_interview_view", mode);
+      localStorage.setItem(VIEW_KEY, mode);
     } catch {
-      // ignore
+      // ignore: the choice just won't be remembered
     }
+    window.dispatchEvent(new Event(VIEW_EVENT));
   };
 
   useEffect(() => {

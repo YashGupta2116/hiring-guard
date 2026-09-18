@@ -201,7 +201,7 @@ console.log("Snapshot size:", ring.getSnapshot().length);`
         <div className="flex-1 p-2.5 overflow-y-auto font-mono text-[11px] space-y-1.5">
           {testResults.status === "idle" && (
             <div className="text-muted-foreground italic text-[11px]">
-              Click "Run" to compile candidate AST and evaluate test suite assertions.
+              Click &ldquo;Run&rdquo; to compile candidate AST and evaluate test suite assertions.
             </div>
           )}
 

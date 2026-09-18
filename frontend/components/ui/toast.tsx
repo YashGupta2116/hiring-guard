@@ -73,7 +73,7 @@ export function useToast() {
   if (!context) {
     // Fallback if not inside provider
     return {
-      toast: (opt: any) => console.log("Toast:", opt),
+      toast: (opt: { title: string; description?: string; type?: "success" | "error" | "info" }) => console.log("Toast:", opt),
     };
   }
   return context;
