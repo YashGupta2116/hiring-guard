@@ -1,0 +1,8 @@
+{"seq":0,"t_ms":13251,"channel":"gaze","type":"gaze.offscreen_glance","confidence":0.32944276019391505,"duration_ms":587,"features":{},"detector":"synthetic.gaze@1.0.0","source":"synthetic"}
+{"seq":1,"t_ms":14090,"channel":"focus","type":"focus.window_blur","confidence":0.191763841815116,"duration_ms":340,"features":{},"detector":"synthetic.focus@1.0.0","source":"synthetic"}
+{"seq":2,"t_ms":28855,"channel":"gaze","type":"gaze.offscreen_glance","confidence":0.21003325698224506,"duration_ms":636,"features":{},"detector":"synthetic.gaze@1.0.0","source":"synthetic"}
+{"seq":3,"t_ms":40939,"channel":"gaze","type":"gaze.offscreen_glance","confidence":0.31424568367655326,"duration_ms":598,"features":{},"detector":"synthetic.gaze@1.0.0","source":"synthetic"}
+{"seq":4,"t_ms":47553,"channel":"focus","type":"focus.window_blur","confidence":0.22568223884369298,"duration_ms":504,"features":{},"detector":"synthetic.focus@1.0.0","source":"synthetic"}
+{"seq":5,"t_ms":90000,"channel":"gaze","type":"gaze.offscreen_glance","confidence":0.32,"duration_ms":3000,"features":{},"detector":"synthetic.gaze@1.0.0","source":"synthetic"}
+{"seq":6,"t_ms":135000,"channel":"gaze","type":"gaze.persistent_offscreen","confidence":0.85,"duration_ms":4000,"features":{},"detector":"synthetic.gaze@1.0.0","source":"synthetic"}
+{"seq":7,"t_ms":138000,"channel":"scene","type":"scene.multiple_faces","confidence":0.8,"duration_ms":5000,"features":{},"detector":"synthetic.scene@1.0.0","source":"synthetic"}

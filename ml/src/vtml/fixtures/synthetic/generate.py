@@ -40,6 +40,35 @@ _STAGED_SCRIPT: list[tuple[int, int | None, Channel, str, float]] = [
     (150_000, 4_000, Channel.FOCUS, DetectorType.FOCUS_TAB_HIDDEN, 0.75),
 ]
 
+# Phase 6: the demo session's fixed beat schedule, compressed from
+# Phases.md's original 12-minute arc to roughly 4 minutes per the Phase 6
+# handoff -- a 12-minute session at 10x is two minutes of replay, most of
+# a video's budget spent watching a line move. Exported (no leading
+# underscore) so replay.py and evaluate/__main__.py's demo timeline drive
+# the identical driver-action schedule rather than each guessing at it --
+# "keep that schedule in one place" per the handoff.
+_DEMO_CALIBRATION_S = 60
+DEMO_CALIBRATION_CHECK_T_MS = 30_000
+DEMO_GLANCE_T_MS = 90_000
+DEMO_CORROBORATION_GAZE_T_MS = 135_000
+DEMO_CORROBORATION_SCENE_T_MS = 138_000
+DEMO_DISMISSAL_T_MS = 165_000
+DEMO_SUPPRESS_T_MS = 195_000
+DEMO_RESUME_T_MS = 225_000
+DEMO_SESSION_END_MS = 240_000
+DEMO_SUPPRESS_CHANNEL = Channel.GAZE
+DEMO_SUPPRESS_REASON = "camera_dropped"
+
+# Durations chosen so the lone glance stays well under the flag threshold
+# (0.8) alone, the corroborating gaze event stays under it alone too, and
+# only the scene event -- boosted by the gaze evidence still inside the
+# 6s corroboration window -- crosses it, landing in the medium band.
+_DEMO_SCRIPT: list[tuple[int, int | None, Channel, str, float]] = [
+    (DEMO_GLANCE_T_MS, 3_000, Channel.GAZE, DetectorType.GAZE_OFFSCREEN_GLANCE, 0.32),
+    (DEMO_CORROBORATION_GAZE_T_MS, 4_000, Channel.GAZE, DetectorType.GAZE_PERSISTENT_OFFSCREEN, 0.85),
+    (DEMO_CORROBORATION_SCENE_T_MS, 5_000, Channel.SCENE, DetectorType.SCENE_MULTIPLE_FACES, 0.80),
+]
+
 
 def _detector_name(channel: Channel) -> str:
     return f"synthetic.{channel.value}@1.0.0"
@@ -95,16 +124,53 @@ def _staged_events_and_labels() -> tuple[list[EventDict], list[LabelDict]]:
     return events, labels
 
 
+def _demo_events_and_labels(rng: np.random.Generator) -> tuple[list[EventDict], list[LabelDict]]:
+    # Ambient noise only during the calibration window, per the handoff:
+    # visible on the evidence track, hatched out, scoring nothing. Nothing
+    # after it but the three scripted observations, so the score arc stays
+    # legible on a chart without narration (Phases.md Phase 6 exit
+    # criteria) instead of getting lost in random background wiggle.
+    events = _honest_noise(rng, _DEMO_CALIBRATION_S)
+    events.extend(
+        {
+            "t_ms": t_start,
+            "channel": channel,
+            "type": type_,
+            "confidence": confidence,
+            "duration_ms": duration,
+        }
+        for t_start, duration, channel, type_, confidence in _DEMO_SCRIPT
+    )
+    labels: list[LabelDict] = [
+        {"t_start_ms": t_start, "t_end_ms": t_start + (duration or 0), "event_type": type_}
+        for t_start, duration, _channel, type_, _confidence in _DEMO_SCRIPT
+    ]
+    # The dismissal and the signal loss are driver actions, not
+    # observations (replay.py holds the schedule that fires them), but
+    # they are still scripted beats -- ground truth for the walkthrough
+    # the same way a detector event's label is.
+    labels.append(
+        {"t_start_ms": DEMO_DISMISSAL_T_MS, "t_end_ms": DEMO_DISMISSAL_T_MS, "event_type": "dismissal"}
+    )
+    labels.append(
+        {"t_start_ms": DEMO_SUPPRESS_T_MS, "t_end_ms": DEMO_RESUME_T_MS, "event_type": "signal_loss"}
+    )
+    return events, labels
+
+
 def generate(
     profile: str, seed: int, duration_s: int = _SESSION_DEFAULT_S
 ) -> tuple[list[Observation], list[LabelDict]]:
     rng = np.random.default_rng(seed)
-    events = _honest_noise(rng, duration_s)
     labels: list[LabelDict] = []
 
-    if profile == "staged":
-        staged_events, labels = _staged_events_and_labels()
-        events.extend(staged_events)
+    if profile == "demo":
+        events, labels = _demo_events_and_labels(rng)
+    else:
+        events = _honest_noise(rng, duration_s)
+        if profile == "staged":
+            staged_events, labels = _staged_events_and_labels()
+            events.extend(staged_events)
 
     events.sort(key=lambda e: e["t_ms"])
 
@@ -142,7 +208,7 @@ def _write_labels(labels: list[LabelDict], path: Path) -> None:
 
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Generate a synthetic Observation fixture.")
-    parser.add_argument("--profile", choices=["honest", "staged"], required=True)
+    parser.add_argument("--profile", choices=["honest", "staged", "demo"], required=True)
     parser.add_argument("--seed", type=int, required=True)
     parser.add_argument("--duration-s", type=int, default=_SESSION_DEFAULT_S)
     parser.add_argument("--out-dir", type=Path, default=Path("fixtures/synthetic"))
@@ -150,9 +216,11 @@ def main(argv: list[str] | None = None) -> None:
 
     observations, labels = generate(args.profile, args.seed, args.duration_s)
 
-    stem = f"{args.profile}_seed{args.seed}"
+    # The demo fixture is a fixed, singular artifact -- fixtures/demo_session.*,
+    # not seed-suffixed like honest/staged -- since only one ever exists.
+    stem = "demo_session" if args.profile == "demo" else f"{args.profile}_seed{args.seed}"
     _write_jsonl(observations, args.out_dir / f"{stem}.jsonl")
-    if args.profile == "staged":
+    if args.profile in ("staged", "demo"):
         _write_labels(labels, args.out_dir / f"{stem}.labels.json")
 
 

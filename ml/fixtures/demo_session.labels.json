@@ -1,0 +1,27 @@
+[
+  {
+    "t_start_ms": 90000,
+    "t_end_ms": 93000,
+    "event_type": "gaze.offscreen_glance"
+  },
+  {
+    "t_start_ms": 135000,
+    "t_end_ms": 139000,
+    "event_type": "gaze.persistent_offscreen"
+  },
+  {
+    "t_start_ms": 138000,
+    "t_end_ms": 143000,
+    "event_type": "scene.multiple_faces"
+  },
+  {
+    "t_start_ms": 165000,
+    "t_end_ms": 165000,
+    "event_type": "dismissal"
+  },
+  {
+    "t_start_ms": 195000,
+    "t_end_ms": 225000,
+    "event_type": "signal_loss"
+  }
+]

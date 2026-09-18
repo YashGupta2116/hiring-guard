@@ -31,13 +31,23 @@ python -m vtml.fixtures.synthetic.generate --profile staged --seed 7
 
 Both write a deterministic JSONL stream of `Observation` records to `fixtures/synthetic/`. A staged session also writes a `.labels.json` file alongside it with the scripted event list (`t_start_ms`, `t_end_ms`, `event_type`) used as ground truth.
 
+## Replay the demo
+
+```bash
+python -m vtml.replay --speed 0    # dump instantly
+python -m vtml.replay --speed 1    # real time (default)
+python -m vtml.replay --speed 10   # for screen recording
+```
+
+Streams `fixtures/demo_session.jsonl` through the engine and prints its five beats as they happen: a calibration window that costs the candidate nothing, a single gaze glance that accumulates but never flags, a corroborated gaze-and-scene flag, a reviewer's dismissal that restores the score exactly, and a signal-loss window that moves the score in neither direction. The fixture regenerates with `python -m vtml.fixtures.synthetic.generate --profile demo --seed 7 --out-dir fixtures`.
+
 ## Run the evaluation
 
 ```bash
 python -m vtml.evaluate
 ```
 
-Replays `honest_seed7` and `staged_seed7` through the engine, on `priors.py` since no fitted weights exist yet, and writes `reports/eval-phase1-priors.md` plus four figures. The report opens by stating what two synthetic fixtures can and cannot support: no fitted detector, no recorded session, and no precision, recall or population median. `reports/` is gitignored in full and rebuilds from tracked fixtures and code alone.
+Replays `honest_seed7` and `staged_seed7` through the engine, on `priors.py` since no fitted weights exist yet, and writes `reports/eval-phase1-priors.md` plus four figures. The report opens by stating what two synthetic fixtures can and cannot support: no fitted detector, no recorded session, and no precision, recall or population median. When `fixtures/demo_session.jsonl` exists, the same command also writes `reports/demo_timeline.png`/`.svg` (the F4 timeline over the demo fixture, with its dismissed flag drawn at reduced opacity and struck through) and `reports/demo-walkthrough.md`, the one-page narration script for the demo video. `reports/` is gitignored in full and rebuilds from tracked fixtures and code alone.
 
 ## Detector types
 
@@ -45,4 +55,4 @@ Every detector type string, its channel, its backend wire mapping, and its hand-
 
 ## Status
 
-Phase 0 (scaffold), Phase 1 (fusion core), Phase 2 (detector registry, ingest, baselines), and Phase 4 (evaluation harness and report) are complete. Phase 3 (fixture capture and calibration) and Phase 5 (Lambda packaging) are cut for the hackathon. See `docs/Memory.md` for current state, key decisions, and the next action.
+Phase 0 (scaffold), Phase 1 (fusion core), Phase 2 (detector registry, ingest, baselines), Phase 4 (evaluation harness and report), and Phase 6 (demo fixture, replay, walkthrough) are complete -- Phase 6 was the last phase. Phase 3 (fixture capture and calibration) and Phase 5 (Lambda packaging) are cut for the hackathon. See `docs/Memory.md` for current state and key decisions, and `docs/Phases.md` for what remains undone overall.

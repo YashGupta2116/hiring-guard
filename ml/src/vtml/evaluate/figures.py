@@ -8,8 +8,10 @@ in a call site as a bug, and this module is the only place besides
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal
 
 import matplotlib
 
@@ -212,35 +214,88 @@ class _ScoreSample:
     score: float | None
 
 
+@dataclass(frozen=True)
+class DriverAction:
+    """A reviewer/system action interleaved into `_build_timeline`'s replay
+    alongside real observations and snapshot samples. The demo fixture's
+    dismissal and signal loss are driver actions, not observations
+    (Architecture.md section 2 steps 6-7), so nothing in `observations`
+    can carry them -- `figure_session_timeline` takes them as a separate,
+    optional schedule instead of forking a second timeline builder.
+    `dismiss_latest` marks the most recently emitted (still-undismissed)
+    flag for Track 3's styling; it never touches score sampling, so
+    Track 1 keeps showing the score as it actually happened, not a
+    dismissal-rewritten history."""
+
+    t_ms: int
+    kind: Literal["suppress", "resume", "dismiss_latest"]
+    channel: Channel | None = None
+    reason: str | None = None
+
+
 def _build_timeline(
-    observations: list[Observation], config: EngineConfig, sample_interval_ms: int
-) -> tuple[list[_ScoreSample], list[_EvidenceTick], list[Flag]]:
-    """Drives one throwaway Engine through the staged session, interleaving
-    real ingest() calls (to capture each observation's actual accumulated
-    LLR and corroboration state) with snapshot() calls at a fixed interval
-    (Track 1's score arc). Reads `Engine._channels` directly, same as
-    `tests/test_snapshot.py` already does, so the figure draws the exact
-    numbers the engine scored with rather than a re-derived approximation.
+    observations: list[Observation],
+    config: EngineConfig,
+    sample_interval_ms: int,
+    driver_actions: Sequence[DriverAction] = (),
+    session_end_ms: int | None = None,
+) -> tuple[list[_ScoreSample], list[_EvidenceTick], list[Flag], frozenset[str]]:
+    """Drives one throwaway Engine through the session, interleaving real
+    ingest() calls (to capture each observation's actual accumulated LLR
+    and corroboration state) with snapshot() calls at a fixed interval
+    (Track 1's score arc) and, for the demo fixture only, driver actions
+    at their scripted times. Reads `Engine._channels`/`Engine._flags`
+    directly, same as `tests/test_snapshot.py` already does, so the
+    figure draws the exact numbers the engine scored with rather than a
+    re-derived approximation.
+
+    `session_end_ms` defaults to the last observation's time (the staged
+    eval fixture has no driver actions past its last observation), but
+    the demo's driver actions (dismissal, then a 30s signal loss) run
+    well past its last observation -- `save_demo_timeline` passes the
+    fixture's real closing time explicitly so the chart isn't clipped
+    mid-story.
     """
     engine = Engine(config, Weights())
     ordered = sorted(observations, key=lambda o: o.t_ms)
-    session_end = ordered[-1].t_ms
+    actions = sorted(driver_actions, key=lambda a: a.t_ms)
+    session_end = session_end_ms if session_end_ms is not None else ordered[-1].t_ms
     sample_points = list(range(0, session_end + 1, sample_interval_ms))
 
     ticks: list[_EvidenceTick] = []
     samples: list[_ScoreSample] = []
+    dismissed_ids: set[str] = set()
     obs_idx = 0
     sample_idx = 0
-    while obs_idx < len(ordered) or sample_idx < len(sample_points):
-        next_obs = ordered[obs_idx] if obs_idx < len(ordered) else None
+    action_idx = 0
+    while obs_idx < len(ordered) or sample_idx < len(sample_points) or action_idx < len(actions):
+        next_obs = ordered[obs_idx].t_ms if obs_idx < len(ordered) else None
         next_sample = sample_points[sample_idx] if sample_idx < len(sample_points) else None
-        if next_obs is not None and (next_sample is None or next_obs.t_ms <= next_sample):
+        next_action = actions[action_idx].t_ms if action_idx < len(actions) else None
+        t_next = min(t for t in (next_obs, next_sample, next_action) if t is not None)
+
+        if next_action == t_next:
+            action = actions[action_idx]
+            if action.kind == "suppress":
+                assert action.channel is not None
+                engine._t_now = action.t_ms  # see replay.py: suppress()/resume() key off it
+                engine.suppress(action.channel, action.reason or "")
+            elif action.kind == "resume":
+                assert action.channel is not None
+                engine._t_now = action.t_ms
+                engine.resume(action.channel)
+            else:
+                if engine._flags:
+                    dismissed_ids.add(engine._flags[-1].id)
+            action_idx += 1
+        elif next_obs == t_next:
+            obs = ordered[obs_idx]
             _boost, corroborated_by = corroborate.compute_boost(
-                engine._channels, next_obs.channel, next_obs.t_ms, config
+                engine._channels, obs.channel, obs.t_ms, config
             )
-            state = engine._channels[next_obs.channel]
+            state = engine._channels[obs.channel]
             recent_before = len(state.recent)
-            engine.ingest([next_obs])
+            engine.ingest([obs])
             # A calibration-window observation is accepted but never
             # reaches state.add() (fusion/engine.py::_process_one) -- no
             # evidence, no tick, matching the hatched "nothing scored here"
@@ -251,32 +306,43 @@ def _build_timeline(
                 evidence = state.recent[-1]
                 ticks.append(
                     _EvidenceTick(
-                        t_ms=next_obs.t_ms,
-                        channel=next_obs.channel,
+                        t_ms=obs.t_ms,
+                        channel=obs.channel,
                         llr=evidence.llr,
                         corroborated=bool(corroborated_by),
                     )
                 )
             obs_idx += 1
         else:
-            assert next_sample is not None
+            assert next_sample == t_next
             snapshot_result = engine.snapshot(next_sample)
             samples.append(_ScoreSample(t_ms=next_sample, score=snapshot_result.score))
             sample_idx += 1
 
     final = engine.finalise(session_end)
-    return samples, ticks, list(final.flags)
+    return samples, ticks, list(final.flags), frozenset(dismissed_ids)
 
 
 def figure_session_timeline(
-    observations: list[Observation], config: EngineConfig, *, sample_interval_ms: int = 2000
+    observations: list[Observation],
+    config: EngineConfig,
+    *,
+    sample_interval_ms: int = 2000,
+    driver_actions: Sequence[DriverAction] = (),
+    session_end_ms: int | None = None,
 ) -> Figure:
     """F4, the centrepiece: three stacked tracks on a shared mm:ss axis,
     sampled from real `Engine.snapshot()`/`ingest()` calls, never
-    fabricated. Twice the size of the other three (Design.md section 5)."""
-    samples, ticks, flags = _build_timeline(observations, config, sample_interval_ms)
+    fabricated. Twice the size of the other three (Design.md section 5).
+    `driver_actions` (empty for the eval harness's staged fixture, set for
+    the demo fixture) marks any dismissed flag for Track 3's styling.
+    `session_end_ms` overrides the x-axis's end for a fixture whose driver
+    actions run past its last observation (see `_build_timeline`)."""
+    samples, ticks, flags, dismissed_ids = _build_timeline(
+        observations, config, sample_interval_ms, driver_actions, session_end_ms
+    )
     calibration_end_ms = config.calibration_window_s * 1000
-    session_end = max(o.t_ms for o in observations)
+    session_end = session_end_ms if session_end_ms is not None else max(o.t_ms for o in observations)
 
     fig, (ax_score, ax_evidence, ax_flags) = plt.subplots(
         3, 1, figsize=(12.0, 5.0), sharex=True, gridspec_kw={"height_ratios": [2.0, 2.4, 1.0]}
@@ -317,24 +383,35 @@ def figure_session_timeline(
     _draw_calibration_hatch(ax_flags, calibration_end_ms)
     for i, flag in enumerate(flags):
         color = _SEVERITY_COLOR[flag.severity]
+        # Design.md section 5: a dismissed flag is never removed -- the
+        # dismissal is part of the story -- but drawn at 40% opacity with
+        # a strikethrough on its label.
+        dismissed = flag.id in dismissed_ids
+        alpha = 0.4 if dismissed else 1.0
         ax_flags.plot(
             flag.t_start_ms, 0, marker="o", markersize=12,
             fillstyle=_SEVERITY_FILLSTYLE[flag.severity],
             markerfacecolor=color, markeredgecolor=color, markeredgewidth=1.6, linestyle="none",
+            alpha=alpha,
         )
         if flag.severity == Severity.HIGH:
             ax_flags.plot(
                 flag.t_start_ms, 0, marker="o", markersize=19, fillstyle="none",
-                markeredgecolor=color, markeredgewidth=1.6, linestyle="none",
+                markeredgecolor=color, markeredgewidth=1.6, linestyle="none", alpha=alpha,
             )
         # Staggered so two flags close together in time (e.g. corroborating
         # channels a few seconds apart) don't print their deltas on top of
         # each other.
         y_offset = 13 if i % 2 == 0 else 26
+        label = f"{flag.score_delta:+.1f}"
+        if dismissed:
+            # Combining-character strikethrough: no extra plotting logic,
+            # renders correctly through matplotlib's normal text path.
+            label = "̶".join(label) + "̶"
         ax_flags.annotate(
-            f"{flag.score_delta:+.1f}", (flag.t_start_ms, 0), textcoords="offset points",
+            label, (flag.t_start_ms, 0), textcoords="offset points",
             xytext=(0, y_offset), ha="center", fontsize=9, family="monospace",
-            color=TOKENS["sand/800"],
+            color=TOKENS["sand/800"], alpha=alpha,
         )
     ax_flags.set_yticks([])
     ax_flags.set_ylim(-1, 1)
@@ -344,6 +421,28 @@ def figure_session_timeline(
 
     fig.tight_layout()
     return fig
+
+
+def save_demo_timeline(
+    reports_dir: Path,
+    observations: list[Observation],
+    config: EngineConfig,
+    driver_actions: Sequence[DriverAction],
+    session_end_ms: int,
+) -> Path:
+    """Phase 6 task 3: the same F4 code path as `save_all`, over the demo
+    fixture, with the reviewer's dismissal and the signal-loss suppress/
+    resume as driver actions -- never forked into a second figure
+    function. Writes `reports/demo_timeline.png` and `.svg`."""
+    reports_dir.mkdir(parents=True, exist_ok=True)
+    fig = figure_session_timeline(
+        observations, config, driver_actions=driver_actions, session_end_ms=session_end_ms
+    )
+    png_path = reports_dir / "demo_timeline.png"
+    fig.savefig(png_path)
+    fig.savefig(reports_dir / "demo_timeline.svg")
+    plt.close(fig)
+    return png_path
 
 
 def save_all(
