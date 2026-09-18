@@ -94,7 +94,7 @@ export function Header({ collapsed, setCollapsed }: HeaderProps) {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-stone-400" />
             <input
               type="text"
-              placeholder="Search candidates, interviews, questions..."
+              placeholder="Search candidates, interviews, questions, reports..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full rounded-xl border border-stone-200/90 dark:border-stone-800 bg-white/70 dark:bg-stone-900/60 pl-9 pr-14 py-2 text-xs text-stone-900 dark:text-stone-100 placeholder:text-stone-400 focus:outline-none focus:ring-1 focus:ring-stone-400 dark:focus:ring-stone-600 transition-all shadow-2xs"

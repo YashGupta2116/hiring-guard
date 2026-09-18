@@ -9,7 +9,7 @@ export default function AppLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(true);
 
   useEffect(() => {
     const removeHydrationArtifacts = () => {
