@@ -13,6 +13,7 @@ import {
   ChevronLeft,
   ChevronDown,
   Eye,
+  Home,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -59,13 +60,27 @@ export default function ReportsPage() {
 
   return (
     <div className="space-y-5 animate-fade-in-up pb-10">
-      {/* 1. Page Header */}
+      {/* Breadcrumb */}
+      <div className="flex items-center gap-1.5 text-xs text-neutral-400">
+        <Home className="h-3.5 w-3.5 text-neutral-400" />
+        <span className="text-neutral-300 dark:text-neutral-700">›</span>
+        <Link
+          href="/app/dashboard"
+          className="text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 transition-colors"
+        >
+          Dashboard
+        </Link>
+        <span className="text-neutral-300 dark:text-neutral-700">›</span>
+        <span className="text-neutral-600 dark:text-neutral-400">Reports</span>
+      </div>
+
+      {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-stone-900 dark:text-stone-100">
+          <h1 className="text-2xl font-bold tracking-tight text-stone-900 dark:text-stone-100">
             Reports
           </h1>
-          <p className="text-xs sm:text-sm text-stone-500 dark:text-stone-400 mt-1">
+          <p className="text-xs text-stone-500 dark:text-stone-400 mt-1">
             Candidate evaluation summaries, question rubrics, and multimodal integrity timelines.
           </p>
         </div>
@@ -74,7 +89,7 @@ export default function ReportsPage() {
         </div>
       </div>
 
-      {/* 2. Filter Toolbar */}
+      {/* Filter Toolbar */}
       <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
         {/* Search */}
         <div className="relative flex-1">
@@ -133,7 +148,7 @@ export default function ReportsPage() {
         </div>
       </div>
 
-      {/* 3. Reports Table or Empty State */}
+      {/* Reports Table or Empty State */}
       {filteredReports.length === 0 ? (
         <EmptyState
           icon={FileText}

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import Link from "next/link";
 import {
   BarChart,
   Bar,
@@ -16,7 +17,6 @@ import {
   Legend,
 } from "recharts";
 import { Badge } from "@/components/ui/badge";
-import { PageHeader } from "@/components/ui/page-header";
 import { SectionHeader } from "@/components/ui/section-header";
 import { Stat, StatGroup } from "@/components/ui/stat";
 import {
@@ -25,6 +25,7 @@ import {
   ShieldCheck,
   Award,
   Users,
+  Home,
 } from "lucide-react";
 
 export default function AnalyticsPage() {
@@ -62,12 +63,32 @@ export default function AnalyticsPage() {
   ];
 
   return (
-    <div className="space-y-6 animate-fade-in-up pb-12">
-      {/* 8. Page Header */}
-      <PageHeader
-        title="Analytics"
-        description="Recruiting pipeline velocity, multimodal integrity distributions, and technical rubric metrics."
-      >
+    <div className="space-y-5 animate-fade-in-up pb-12">
+      {/* Breadcrumb */}
+      <div className="flex items-center gap-1.5 text-xs text-neutral-400">
+        <Home className="h-3.5 w-3.5 text-neutral-400" />
+        <span className="text-neutral-300 dark:text-neutral-700">›</span>
+        <Link
+          href="/app/dashboard"
+          className="text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 transition-colors"
+        >
+          Dashboard
+        </Link>
+        <span className="text-neutral-300 dark:text-neutral-700">›</span>
+        <span className="text-neutral-600 dark:text-neutral-400">Analytics</span>
+      </div>
+
+      {/* Page Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-neutral-900 dark:text-white">
+            Analytics
+          </h1>
+          <p className="text-xs text-neutral-500 mt-1">
+            Recruiting pipeline velocity, multimodal integrity distributions, and technical rubric metrics.
+          </p>
+        </div>
+
         <select
           value={timeRange}
           onChange={(e) => setTimeRange(e.target.value)}
@@ -77,9 +98,9 @@ export default function AnalyticsPage() {
           <option value="Last 90 Days">Last 90 Days</option>
           <option value="Year to Date">Year to Date</option>
         </select>
-      </PageHeader>
+      </div>
 
-      {/* 20. Metrics Row */}
+      {/* Metrics Row */}
       <StatGroup className="grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
         <Stat
           label="Total Interviews"

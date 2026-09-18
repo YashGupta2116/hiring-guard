@@ -1,12 +1,12 @@
 "use client";
 
 import React, { useState } from "react";
+import Link from "next/link";
 import { useStore } from "@/lib/store/interview-store";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/ui/status-badge";
 import { CandidateAvatar } from "@/components/ui/candidate-avatar";
-import { PageHeader } from "@/components/ui/page-header";
 import { SectionHeader } from "@/components/ui/section-header";
 import {
   User,
@@ -17,6 +17,7 @@ import {
   Users,
   RotateCcw,
   Save,
+  Home,
 } from "lucide-react";
 import { usePermissions } from "@/components/auth/role-guard";
 import { useToast } from "@/components/ui/toast";
@@ -73,14 +74,32 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto animate-fade-in-up pb-12">
-      {/* 8. Page Header */}
-      <PageHeader
-        title="Settings"
-        description="Manage workspace preferences, AI anomaly calibration, data retention, and team privileges."
-      />
+    <div className="space-y-5 animate-fade-in-up pb-12">
+      {/* Breadcrumb */}
+      <div className="flex items-center gap-1.5 text-xs text-neutral-400">
+        <Home className="h-3.5 w-3.5 text-neutral-400" />
+        <span className="text-neutral-300 dark:text-neutral-700">›</span>
+        <Link
+          href="/app/dashboard"
+          className="text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 transition-colors"
+        >
+          Dashboard
+        </Link>
+        <span className="text-neutral-300 dark:text-neutral-700">›</span>
+        <span className="text-neutral-600 dark:text-neutral-400">Settings</span>
+      </div>
 
-      {/* 22. Settings Categories Tabs */}
+      {/* Page Header */}
+      <div>
+        <h1 className="text-2xl font-bold tracking-tight text-neutral-900 dark:text-white">
+          Settings
+        </h1>
+        <p className="text-xs text-neutral-500 mt-1">
+          Manage workspace preferences, AI anomaly calibration, data retention, and team privileges.
+        </p>
+      </div>
+
+      {/* Settings Categories Tabs */}
       <div className="flex flex-wrap items-center gap-1 border-b border-border pb-1 text-xs">
         <button
           onClick={() => setActiveTab("profile")}
@@ -181,34 +200,36 @@ export default function SettingsPage() {
               </div>
             </div>
 
-            <div className="space-y-1">
-              <label className="font-medium text-foreground text-xs">Display Name</label>
-              <input
-                type="text"
-                value={profileName}
-                onChange={(e) => setProfileName(e.target.value)}
-                className="w-full rounded-md border border-input bg-background/60 px-3 py-1.5 text-xs text-foreground focus:border-foreground/40 focus:outline-none transition-colors"
-              />
-            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <label className="font-medium text-foreground text-xs">Display Name</label>
+                <input
+                  type="text"
+                  value={profileName}
+                  onChange={(e) => setProfileName(e.target.value)}
+                  className="w-full rounded-md border border-input bg-background/60 px-3 py-1.5 text-xs text-foreground focus:border-foreground/40 focus:outline-none transition-colors"
+                />
+              </div>
 
-            <div className="space-y-1">
-              <label className="font-medium text-foreground text-xs">Job Title / Team</label>
-              <input
-                type="text"
-                value={profileTitle}
-                onChange={(e) => setProfileTitle(e.target.value)}
-                className="w-full rounded-md border border-input bg-background/60 px-3 py-1.5 text-xs text-foreground focus:border-foreground/40 focus:outline-none transition-colors"
-              />
-            </div>
+              <div className="space-y-1">
+                <label className="font-medium text-foreground text-xs">Job Title / Team</label>
+                <input
+                  type="text"
+                  value={profileTitle}
+                  onChange={(e) => setProfileTitle(e.target.value)}
+                  className="w-full rounded-md border border-input bg-background/60 px-3 py-1.5 text-xs text-foreground focus:border-foreground/40 focus:outline-none transition-colors"
+                />
+              </div>
 
-            <div className="space-y-1">
-              <label className="font-medium text-foreground text-xs">Email Address</label>
-              <input
-                type="email"
-                disabled
-                value={currentUser.email}
-                className="w-full rounded-md border border-input bg-secondary/40 px-3 py-1.5 text-xs text-muted-foreground cursor-not-allowed"
-              />
+              <div className="space-y-1 md:col-span-2">
+                <label className="font-medium text-foreground text-xs">Email Address</label>
+                <input
+                  type="email"
+                  disabled
+                  value={currentUser.email}
+                  className="w-full rounded-md border border-input bg-secondary/40 px-3 py-1.5 text-xs text-muted-foreground cursor-not-allowed"
+                />
+              </div>
             </div>
 
             <div className="pt-2">
@@ -228,26 +249,28 @@ export default function SettingsPage() {
             description="Tenant domain name, SAML SSO, and workspace configuration"
           />
 
-          <div className="space-y-3.5 text-xs pt-1 border-t border-border/60">
-            <div className="space-y-1">
-              <label className="font-medium text-foreground text-xs">Workspace Name</label>
-              <input
-                type="text"
-                value={orgName}
-                onChange={(e) => setOrgName(e.target.value)}
-                disabled={!canManageSettings}
-                className="w-full rounded-md border border-input bg-background/60 px-3 py-1.5 text-xs text-foreground focus:border-foreground/40 focus:outline-none transition-colors disabled:opacity-60"
-              />
-            </div>
+          <div className="pt-1 border-t border-border/60 text-xs space-y-3.5">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <label className="font-medium text-foreground text-xs">Workspace Name</label>
+                <input
+                  type="text"
+                  value={orgName}
+                  onChange={(e) => setOrgName(e.target.value)}
+                  disabled={!canManageSettings}
+                  className="w-full rounded-md border border-input bg-background/60 px-3 py-1.5 text-xs text-foreground focus:border-foreground/40 focus:outline-none transition-colors disabled:opacity-60"
+                />
+              </div>
 
-            <div className="space-y-1">
-              <label className="font-medium text-foreground text-xs">Workspace Domain</label>
-              <input
-                type="text"
-                value="acmerobotics.veritrust.ai"
-                disabled
-                className="w-full rounded-md border border-input bg-secondary/40 px-3 py-1.5 text-xs text-muted-foreground cursor-not-allowed font-mono"
-              />
+              <div className="space-y-1">
+                <label className="font-medium text-foreground text-xs">Workspace Domain</label>
+                <input
+                  type="text"
+                  value="acmerobotics.veritrust.ai"
+                  disabled
+                  className="w-full rounded-md border border-input bg-secondary/40 px-3 py-1.5 text-xs text-muted-foreground cursor-not-allowed font-mono"
+                />
+              </div>
             </div>
 
             <div className="pt-2 flex items-center justify-between border-t border-border/60">
@@ -269,7 +292,7 @@ export default function SettingsPage() {
             description="Fine-tune sensitivity parameters for cognitive latency, gaze vectors, and code insertion thresholds"
           />
 
-          <div className="space-y-4 text-xs pt-1 border-t border-border/60">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-8 gap-y-4 text-xs pt-1 border-t border-border/60">
             <div className="space-y-1">
               <div className="flex justify-between font-medium text-foreground text-xs">
                 <span>Anomaly Sensitivity Index</span>
@@ -289,7 +312,7 @@ export default function SettingsPage() {
               </p>
             </div>
 
-            <div className="space-y-1 pt-2 border-t border-border/60">
+            <div className="space-y-1">
               <div className="flex justify-between font-medium text-foreground text-xs">
                 <span>Lateral Gaze Deviation Threshold</span>
                 <span className="font-mono">{gazeThresholdSeconds}s</span>
@@ -309,7 +332,7 @@ export default function SettingsPage() {
               </p>
             </div>
 
-            <div className="space-y-1 pt-2 border-t border-border/60">
+            <div className="space-y-1">
               <div className="flex justify-between font-medium text-foreground text-xs">
                 <span>Rapid Code Insertion Threshold</span>
                 <span className="font-mono">{codePasteThresholdChars} Characters</span>
@@ -329,7 +352,7 @@ export default function SettingsPage() {
               </p>
             </div>
 
-            <div className="pt-2">
+            <div className="flex items-end">
               <Button
                 size="sm"
                 onClick={handleSaveAISettings}
@@ -351,7 +374,7 @@ export default function SettingsPage() {
             description="Compliance parameters and cloud encryption settings"
           />
 
-          <div className="space-y-4 text-xs pt-1 border-t border-border/60">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 text-xs pt-1 border-t border-border/60">
             <div className="flex items-center justify-between">
               <div>
                 <span className="font-medium text-foreground text-xs block">Zero-Knowledge Cloud Encryption</span>
@@ -366,7 +389,7 @@ export default function SettingsPage() {
               />
             </div>
 
-            <div className="space-y-1 pt-2 border-t border-border/60">
+            <div className="space-y-1">
               <label className="font-medium text-foreground text-xs block">Telemetry & Recording Retention Period</label>
               <select
                 value={retentionDays}
@@ -399,9 +422,9 @@ export default function SettingsPage() {
             </Button>
           </div>
 
-          <div className="divide-y divide-border/60">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {users.map((u) => (
-              <div key={u.id} className="py-3 flex items-center justify-between text-xs gap-3">
+              <div key={u.id} className="rounded-md border border-border/60 p-3 flex items-center justify-between text-xs gap-3">
                 <div className="flex items-center gap-3">
                   <CandidateAvatar src={u.avatar} name={u.name} size="md" />
                   <div>
@@ -444,7 +467,7 @@ export default function SettingsPage() {
             description="Re-seed demo candidates, scheduled interviews, and evaluation reports"
           />
 
-          <p className="text-xs text-muted-foreground leading-relaxed pt-1 border-t border-border/60">
+          <p className="text-xs text-muted-foreground leading-relaxed pt-1 border-t border-border/60 max-w-2xl">
             Resetting restores all 15+ candidate interviews, 10 candidate profiles, 10 decision reports, and 20 question bank challenges to their pristine initial state.
           </p>
 

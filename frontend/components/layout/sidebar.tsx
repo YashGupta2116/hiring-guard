@@ -10,7 +10,6 @@ import {
   FileText,
   HelpCircle,
   BarChart3,
-  Palette,
   Settings,
   Plus,
   UserPlus,
@@ -75,11 +74,6 @@ export function Sidebar({ collapsed, setCollapsed }: SidebarProps) {
       title: "Analytics",
       href: "/app/analytics",
       icon: BarChart3,
-    },
-    {
-      title: "Design System",
-      href: "/app/design-system",
-      icon: Palette,
     },
     {
       title: "Settings",
@@ -254,4 +248,3 @@ export function Sidebar({ collapsed, setCollapsed }: SidebarProps) {
     </>
   );
 }
-
