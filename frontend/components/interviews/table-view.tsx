@@ -1,10 +1,9 @@
 "use client";
 
-import React from "react";
+import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import { Interview } from "@/lib/types";
 import { SessionPill } from "@/components/ui/session-pill";
-import { Button } from "@/components/ui/button";
 import { CandidateAvatar } from "@/components/ui/candidate-avatar";
 import {
   FileText,
@@ -13,6 +12,9 @@ import {
   User,
   Code2,
   Layers,
+  MoreVertical,
+  Eye,
+  PlayCircle,
 } from "lucide-react";
 import { usePermissions } from "@/components/auth/role-guard";
 import { useStore } from "@/lib/store/interview-store";
@@ -64,28 +66,104 @@ function roundCategory(interview: Interview): RoundCategory {
   }
 }
 
-export function TableView({ interviews }: TableViewProps) {
+function RowActionsMenu({ interview }: { interview: Interview }) {
+  const [open, setOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
   const { cancelInterview } = useStore();
   const { canDeleteInterview } = usePermissions();
   const { toast } = useToast();
 
-  const handleCancel = (id: string, name: string) => {
+  useEffect(() => {
+    if (!open) return;
+    const handleClickOutside = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [open]);
+
+  const handleCancel = () => {
     if (!canDeleteInterview) {
       toast({
         title: "Action Restricted",
         description: "Only Admins can cancel interviews.",
         type: "error",
       });
+      setOpen(false);
       return;
     }
-    cancelInterview(id);
+    cancelInterview(interview.id);
     toast({
       title: "Interview Cancelled",
-      description: `Session with ${name} marked as cancelled.`,
+      description: `Session with ${interview.candidateName} marked as cancelled.`,
       type: "info",
     });
+    setOpen(false);
   };
 
+  const canCancel = interview.status !== "Completed" && interview.status !== "Cancelled" && canDeleteInterview;
+
+  return (
+    <div className="relative inline-block text-left" ref={menuRef}>
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="h-7 w-7 rounded-md flex items-center justify-center text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
+        title="More actions"
+        aria-label="More actions"
+      >
+        <MoreVertical className="h-4 w-4" />
+      </button>
+
+      {open && (
+        <div className="absolute right-0 top-8 z-20 w-44 rounded-lg border border-border bg-card shadow-lg py-1 text-xs">
+          {interview.status === "Live" && (
+            <Link
+              href={`/app/interviews/${interview.id}/live`}
+              className="flex items-center gap-2 px-3 py-2 text-foreground hover:bg-secondary transition-colors"
+              onClick={() => setOpen(false)}
+            >
+              <PlayCircle className="h-3.5 w-3.5" /> Join Session
+            </Link>
+          )}
+
+          <Link
+            href={`/app/interviews/${interview.id}`}
+            className="flex items-center gap-2 px-3 py-2 text-foreground hover:bg-secondary transition-colors"
+            onClick={() => setOpen(false)}
+          >
+            <Eye className="h-3.5 w-3.5" /> View Details
+          </Link>
+
+          {interview.status === "Completed" && interview.reportId && (
+            <Link
+              href={`/app/reports/${interview.reportId}`}
+              className="flex items-center gap-2 px-3 py-2 text-foreground hover:bg-secondary transition-colors"
+              onClick={() => setOpen(false)}
+            >
+              <FileText className="h-3.5 w-3.5" /> View Report
+            </Link>
+          )}
+
+          {canCancel && (
+            <>
+              <div className="my-1 border-t border-border" />
+              <button
+                onClick={handleCancel}
+                className="w-full flex items-center gap-2 px-3 py-2 text-terra-600 dark:text-terra-400 hover:bg-terra-500/10 transition-colors"
+              >
+                <Trash2 className="h-3.5 w-3.5" /> Cancel Interview
+              </button>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function TableView({ interviews }: TableViewProps) {
   return (
     <div className="rounded-lg border border-border bg-card overflow-hidden">
       <table className="w-full text-left text-xs border-collapse">
@@ -178,39 +256,9 @@ export function TableView({ interviews }: TableViewProps) {
                 </td>
 
                 {/* Actions */}
-                <td className="px-3.5 py-2 text-right whitespace-nowrap">
-                  <div className="flex items-center justify-end gap-1">
-                    {interview.status === "Live" && (
-                      <Link href={`/app/interviews/${interview.id}/live`}>
-                        <Button size="sm" className="h-6.5 text-[11px] px-2">
-                          Join
-                        </Button>
-                      </Link>
-                    )}
-
-                    {interview.status === "Completed" && interview.reportId && (
-                      <Link href={`/app/reports/${interview.reportId}`}>
-                        <Button size="sm" variant="outline" className="h-6.5 text-[11px] px-2 gap-1">
-                          <FileText className="h-3 w-3" /> Report
-                        </Button>
-                      </Link>
-                    )}
-
-                    <Link href={`/app/interviews/${interview.id}`}>
-                      <Button size="sm" variant="ghost" className="h-6.5 text-[11px] px-2">
-                        Details
-                      </Button>
-                    </Link>
-
-                    {interview.status !== "Completed" && interview.status !== "Cancelled" && canDeleteInterview && (
-                      <button
-                        onClick={() => handleCancel(interview.id, interview.candidateName)}
-                        className="p-1 rounded text-muted-foreground hover:text-terra-600 dark:hover:text-terra-400 hover:bg-terra-500/10 transition-colors"
-                        title="Cancel Interview"
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </button>
-                    )}
+                <td className="px-3.5 py-2 text-right">
+                  <div className="flex items-center justify-end">
+                    <RowActionsMenu interview={interview} />
                   </div>
                 </td>
               </tr>

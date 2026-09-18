@@ -4,6 +4,7 @@ import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
 import { StoreProvider } from "@/lib/store/interview-store";
 import { ToastProvider } from "@/components/ui/toast";
+import { HydrationCleanup } from "@/components/hydration-cleanup";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 const fraunces = Fraunces({ subsets: ["latin"], variable: "--font-serif" });
@@ -29,6 +30,7 @@ export default function RootLayout({
         suppressHydrationWarning
         className={`${inter.variable} ${fraunces.variable} ${jetbrainsMono.variable} font-sans min-h-screen bg-background text-foreground antialiased`}
       >
+        <HydrationCleanup />
         <ThemeProvider
           attribute="class"
           defaultTheme="dark"
