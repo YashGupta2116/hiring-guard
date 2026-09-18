@@ -29,6 +29,12 @@ export async function emitToInterviewers(sessionId: string, event: string, data:
   return frame;
 }
 
+/** How many candidate sockets are currently connected to this session (0 when the socket server isn't up). */
+export async function countCandidateSockets(sessionId: string): Promise<number> {
+  if (!io) return 0;
+  return (await io.of("/candidate").in(`session:${sessionId}`).fetchSockets()).length;
+}
+
 /** Server -> candidate events are not buffered or frame-sequenced (Design.md §5.5). */
 export function emitToCandidate(sessionId: string, event: string, data: unknown): void {
   io?.of("/candidate").to(`session:${sessionId}`).emit(event, data);

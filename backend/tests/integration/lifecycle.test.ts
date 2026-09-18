@@ -216,3 +216,42 @@ describe("/candidate socket", () => {
     expect(socket.connected).toBe(true);
   });
 });
+
+describe("candidate presence for the interviewer", () => {
+  it("tells the interviewer a candidate who was already waiting is connected, and reports it on hydrate", async () => {
+    const owner = await registerOwner();
+    const { sessionId, candidateToken } = await admitSession(owner.accessToken);
+    await request(app)
+      .post("/api/v1/candidate/media-ready")
+      .set("Authorization", `Bearer ${candidateToken}`)
+      .send({ tracks: { camera: true, microphone: true, screen: true } });
+
+    // The candidate connects in the waiting room, before the runtime exists.
+    await connectSocket("/candidate", candidateToken);
+
+    const interviewer = await connectSocket("/interviewer", owner.accessToken);
+    const joined = await new Promise<{ ok: boolean }>((resolve) => interviewer.emit("session.join", { sessionId }, resolve));
+    expect(joined.ok).toBe(true);
+    const presence = new Promise<{ data: { connected: boolean } }>((resolve) => interviewer.once("candidate.presence", resolve));
+
+    const started = await request(app).post(`/api/v1/sessions/${sessionId}/start`).set("Authorization", `Bearer ${owner.accessToken}`);
+    expect(started.status).toBe(200);
+    expect((await presence).data.connected).toBe(true);
+
+    const live = await request(app).get(`/api/v1/sessions/${sessionId}/live`).set("Authorization", `Bearer ${owner.accessToken}`);
+    expect(live.body.data.candidateConnected).toBe(true);
+  });
+
+  it("reports candidateConnected false when nobody is connected", async () => {
+    const owner = await registerOwner();
+    const { sessionId, candidateToken } = await admitSession(owner.accessToken);
+    await request(app)
+      .post("/api/v1/candidate/media-ready")
+      .set("Authorization", `Bearer ${candidateToken}`)
+      .send({ tracks: { camera: true, microphone: true, screen: true } });
+    await request(app).post(`/api/v1/sessions/${sessionId}/start`).set("Authorization", `Bearer ${owner.accessToken}`);
+
+    const live = await request(app).get(`/api/v1/sessions/${sessionId}/live`).set("Authorization", `Bearer ${owner.accessToken}`);
+    expect(live.body.data.candidateConnected).toBe(false);
+  });
+});

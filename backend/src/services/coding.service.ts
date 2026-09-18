@@ -159,5 +159,7 @@ export async function getSessionCode(orgId: string, sessionId: string) {
     submittedAt: sessionTask.submittedAt,
     snapshots: sessionTask.snapshots,
     executions: sessionTask.executions,
+    /** Which runner produced the results ("mock" never executes code), so reviewers aren't misled. */
+    runner: getSandbox().name,
   }));
 }

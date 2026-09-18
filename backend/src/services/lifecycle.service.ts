@@ -3,6 +3,7 @@ import { SessionRuntime, type EndReason } from "../live/session-runtime.js";
 import { broadcastSessionState } from "../sockets/session-broadcast.js";
 import { AppError } from "../utils/app-error.js";
 import { prisma } from "../utils/prisma.js";
+import { countCandidateSockets } from "../sockets/emitter.js";
 import { redis } from "../utils/redis.js";
 import { listFlags } from "./flag.service.js";
 import { startRecordingIfConfigured } from "./media.service.js";
@@ -42,6 +43,9 @@ export async function startSession(orgId: string, sessionId: string, actorId: st
   });
   registry.set(sessionId, runtime);
   await runtime.start();
+  // The candidate usually connects in the waiting room, before this runtime exists, so nothing would ever
+  // tell the interviewer they are already here.
+  if ((await countCandidateSockets(sessionId)) > 0) runtime.onCandidateConnected();
   await startRecordingIfConfigured(session);
 
   await transition(sessionId, ["ADMITTED"], "LIVE", { orgId, actorType: "USER", actorId });
@@ -89,6 +93,7 @@ export async function getLiveSnapshot(orgId: string, sessionId: string) {
     elapsedMs,
     remainingMs,
     mediaReady: mediaReady === "1",
+    candidateConnected: (await countCandidateSockets(sessionId)) > 0,
     integrity: runtime ? { score: runtime.snapshotIntegrity(), calibrating: Date.now() < runtime.calibrationEndsAt.getTime() } : null,
     flags,
     notes,
