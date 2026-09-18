@@ -89,12 +89,16 @@ export function StatusBadge({
       case "Approved":
       case "Easy":
         return {
-          classes: "bg-sage-100/50 dark:bg-sage-950/30 text-sage-800 dark:text-sage-300 border border-sage-500/20",
-          icon: <span className="h-1.5 w-1.5 rounded-full bg-sage-500" />,
+          classes: "bg-emerald-50/80 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200/70 dark:border-emerald-800/40",
+          icon: <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />,
+        };
+      case "Interviewing":
+        return {
+          classes: "bg-blue-50/80 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200/70 dark:border-blue-800/40",
+          icon: <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />,
         };
       case "Scheduled":
       case "Hire":
-      case "Interviewing":
       case "Ready":
         return {
           classes: "bg-sand-200/60 dark:bg-sand-800/60 text-foreground border border-border",
@@ -106,7 +110,7 @@ export function StatusBadge({
       case "Leaning Hire":
       case "Medium":
         return {
-          classes: "bg-amber-100/60 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300 border border-amber-500/30",
+          classes: "bg-amber-50/80 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200/70 dark:border-amber-800/40",
           icon: <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />,
         };
       case "Review Recommended":
@@ -116,15 +120,15 @@ export function StatusBadge({
       case "No Hire":
       case "Hard":
         return {
-          classes: "bg-terra-100/60 dark:bg-terra-950/40 text-terra-800 dark:text-terra-300 border border-terra-500/30",
-          icon: <span className="h-1.5 w-1.5 rounded-full bg-terra-500" />,
+          classes: "bg-rose-50/80 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200/70 dark:border-rose-800/40",
+          icon: <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />,
         };
       case "Draft":
       case "Shortlisted":
       default:
         return {
-          classes: "bg-secondary text-muted-foreground border border-border/80",
-          icon: <span className="h-1.5 w-1.5 rounded-full bg-muted-foreground/60" />,
+          classes: "bg-stone-100/90 dark:bg-stone-800/90 text-stone-700 dark:text-stone-300 border border-stone-200/80 dark:border-stone-700/80",
+          icon: <span className="h-1.5 w-1.5 rounded-full bg-stone-400 dark:bg-stone-500" />,
         };
     }
   };

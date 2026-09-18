@@ -1,0 +1,343 @@
+"""Four evaluation figures, styled per Design.md sections 2, 4 and 5.
+
+Every colour used below comes from `TOKENS`, itself copied from Design.md
+section 1's token tables -- Rules.md section 4 treats a bare hex literal
+in a call site as a bug, and this module is the only place besides
+`vtml.mplstyle` allowed to name a colour at all.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from pathlib import Path
+
+import matplotlib
+
+matplotlib.use("Agg")  # this module only ever writes files, never a window
+
+import matplotlib.pyplot as plt
+from matplotlib import font_manager
+from matplotlib.figure import Figure
+from matplotlib.ticker import FuncFormatter
+
+from vtml.config import EngineConfig
+from vtml.evaluate.metrics import FixtureRun, SensitivityRun
+from vtml.fusion import corroborate
+from vtml.fusion.engine import Engine, Weights
+from vtml.types import Channel, Flag, Observation, Severity
+
+_STYLE_PATH = Path(__file__).with_name("vtml.mplstyle")
+
+TOKENS: dict[str, str] = {
+    "sand/0": "#FFFFFF",
+    "sand/100": "#F7F3EC",
+    "sand/300": "#E3DACB",
+    "sand/400": "#CFC3AE",
+    "sand/500": "#8D8372",
+    "sand/600": "#6E6558",
+    "sand/800": "#2B2620",
+    "clay/400": "#B08968",
+    "clay/600": "#7B5A3D",
+    "sage/400": "#7A8B6F",
+    "amber/400": "#C99A4B",
+    "terra/400": "#B5654D",
+    "slate/400": "#6E8FA3",
+}
+
+_BAND_COLOR = {
+    "clear": TOKENS["sage/400"],
+    "review": TOKENS["amber/400"],
+    "suppressed": TOKENS["terra/400"],
+}
+_BAND_RANGES: list[tuple[str, float, float]] = [
+    ("suppressed", 0.0, 70.0),
+    ("review", 70.0, 85.0),
+    ("clear", 85.0, 100.0),
+]
+
+_SEVERITY_COLOR = {
+    Severity.LOW: TOKENS["slate/400"],
+    Severity.MEDIUM: TOKENS["amber/400"],
+    Severity.HIGH: TOKENS["terra/400"],
+}
+# Severity is encoded by shape as well as colour (Design.md section 2
+# rule 3): low is hollow, medium half-filled, high filled plus a ring
+# drawn separately below.
+_SEVERITY_FILLSTYLE = {Severity.LOW: "none", Severity.MEDIUM: "left", Severity.HIGH: "full"}
+
+# Design.md section 3: fall back to DejaVu rather than let matplotlib
+# substitute silently (a findfont warning per draw call, and no record
+# of the substitution anywhere).
+_FONT_SUBSTITUTIONS = {"Inter": "DejaVu Sans", "JetBrains Mono": "DejaVu Sans Mono"}
+
+
+def configure_style() -> list[str]:
+    """Loads vtml.mplstyle and returns which fonts were substituted, so
+    the caller can record it (docs/Memory.md), per Design.md section 3."""
+    plt.style.use(_STYLE_PATH)
+    installed = {f.name for f in font_manager.fontManager.ttflist}
+    applied = []
+    if "Inter" not in installed:
+        plt.rcParams["font.sans-serif"] = [_FONT_SUBSTITUTIONS["Inter"]]
+        applied.append(f"Inter -> {_FONT_SUBSTITUTIONS['Inter']}")
+    if "JetBrains Mono" not in installed:
+        plt.rcParams["font.monospace"] = [_FONT_SUBSTITUTIONS["JetBrains Mono"]]
+        applied.append(f"JetBrains Mono -> {_FONT_SUBSTITUTIONS['JetBrains Mono']}")
+    return applied
+
+
+def _mmss(t_ms: float, _pos: object = None) -> str:
+    total_s = int(t_ms // 1000)
+    return f"{total_s // 60:02d}:{total_s % 60:02d}"
+
+
+def figure_score_distribution(honest: FixtureRun, staged: FixtureRun) -> Figure:
+    """F1: two points, not two distributions -- Design.md section 5 is
+    explicit that a violin or KDE over one observation each would be
+    faking depth the two fixtures don't have."""
+    assert honest.result.score is not None
+    assert staged.result.score is not None
+
+    fig, ax = plt.subplots(figsize=(7.0, 4.0))
+    for _band, lo, hi in _BAND_RANGES:
+        ax.axvspan(lo, hi, color=_BAND_COLOR[_band], alpha=0.12, lw=0)
+
+    ax.plot(
+        honest.result.score, 1, marker="o", markersize=14,
+        markerfacecolor=TOKENS["sage/400"], markeredgecolor=TOKENS["sage/400"],
+        linestyle="none", label="honest",
+    )
+    ax.plot(
+        staged.result.score, 0, marker="o", markersize=14, fillstyle="none",
+        markerfacecolor=TOKENS["terra/400"], markeredgecolor=TOKENS["terra/400"],
+        markeredgewidth=1.8, linestyle="none", label="staged",
+    )
+    ax.set_yticks([0, 1])
+    ax.set_yticklabels(["staged", "honest"])
+    ax.set_ylim(-0.6, 1.6)
+    ax.set_xlim(0, 100)
+    ax.set_xlabel("Integrity score")
+    ax.legend(loc="upper left")
+    return fig
+
+
+def figure_reliability_grid(detector_types: list[str], *, ncols: int = 4) -> Figure:
+    """F2: not computable this phase -- no detector has a fitted curve
+    and there are no labelled positives to bin. Every panel is hatched
+    and labelled `prior`, exactly Design.md section 5's own prescription
+    for an unfitted detector, applied to all sixteen rather than skipping
+    the figure (see docs/Memory.md for the reasoning)."""
+    # detector_types are DetectorType members (str-Enum): plain str()
+    # renders "DetectorType.X", not the dotted type string, since Enum's
+    # own __str__ takes priority over the str mixin -- .value is correct.
+    labels = [getattr(t, "value", t) for t in detector_types]
+    n = len(labels)
+    nrows = -(-n // ncols)
+    fig, axes = plt.subplots(nrows, ncols, figsize=(9.0, 2.0 * nrows), squeeze=False)
+    for i, ax in enumerate(axes.flat):
+        if i >= n:
+            ax.axis("off")
+            continue
+        ax.set_facecolor(TOKENS["sand/400"])
+        ax.patch.set_hatch("///")
+        ax.patch.set_edgecolor(TOKENS["sand/500"])
+        ax.set_xticks([])
+        ax.set_yticks([])
+        ax.set_xlabel(labels[i], fontsize=7, rotation=20, ha="right")
+        ax.text(
+            0.5, 0.5, "prior", transform=ax.transAxes, ha="center", va="center",
+            color=TOKENS["sand/600"], fontsize=9,
+        )
+    fig.tight_layout()
+    return fig
+
+
+def figure_sensitivity_sweep(sensitivity: list[SensitivityRun]) -> Figure:
+    """F3: three real runs per fixture, one per preset -- an ordered
+    ramp (lenient lightest to strict darkest), not three unrelated hues."""
+    import numpy as np
+
+    colors = {"lenient": TOKENS["sand/400"], "standard": TOKENS["clay/400"], "strict": TOKENS["clay/600"]}
+    groups = ["honest", "staged"]
+    targets = {"honest": 90.0, "staged": 70.0}
+    x = np.arange(len(groups))
+    width = 0.25
+
+    fig, ax = plt.subplots(figsize=(7.0, 4.0))
+    for i, run in enumerate(sensitivity):
+        offset = (i - 1) * width
+        values = [run.honest_score, run.staged_score]
+        ax.bar(x + offset, values, width, color=colors[run.preset], label=run.preset)
+
+    span = (len(sensitivity) * width) / 2 + 0.05
+    for i, group in enumerate(groups):
+        ax.hlines(
+            targets[group], x[i] - span, x[i] + span,
+            colors=TOKENS["sand/600"], linestyles="dashed", linewidth=1.2,
+        )
+
+    ax.set_xticks(list(x))
+    ax.set_xticklabels(groups)
+    ax.set_ylabel("Integrity score")
+    ax.set_ylim(0, 100)
+    ax.legend()
+    return fig
+
+
+@dataclass(frozen=True)
+class _EvidenceTick:
+    t_ms: int
+    channel: Channel
+    llr: float
+    corroborated: bool
+
+
+@dataclass(frozen=True)
+class _ScoreSample:
+    t_ms: int
+    score: float | None
+
+
+def _build_timeline(
+    observations: list[Observation], config: EngineConfig, sample_interval_ms: int
+) -> tuple[list[_ScoreSample], list[_EvidenceTick], list[Flag]]:
+    """Drives one throwaway Engine through the staged session, interleaving
+    real ingest() calls (to capture each observation's actual accumulated
+    LLR and corroboration state) with snapshot() calls at a fixed interval
+    (Track 1's score arc). Reads `Engine._channels` directly, same as
+    `tests/test_snapshot.py` already does, so the figure draws the exact
+    numbers the engine scored with rather than a re-derived approximation.
+    """
+    engine = Engine(config, Weights())
+    ordered = sorted(observations, key=lambda o: o.t_ms)
+    session_end = ordered[-1].t_ms
+    sample_points = list(range(0, session_end + 1, sample_interval_ms))
+
+    ticks: list[_EvidenceTick] = []
+    samples: list[_ScoreSample] = []
+    obs_idx = 0
+    sample_idx = 0
+    while obs_idx < len(ordered) or sample_idx < len(sample_points):
+        next_obs = ordered[obs_idx] if obs_idx < len(ordered) else None
+        next_sample = sample_points[sample_idx] if sample_idx < len(sample_points) else None
+        if next_obs is not None and (next_sample is None or next_obs.t_ms <= next_sample):
+            _boost, corroborated_by = corroborate.compute_boost(
+                engine._channels, next_obs.channel, next_obs.t_ms, config
+            )
+            ingest_result = engine.ingest([next_obs])
+            if ingest_result.accepted:
+                evidence = engine._channels[next_obs.channel].recent[-1]
+                ticks.append(
+                    _EvidenceTick(
+                        t_ms=next_obs.t_ms,
+                        channel=next_obs.channel,
+                        llr=evidence.llr,
+                        corroborated=bool(corroborated_by),
+                    )
+                )
+            obs_idx += 1
+        else:
+            assert next_sample is not None
+            snapshot_result = engine.snapshot(next_sample)
+            samples.append(_ScoreSample(t_ms=next_sample, score=snapshot_result.score))
+            sample_idx += 1
+
+    final = engine.finalise(session_end)
+    return samples, ticks, list(final.flags)
+
+
+def figure_session_timeline(
+    observations: list[Observation], config: EngineConfig, *, sample_interval_ms: int = 2000
+) -> Figure:
+    """F4, the centrepiece: three stacked tracks on a shared mm:ss axis,
+    sampled from real `Engine.snapshot()`/`ingest()` calls, never
+    fabricated. Twice the size of the other three (Design.md section 5)."""
+    samples, ticks, flags = _build_timeline(observations, config, sample_interval_ms)
+    calibration_end_ms = config.calibration_window_s * 1000
+    session_end = max(o.t_ms for o in observations)
+
+    fig, (ax_score, ax_evidence, ax_flags) = plt.subplots(
+        3, 1, figsize=(12.0, 5.0), sharex=True, gridspec_kw={"height_ratios": [2.0, 2.4, 1.0]}
+    )
+
+    # -- Track 1: score -------------------------------------------------
+    for _band, lo, hi in _BAND_RANGES:
+        ax_score.axhspan(lo, hi, color=_BAND_COLOR[_band], alpha=0.12, lw=0)
+    ax_score.axvspan(0, calibration_end_ms, color=TOKENS["sand/400"], hatch="///", lw=0)
+    scored = [s for s in samples if s.score is not None]
+    ax_score.plot([s.t_ms for s in scored], [s.score for s in scored], color=TOKENS["clay/600"])
+    ax_score.set_ylim(0, 100)
+    ax_score.set_ylabel("Score")
+
+    # -- Track 2: evidence -----------------------------------------------
+    channels_order = list(Channel)
+    row_of = {c: i for i, c in enumerate(channels_order)}
+    ax_evidence.axvspan(0, calibration_end_ms, color=TOKENS["sand/400"], hatch="///", lw=0)
+    max_llr = max((abs(t.llr) for t in ticks), default=1.0) or 1.0
+    for t in ticks:
+        row = row_of[t.channel]
+        height = 0.42 * min(abs(t.llr) / max_llr, 1.0)
+        color = TOKENS["clay/600"] if t.corroborated else TOKENS["clay/400"]
+        ax_evidence.vlines(t.t_ms, row - height, row + height, color=color, linewidth=1.2)
+    ax_evidence.set_yticks(list(row_of.values()))
+    ax_evidence.set_yticklabels([c.value for c in channels_order])
+    ax_evidence.set_ylim(-0.6, len(channels_order) - 0.4)
+    ax_evidence.set_ylabel("Evidence")
+
+    # -- Track 3: flags ---------------------------------------------------
+    ax_flags.axvspan(0, calibration_end_ms, color=TOKENS["sand/400"], hatch="///", lw=0)
+    for i, flag in enumerate(flags):
+        color = _SEVERITY_COLOR[flag.severity]
+        ax_flags.plot(
+            flag.t_start_ms, 0, marker="o", markersize=12,
+            fillstyle=_SEVERITY_FILLSTYLE[flag.severity],
+            markerfacecolor=color, markeredgecolor=color, markeredgewidth=1.6, linestyle="none",
+        )
+        if flag.severity == Severity.HIGH:
+            ax_flags.plot(
+                flag.t_start_ms, 0, marker="o", markersize=19, fillstyle="none",
+                markeredgecolor=color, markeredgewidth=1.6, linestyle="none",
+            )
+        # Staggered so two flags close together in time (e.g. corroborating
+        # channels a few seconds apart) don't print their deltas on top of
+        # each other.
+        y_offset = 13 if i % 2 == 0 else 26
+        ax_flags.annotate(
+            f"{flag.score_delta:+.1f}", (flag.t_start_ms, 0), textcoords="offset points",
+            xytext=(0, y_offset), ha="center", fontsize=9, family="monospace",
+            color=TOKENS["sand/800"],
+        )
+    ax_flags.set_yticks([])
+    ax_flags.set_ylim(-1, 1)
+    ax_flags.set_xlim(0, session_end)
+    ax_flags.set_xlabel("Session time")
+    ax_flags.xaxis.set_major_formatter(FuncFormatter(_mmss))
+
+    fig.tight_layout()
+    return fig
+
+
+def save_all(
+    reports_dir: Path,
+    honest: FixtureRun,
+    staged: FixtureRun,
+    sensitivity: list[SensitivityRun],
+    detector_types: list[str],
+    config: EngineConfig,
+) -> dict[str, Path]:
+    reports_dir.mkdir(parents=True, exist_ok=True)
+    figures = {
+        "f1_score_distribution": figure_score_distribution(honest, staged),
+        "f2_reliability_curve": figure_reliability_grid(detector_types),
+        "f3_sensitivity_sweep": figure_sensitivity_sweep(sensitivity),
+        "f4_session_timeline": figure_session_timeline(staged.observations, config),
+    }
+    paths: dict[str, Path] = {}
+    for name, fig in figures.items():
+        png_path = reports_dir / f"{name}.png"
+        svg_path = reports_dir / f"{name}.svg"
+        fig.savefig(png_path)
+        fig.savefig(svg_path)
+        plt.close(fig)
+        paths[name] = png_path
+    return paths

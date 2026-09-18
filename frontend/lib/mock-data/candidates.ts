@@ -26,11 +26,11 @@ export const MOCK_CANDIDATES: Candidate[] = [
     ],
     notes: "Top candidate for the core telemetry pipeline team. Very calm demeanor during architectural edge case drills.",
     radarScores: [
-      { skill: "Distributed Architecture", score: 95, benchmark: 75 },
-      { skill: "Algorithmic Efficiency", score: 84, benchmark: 70 },
-      { skill: "Code Robustness", score: 92, benchmark: 72 },
-      { skill: "Communication", score: 88, benchmark: 68 },
-      { skill: "Problem Decomposition", score: 90, benchmark: 75 },
+      { skill: "Distributed Architecture", score: 92, benchmark: 78 },
+      { skill: "Algorithmic Efficiency", score: 85, benchmark: 72 },
+      { skill: "Code Robustness", score: 90, benchmark: 76 },
+      { skill: "Communication", score: 88, benchmark: 70 },
+      { skill: "System Design", score: 83, benchmark: 68 },
     ],
   },
   {
