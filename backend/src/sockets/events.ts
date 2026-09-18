@@ -23,6 +23,7 @@ export const CANDIDATE_EVENTS = {
   TIME_REMAINING: "time.remaining",
   SESSION_ENDED: "session.ended",
   WARN_SHOW: "warn.show",
+  TASK_FROZEN: "task.frozen",
 } as const;
 
 export const sessionJoinSchema = z.object({
@@ -100,4 +101,29 @@ export const telemetryBatchSchema = z.object({
   seq: z.number().int().min(1),
   sentAt: z.number(),
   events: z.array(telemetryEventSchema).min(1),
+});
+
+const editChangeType = z.enum(["TYPE", "PASTE", "AUTOCOMPLETE", "UNDO"]);
+
+const editorChangeSchema = z.object({
+  changeType: editChangeType,
+  rangeOffset: z.number().int().min(0),
+  insertedChars: z.number().int().min(0),
+  deletedChars: z.number().int().min(0),
+  text: z.string().max(10_000).optional(),
+  ts: z.number(),
+  keyIntervalsMs: z.array(z.number().min(0)).optional(),
+});
+
+export const editorDeltaSchema = z.object({
+  taskId: z.string().min(1),
+  seq: z.number().int().min(1),
+  changes: z.array(editorChangeSchema).min(1),
+});
+
+export const editorSnapshotSchema = z.object({
+  taskId: z.string().min(1),
+  language: z.string().min(1).max(40),
+  content: z.string().max(200_000),
+  reason: z.literal("INTERVAL"),
 });

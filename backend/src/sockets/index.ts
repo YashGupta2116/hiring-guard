@@ -8,7 +8,16 @@ import { verifyAccessToken, verifyCandidateToken } from "../utils/jwt.js";
 import { logger } from "../utils/logger.js";
 import { prisma } from "../utils/prisma.js";
 import { bindSocketServer, replayFrom } from "./emitter.js";
-import { clockOffsetSchema, clockSyncSchema, noteAddSchema, sessionJoinSchema, telemetryBatchSchema, warnAckSchema } from "./events.js";
+import {
+  clockOffsetSchema,
+  clockSyncSchema,
+  editorDeltaSchema,
+  editorSnapshotSchema,
+  noteAddSchema,
+  sessionJoinSchema,
+  telemetryBatchSchema,
+  warnAckSchema,
+} from "./events.js";
 
 const PRIVILEGED_ROLES = new Set(["OWNER", "ADMIN", "REVIEWER"]);
 
@@ -136,6 +145,19 @@ export function createSocketServer(httpServer: HttpServer): Server {
       if (!parsed.success) return;
       const offsetMs = (socket.data.clockOffsetMs as number | undefined) ?? 0;
       registry.get(sessionId)?.handleTelemetryBatch(parsed.data.connId, parsed.data.seq, parsed.data.events, offsetMs);
+    });
+
+    socket.on("editor.delta", (raw: unknown) => {
+      const parsed = editorDeltaSchema.safeParse(raw);
+      if (!parsed.success) return;
+      const offsetMs = (socket.data.clockOffsetMs as number | undefined) ?? 0;
+      registry.get(sessionId)?.handleEditorDelta(parsed.data.taskId, parsed.data.seq, parsed.data.changes, offsetMs);
+    });
+
+    socket.on("editor.snapshot", (raw: unknown) => {
+      const parsed = editorSnapshotSchema.safeParse(raw);
+      if (!parsed.success) return;
+      registry.get(sessionId)?.handleEditorSnapshot(parsed.data.taskId, parsed.data.language, parsed.data.content);
     });
 
     socket.on("warn.ack", (raw: unknown) => {

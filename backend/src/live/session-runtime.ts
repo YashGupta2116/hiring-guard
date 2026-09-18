@@ -19,12 +19,13 @@ import { logger } from "../utils/logger.js";
 import { prisma } from "../utils/prisma.js";
 import { redis } from "../utils/redis.js";
 import { Baseline } from "./calibration.js";
+import { AuthorshipDetector } from "./detectors/authorship.detector.js";
 import { EnvDetector } from "./detectors/env.detector.js";
 import { FocusDetector } from "./detectors/focus.detector.js";
 import { PasteDetector } from "./detectors/paste.detector.js";
 import { PointerDetector } from "./detectors/pointer.detector.js";
 import { RhythmDetector } from "./detectors/rhythm.detector.js";
-import type { DetectorContext, TelemetryEvent } from "./detectors/types.js";
+import type { DetectorContext, EditorChange, TelemetryEvent } from "./detectors/types.js";
 import {
   applyObservation,
   computeIntegrity,
@@ -82,9 +83,14 @@ export class SessionRuntime {
   private readonly pointerDetector = new PointerDetector();
   private readonly envDetector = new EnvDetector();
   private readonly rhythmDetector = new RhythmDetector();
+  private readonly authorshipDetector = new AuthorshipDetector();
   private readonly producerHealth = new ProducerHealthMonitor();
   private readonly producerChannels = new Map<string, MonitoringChannel[]>();
   private readonly frozenChannels = new FrozenChannelTracker();
+  /** Coding tasks the candidate has submitted — editor.delta/snapshot are dropped for these (Rules.md §6). */
+  private readonly frozenTasks = new Set<string>();
+  /** Per-sessionTask last-accepted editor.delta seq, in memory only (same non-resume caveat as fusion state). */
+  private readonly editorSeq = new Map<string, number>();
   /** In-memory only — not checkpointed to Redis (no mid-LIVE process resume exists yet; see Memory.md). */
   private fusionState: FusionState = {};
   /** Serializes every telemetry batch and internal-API write so seq/hash assignment never races. */
@@ -293,6 +299,64 @@ export class SessionRuntime {
   /** Resolves once every write enqueued so far has finished (or been logged and dropped). */
   async flush(): Promise<void> {
     await this.writeQueue;
+  }
+
+  // ---- Coding round: editor deltas, snapshots, authorship (FR-CODE-2, FR-DET-2) ----
+
+  handleEditorDelta(sessionTaskId: string, seq: number, changes: EditorChange[], offsetMs: number): void {
+    this.enqueue(() => this.processEditorDelta(sessionTaskId, seq, changes, offsetMs));
+  }
+
+  private async processEditorDelta(sessionTaskId: string, seq: number, changes: EditorChange[], offsetMs: number): Promise<void> {
+    if (this.frozenTasks.has(sessionTaskId)) return;
+
+    const lastSeq = this.editorSeq.get(sessionTaskId) ?? 0;
+    if (seq <= lastSeq) return; // duplicate/replayed batch
+    this.editorSeq.set(sessionTaskId, seq);
+
+    await prisma.editorDelta.createMany({
+      data: changes.map((change) => ({
+        sessionId: this.opts.sessionId,
+        sessionTaskId,
+        changeType: change.changeType,
+        rangeOffset: change.rangeOffset,
+        insertedChars: change.insertedChars,
+        deletedChars: change.deletedChars,
+        text: change.text ?? null,
+        keystrokeStats: change.keyIntervalsMs ? (change.keyIntervalsMs as Prisma.InputJsonValue) : undefined,
+        ts: new Date(change.ts + offsetMs),
+      })),
+    });
+
+    const outputs = this.authorshipDetector.handle(sessionTaskId, changes);
+    if (outputs.length === 0) return;
+
+    const pending: PendingObservation[] = outputs.map((output) => ({
+      source: "CLIENT",
+      channel: output.channel,
+      type: output.type,
+      clientTs: new Date(output.ts),
+      ts: new Date(output.ts + offsetMs),
+      llr: getLlr(output.type, this.opts.sensitivity),
+      payload: output.payload,
+    }));
+
+    const created = await appendObservations(this.opts.sessionId, pending);
+    await this.applyFusionAndFlags(created);
+  }
+
+  handleEditorSnapshot(sessionTaskId: string, language: string, content: string): void {
+    this.enqueue(async () => {
+      if (this.frozenTasks.has(sessionTaskId)) return;
+      await prisma.codeSnapshot.create({
+        data: { sessionId: this.opts.sessionId, sessionTaskId, language, content, reason: "INTERVAL" },
+      });
+    });
+  }
+
+  /** Called by coding.service after a successful submit — stops accepting further edits for this task. */
+  freezeTask(sessionTaskId: string): void {
+    this.frozenTasks.add(sessionTaskId);
   }
 
   // ---- Producer health (FR-DET-3) ----

@@ -6,6 +6,7 @@ import type { MailProvider } from "./mail/mail.provider.js";
 import { SmtpMailProvider } from "./mail/smtp.mail.js";
 import type { MediaProvider } from "./media/media.provider.js";
 import { MockMediaProvider } from "./media/mock.media.js";
+import { DockerSandboxProvider } from "./sandbox/docker.sandbox.js";
 import { MockSandboxProvider } from "./sandbox/mock.sandbox.js";
 import type { SandboxProvider } from "./sandbox/sandbox.provider.js";
 import { Ed25519Signer } from "./signer/ed25519.signer.js";
@@ -31,7 +32,7 @@ export const getLlm = lazy<LlmProvider>(() => new MockLlmProvider());
 
 export const getMedia = lazy<MediaProvider>(() => new MockMediaProvider());
 
-export const getSandbox = lazy<SandboxProvider>(() => new MockSandboxProvider());
+export const getSandbox = lazy<SandboxProvider>(() => (env.SANDBOX_PROVIDER === "docker" ? new DockerSandboxProvider() : new MockSandboxProvider()));
 
 export const getSigner = lazy<Signer>(() => {
   if (!env.EVIDENCE_SIGNING_PRIVATE_KEY) {

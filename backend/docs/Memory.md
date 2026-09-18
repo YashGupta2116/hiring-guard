@@ -8,10 +8,10 @@
 
 ## Current status
 
-- **Current phase:** Phase 7 — Fusion, flags, warden, dashboard loop (✅ done). Session stops after each
+- **Current phase:** Phase 8 — Coding round (✅ done). Session stops after each
   phase and waits for "next".
 - **Last updated:** 2026-09-18
-- **Next step:** Phase 8 — Coding round. Wait for "next".
+- **Next step:** Phase 9 — Seal and evidence verification. Wait for "next".
 
 ## Phase tracker
 
@@ -25,7 +25,7 @@
 | 5 Realtime & lifecycle | ✅ | build + 72 tests pass; Socket.IO `/interviewer` + `/candidate` namespaces, frame-buffered dashboard emitter with replay, events:{sid} Redis subscriber, SessionRuntime (lease, 1s timer, candidate presence/abandon grace), start/end/live endpoints (ADMITTED→LIVE→SEALING→PROCESSING, seal stubbed) |
 | 6 Telemetry & detectors | ✅ | build + 104 tests pass; ingest (clock correction, seq/dedup/gap→unscored), 5 pure detectors + calibration baseline, evidence hash chain, internal API (observations/transcript/heartbeat), producer-health→system.degraded |
 | 7 Fusion, flags, warden | ✅ | build + 139 tests pass; fusion.engine (decay/corroboration/floor/score, pure), flag-builder (threshold crossing + 15s merge), warden (tier/cooldown/cap, fixed templates), integrity.tick 2s + snapshots 10s, GET flags + POST adjudicate, notes (REST + socket), suggestions (manual refresh + accept), candidate-boundary socket test |
-| 8 Coding round | ⬜ | |
+| 8 Coding round | ✅ | build + 152 tests pass; `GET /candidate/tasks`, `editor.delta`/`editor.snapshot` sockets → `editor_deltas`/`code_snapshots`, `authorship.detector.ts` (paste/typed_ratio/burst reusing PASTE/RHYTHM channels), `docker.sandbox.ts` (real per-run container) + existing `mock.sandbox.ts`, run (rate-limited)/submit (hidden results, freezes task), interviewer `GET /sessions/:id/code` |
 | 9 Seal & evidence | ⬜ | |
 | 10 Pipeline & report | ⬜ | |
 | 11 Retention & hardening | ⬜ | |
@@ -44,41 +44,49 @@ backend/
 │   └── init-test-db.sql          creates veritrust_test in docker postgres
 ├── tests/
 │   ├── setup.ts
-│   ├── integration/app, auth, session, coding-task, join, lifecycle, session-runtime, telemetry, live
+│   ├── integration/app, auth, session, coding-task, join, lifecycle, session-runtime, telemetry, live,
+│   │   coding
 │   │   .test.ts (telemetry.test.ts is Phase 6: candidate tel.batch → chained observations, dup seq/gap
 │   │   handling, internal API observations/transcript/heartbeat, producer DEGRADED → system.degraded →
 │   │   recovery; live.test.ts is Phase 7: calibration gates flag creation, threshold crossing → flag →
 │   │   15s merge, warden tier progression/cooldown/cap/no-template-no-warning, warn.ack latency,
 │   │   adjudicate confirm/dismiss/downgrade incl. cross-org 404 and live score recovery on dismiss, notes
 │   │   REST + socket, suggestions refresh + accept, candidate-boundary scan of every `/candidate` emit
-│   │   across a scripted session with a real warning)
+│   │   across a scripted session with a real warning; coding.test.ts is Phase 8: candidate task list/run
+│   │   rate limit/submit hidden-results/frozen-task, interviewer code view w/ hidden results,
+│   │   editor.snapshot persistence, an editor.delta paste crossing into a real paste_large flag)
 │   └── unit/                     error handler + validate, hash utils, providers, timer, detectors,
-│       calibration, producer-health, fusion-engine
+│       calibration, producer-health, fusion-engine, authorship-detector
 ├── src/
 │   ├── index.ts                  http server, graceful shutdown, fatal handlers
 │   ├── worker.ts                 BullMQ worker bootstrap (jd-parse); run with `npm run worker`
 │   ├── app.ts                    requestId → pino-http → helmet → cors → json → cookies → /api/v1 (apiLimiter) → 404 → errorHandler
 │   ├── config/env.ts             zod env; ONLY place that reads process.env
-│   ├── config/constants.ts       JD upload caps, pagination defaults, Phase 6 telemetry/producer timings
+│   ├── config/constants.ts       JD upload caps, pagination defaults, Phase 6 telemetry/producer timings,
+│   │   Phase 8 AUTHORSHIP_*/CODE_RUN_RATE_LIMIT_MS
 │   ├── config/detection.ts       SERVER-ONLY: LLR_TABLE (type×sensitivity), CHANNEL_WEIGHTS,
 │   │   CHANNEL_DECAY_SECONDS, CHANNEL_THRESHOLDS, FUSION_SIGMA, SEVERITY_BAND_*_MULTIPLIER,
 │   │   corroboration/merge tunables — never sent to clients
 │   ├── controllers/health, auth, org, candidate-directory, session, jd, coding-task, question-bank,
-│   │   link, join, candidate, internal, flag .controller.ts
+│   │   link, join, candidate, internal, flag .controller.ts (candidate.controller.ts gained
+│   │   getTasks/runTask/submitTask in Phase 8; session.controller.ts gained getSessionCode)
 │   ├── routes/index.ts (mounts all routers), auth/org/candidate-directory/session/jd/coding-task/
 │   │   question-bank/link/join/candidate/internal/flag .routes.ts (each router's own middleware is
 │   │   mounted with an explicit path prefix, e.g. `router.use("/auth", authLimiter)` — NEVER
 │   │   `router.use(mw)` with no path, since a sub-router mounted at apiRouter's root ("/") would
-│   │   otherwise apply that middleware to every request)
+│   │   otherwise apply that middleware to every request; candidate.routes.ts's run-limiter is keyed by
+│   │   `sessionId:taskId`, not IP, via `createRateLimiter`'s `keyGenerator`)
 │   ├── services/health, auth, org, candidate-directory, audit, session, session-state, config, jd,
 │   │   coding-task, question-bank, link, join, media, candidate, evidence, internal, flag, note,
-│   │   suggestion .service.ts (session-state.service.ts `transition()` is the ONLY place
+│   │   suggestion, coding .service.ts (session-state.service.ts `transition()` is the ONLY place
 │   │   InterviewSession.status changes: CAS via updateMany + audit log in one transaction, then
 │   │   publishes events:{sid} "session.state"; evidence.service.ts `appendObservations()` is the ONLY
 │   │   place that assigns seq/prevHash/hash; internal.service.ts is the CV/ASR/producer side of the
 │   │   Phase 6 internal API; flag.service.ts does the org/role check itself for `/flags/:flagId/*`
 │   │   instead of a dedicated middleware, since the URL has no session id to key off; suggestion.service.ts
-│   │   only wires the manual `POST .../suggestions/refresh` trigger, see Known issues)
+│   │   only wires the manual `POST .../suggestions/refresh` trigger, see Known issues; coding.service.ts
+│   │   is Phase 8: candidate task list/run/submit (submit does a CAS `updateMany` on `submittedAt` to
+│   │   guard concurrent double-submit, then calls `runtime.freezeTask()`), interviewer getSessionCode)
 │   ├── middlewares/request-id, validate (+ getInput), not-found, error-handler, rate-limit, auth
 │   │   (requireUser), org-role (requireRole), session-access (requireSessionAccess — org membership +
 │   │   bound-interviewer-or-privileged-role check, sets req.sessionRecord), upload (jdUpload, multer
@@ -88,7 +96,15 @@ backend/
 │   │   (requireServiceToken — constant-time compare of INTERNAL_SERVICE_TOKEN, hashed first so unequal
 │   │   lengths don't short-circuit `timingSafeEqual`)
 │   ├── providers/index.ts        getStorage/getMail/getLlm/getMedia/getSandbox/getSigner (lazy singletons)
-│   │   storage(local) mail(smtp|log) llm(mock) media(mock) sandbox(mock) signer(ed25519)
+│   │   storage(local) mail(smtp|log) llm(mock) media(mock) sandbox(mock|docker, env SANDBOX_PROVIDER)
+│   │   signer(ed25519)
+│   ├── providers/sandbox/docker.sandbox.ts  Phase 8: real per-run container via `dockerode` — one
+│   │   container executes every test case for the request (a small Python/Node harness written into the
+│   │   bind-mounted temp dir loops over `tests.json`, JSON-prints per-test stdout/stderr/exitCode/timedOut),
+│   │   no network, read-only rootfs + 16MB tmpfs at /tmp, 256MB/1cpu/128pids, wall-clock kill; only
+│   │   python/python3/javascript/node are registered (`LANGUAGE_RUNNERS`) — anything else returns a plain
+│   │   ERROR result, not a thrown exception. Reads container output via `logs({follow: true})` and
+│   │   collects the stream itself — NEVER the non-stream `logs()` overload, see Decisions log for why
 │   ├── workers/jd-parse.worker.ts  extracts text (pdf-parse v2 `new PDFParse({data}).getText()`, or
 │   │   mammoth.extractRawText for DOCX, or rawText for TEXT) → llm.parseJd() → PARSED/FAILED
 │   ├── workers/link-expiry.worker.ts  delayed BullMQ job per join link; ARMED + never consented when it
@@ -96,7 +112,8 @@ backend/
 │   ├── sockets/index.ts          Socket.IO server: /interviewer ns (access JWT in handshake.auth.token,
 │   │   client emits `session.join {sessionId, lastFrameSeq?}` with ack, server checks org+binding then
 │   │   joins room `session:{sid}` and replays buffered frames), /candidate ns (candidate JWT, auto-joins
-│   │   its session room, drives SessionRuntime.onCandidateConnected/Disconnected)
+│   │   its session room, drives SessionRuntime.onCandidateConnected/Disconnected; Phase 8 added
+│   │   editor.delta/editor.snapshot handlers, both routed to `registry.get(sid)?.handleEditorDelta/Snapshot`)
 │   ├── sockets/emitter.ts        emitToInterviewers (wraps in {frameSeq,sessionId,ts,data}, appends to
 │   │   Redis `s:{sid}:buf` capped at 2000, emits) + emitToCandidate (unbuffered, allow-list only) +
 │   │   replayFrom(sid, afterSeq)
@@ -104,8 +121,8 @@ backend/
 │   │   (utils/events.ts publishSessionEvent, e.g. jd.parsed) to emitToInterviewers
 │   ├── sockets/events.ts         INTERVIEWER_EVENTS (+ SYSTEM_DEGRADED, TRANSCRIPT_PARTIAL/FINAL,
 │   │   INTEGRITY_TICK, FLAG_NEW, FLAG_UPDATE, WARN_ISSUED, NOTE_ADDED, QS_SUGGESTIONS) / CANDIDATE_EVENTS
-│   │   (+ WARN_SHOW) name constants + session.join, clockSync, clockOffset, telemetryBatch, warnAck,
-│   │   noteAdd zod schemas
+│   │   (+ WARN_SHOW, Phase 8's TASK_FROZEN) name constants + session.join, clockSync, clockOffset,
+│   │   telemetryBatch, warnAck, noteAdd, Phase 8's editorDeltaSchema/editorSnapshotSchema zod schemas
 │   ├── live/session-runtime.ts   one per LIVE session: Redis fusion lease (SET NX/renew), 1s timer.tick,
 │   │   candidate presence + 120s abandon-grace timer, duration-limit timer, the single serialized writer
 │   │   for telemetry (`handleTelemetryBatch()`, `appendExternalObservations()` both via one `writeQueue`
@@ -118,7 +135,11 @@ backend/
 │   │   then `warden.evaluateWarden`; `snapshotIntegrity()` (decay-to-now, no I/O) backs both the 2s
 │   │   `integrity.tick` and the 10s persisted `IntegritySnapshot` row, and lets `flag.service` verify a
 │   │   dismiss actually raised the live score; `applyAdjudication()` nudges one channel's accumulator
-│   │   for CONFIRM/DISMISS/DOWNGRADE (approximate — Phase 10 IntegrityRescore is the authoritative one)
+│   │   for CONFIRM/DISMISS/DOWNGRADE (approximate — Phase 10 IntegrityRescore is the authoritative one).
+│   │   Phase 8 added `handleEditorDelta()`/`handleEditorSnapshot()` (same serialized `writeQueue`,
+│   │   in-memory per-sessionTask `editorSeq` dedup — same non-resume caveat as `FusionState`) and
+│   │   `freezeTask()` (an in-memory `frozenTasks` Set that `coding.service.submitTask` populates so
+│   │   further editor.delta/snapshot for that task are silently dropped, mirroring `FrozenChannelTracker`)
 │   ├── live/registry.ts          sid -> SessionRuntime in-memory map
 │   ├── live/timer.ts             computeTimerState(startedAt, durationMinutes, now) — pure, unit-tested;
 │   │   per-topic budget burn still deferred (no live topic tracking yet)
@@ -127,8 +148,13 @@ backend/
 │   │   detection (`s:{sid}:conn:{connId}:seq`, FR-TEL-1/2)
 │   ├── live/calibration.ts       Baseline — collects rhythm (keystroke variance) samples during the
 │   │   first 60s; RhythmDetector reads it once ready
-│   ├── live/detectors/           focus, paste, pointer, env, rhythm .detector.ts — pure classes, no I/O
-│   │   (Rules.md §5); ks-test.ts (two-sample KS statistic); types.ts (TelemetryEvent, DetectorObservation)
+│   ├── live/detectors/           focus, paste, pointer, env, rhythm, authorship .detector.ts — pure
+│   │   classes, no I/O (Rules.md §5); ks-test.ts (two-sample KS statistic); types.ts (TelemetryEvent,
+│   │   DetectorObservation, Phase 8's EditorChange). authorship.detector.ts (FR-DET-2) keys its running
+│   │   typed/total char totals by sessionTaskId; emits `paste_large`/PASTE for a large editor paste
+│   │   (reusing the existing type+channel), `typed_ratio_low`/RHYTHM once the solution passes
+│   │   AUTHORSHIP_MIN_SOLUTION_CHARS with too little of it typed, `typing_burst`/RHYTHM for sustained
+│   │   >8 chars/s — see Decisions log for why PASTE/RHYTHM instead of a new channel
 │   ├── live/producer-health.ts   ProducerHealthMonitor — pure OK/DEGRADED/stale-heartbeat state machine;
 │   │   SessionRuntime does the I/O (system.degraded emit, unscored windows, channel freeze) from its
 │   │   transitions
@@ -145,8 +171,9 @@ backend/
 │   │   frozen — no decay, no new evidence, 0 score contribution — until every reason clears)
 │   ├── live/warden.ts            `evaluateWarden()` — tier by occurrence count + severity, 45s per-type
 │   │   cooldown, cap 6 above-tier-1 warnings then downgrade to NOTICE, fixed candidate-facing templates
-│   │   (only for the 7 types Design.md §6 actually gives wording for — a type with none just never shows
-│   │   a warning, the flag still exists); `acknowledgeWarning()` — `warn.ack` → ackLatencyMs → flag.update
+│   │   (8 of Design.md §6's 9 types now have wording as of Phase 8's `typing_burst`; only
+│   │   `SCREEN_SHARE_STOPPED` still has none — a type with none just never shows a warning, the flag
+│   │   still exists); `acknowledgeWarning()` — `warn.ack` → ackLatencyMs → flag.update
 │   ├── services/lifecycle.service.ts  startSession (guards: ADMITTED, !needsReconsent, Redis
 │   │   mediaReady==="1"; creates+starts SessionRuntime, ADMITTED→LIVE), endSession (idempotent once past
 │   │   LIVE; destroys runtime; LIVE→SEALING→PROCESSING — seal is a stub until Phase 9), getLiveSnapshot
@@ -183,7 +210,7 @@ backend/
 
 ## Installed versions (majors matter)
 
-express 5 · zod 4 · prisma/@prisma/client/@prisma/adapter-pg 7.10 · ioredis 6 · pino 10 · pino-http 11 · express-rate-limit 8 · rate-limit-redis 6 · helmet 8 · nodemailer 10 · ulid 3 · dotenv 17 · typescript 7 · tsx 4 · vitest 5 · supertest 7 · argon2 (latest) · jose (latest) · bullmq (latest) · multer (latest) · pdf-parse 2.4.5 (class-based `PDFParse` API, not the old callback/promise-of-buffer style) · mammoth (latest)
+express 5 · zod 4 · prisma/@prisma/client/@prisma/adapter-pg 7.10 · ioredis 6 · pino 10 · pino-http 11 · express-rate-limit 8 · rate-limit-redis 6 · helmet 8 · nodemailer 10 · ulid 3 · dotenv 17 · typescript 7 · tsx 4 · vitest 5 · supertest 7 · argon2 (latest) · jose (latest) · bullmq (latest) · multer (latest) · pdf-parse 2.4.5 (class-based `PDFParse` API, not the old callback/promise-of-buffer style) · mammoth (latest) · dockerode 4 + @types/dockerode 3 (Phase 8, Rules.md §3 already listed it)
 
 Removed: `bcryptjs`, `jsonwebtoken` (Rules: use `argon2`, `jose`).
 
@@ -231,6 +258,12 @@ Removed: `bcryptjs`, `jsonwebtoken` (Rules: use `argon2`, `jose`).
 | 2026-09-18 | `CALIBRATION_MS` and `WARDEN_COOLDOWN_MS` are shortened when `NODE_ENV=test` (200ms and 100ms vs 60s/45s in real life) | Same precedent as the `/auth` rate limiter's test-only limit: flag/warden integration tests would otherwise need a real 60s+45s wall-clock wait per test. Asked the user first since CLAUDE.md flags constants.ts changes; approved this exact pattern |
 | 2026-09-18 | `suggestion.service.refreshSuggestions` only wires the manual `POST .../suggestions/refresh` trigger, not the automatic "topic change" / "answer end" triggers Phases.md also lists | Both automatic triggers need live topic tracking and ASR turn-detection that don't exist in any phase yet (topic budgets are a known Phase 5/6 gap; transcript ingest has no turn/topic labelling). Wiring a trigger to infrastructure that isn't there would be a no-op; the manual endpoint is fully real (MockLlmProvider, 2.5s timeout → question-bank fallback) |
 | 2026-09-18 | `GET /sessions/:id/live` gained `integrity` and `flags`/`notes` fields but still doesn't include `transcriptTail`, `suggestions`, or `degraded` from Design.md §4.10's hydrate shape | Those three need more plumbing (transcript history query, latest suggestion batch, producer-health state exposed outside the runtime) than the phase's scope justified; the socket already pushes `transcript.partial/final`, `qs.suggestions`, and `system.degraded` live, so a dashboard that was already open doesn't miss anything — only a fresh reload mid-session would |
+| 2026-09-18 | Authorship detector signals (`paste_large` reused, plus new `typed_ratio_low`/`typing_burst`) are scored on the existing `PASTE`/`RHYTHM` channels, not a new channel | `MonitoringChannel` has no "authorship"/"code" value and adding one needs a schema migration (CLAUDE.md: ask first); the signals are conceptually the same kind of evidence (a disguised paste, an anomalous typing pattern) just captured from the editor instead of general telemetry, so reusing the channel/weight/threshold that already exists avoids a schema change for Phase 8 |
+| 2026-09-18 | Candidate-facing `taskId` in `/candidate/tasks`, `editor.delta`, `editor.snapshot`, run/submit routes is `SessionCodingTask.id`, not `CodingTask.id` | The candidate never needs the org-level task id, and `EditorDelta`/`CodeSnapshot`/`CodeExecution` all key off `sessionTaskId` already — using the session-scoped id end-to-end avoids an extra lookup and matches what the DB actually references |
+| 2026-09-18 | `editor.delta` dedup is a plain in-memory `Map<sessionTaskId, lastSeq>` on `SessionRuntime`, not a Redis-backed per-connection dedup like `TelemetryIngest` | Editor content is already durably stored as `EditorDelta` rows in Postgres (unlike telemetry, which only exists as derived `Observation`s); a duplicate/out-of-order batch here would just double-count characters in the authorship detector's running totals, not lose evidence — the same "no mid-LIVE resume exists yet" gap already accepted for `FusionState` |
+| 2026-09-18 | `docker.sandbox.ts` reads container output via `container.logs({stdout:true, stderr:true, follow:true})` and manually collects the stream, never the non-`follow` `logs()` overload | Discovered live: `docker-modem`'s non-stream response path (`lib/modem.js`) does `JSON.parse(body) \|\| buffer` on *every* non-stream API response, including logs — so when a run's stdout is itself valid JSON (our harness always prints one `json.dumps(results)` line), `logs()` silently hands back the *parsed array/objects* instead of a `Buffer`, and `.toString()` on that produces `"[object Object],[object Object]"` garbage instead of the real output. Forcing the `follow: true` / stream code path in docker-modem sidesteps the auto-parse entirely. Cost real debugging time; if any other dockerode non-stream call's output could ever look like JSON, apply the same fix |
+| 2026-09-18 | `docker.sandbox.ts` runs every test case for one `run`/`submit` from inside a single container (a generated harness script loops over `tests.json`), not one container per test case | Spec 7.9 says "one container per run" (singular) — read as one container per `POST .../run` or `.../submit` call, covering all of that call's test cases, not one container per test case, which would also be far slower for tasks with many tests |
+| 2026-09-18 | `docker.sandbox.ts` only registers runners for `python`/`python3`/`javascript`/`node`; any other `language` value returns `{status: "ERROR", ...}` from `execute()`, not a thrown exception | `CodingTask.languages`/the run/submit `language` field are free-text strings (no enum in the schema or validators), so arbitrary values are possible; supporting genuinely arbitrary languages generically isn't practical for this phase, and the mock sandbox (still the default via `SANDBOX_PROVIDER=mock`) is what the automated test suite exercises regardless |
 
 ---
 
@@ -292,11 +325,6 @@ Removed: `bcryptjs`, `jsonwebtoken` (Rules: use `argon2`, `jose`).
   I/O (lease set/renew) — this works because fake timers only intercept JS timer functions, not network
   I/O, but keep that in mind if a future test needs to fake `Date.now()` too (would need `shouldAdvanceTime`
   or explicit `Date` mocking to avoid skewing `computeTimerState`).
-- Warden only has candidate-facing templates for 7 of Design.md §6's 9 types: `SCREEN_SHARE_STOPPED` (no
-  detector — needs the same media webhook as everything else media-grace related) and `TYPING_BURST` (a
-  Phase 8 authorship-detector concept, not the Phase 6 rhythm/KS-test anomaly) have no template, so those
-  types can never produce a `warn.show` even if something eventually flags them. Add the row to
-  `live/warden.ts`'s `WARNING_MESSAGES` once the detector exists — never invent wording ahead of that.
 - `sockets/index.ts`'s `note.add` handler picks the first room starting with `session:` out of
   `socket.rooms` — correct today because an interviewer socket only ever joins one session room via
   `session.join`, but would misbehave if that ever changes to support multiple concurrent sessions per socket.
@@ -306,6 +334,26 @@ Removed: `bcryptjs`, `jsonwebtoken` (Rules: use `argon2`, `jose`).
   crash/restart mid-LIVE loses the live accumulator (all raw observations are still safely in Postgres, so
   Phase 10's `IntegrityRescore` is unaffected; only the *live* dashboard score would reset to 100 until new
   evidence arrives). No worse than every other mid-LIVE state SessionRuntime already can't resume.
+- Warden now has templates for 8 of 9 Design.md §6 types (Phase 8 added `typing_burst`); only
+  `SCREEN_SHARE_STOPPED` still has none — still blocked on the same LiveKit webhook gap as media grace.
+- `typed_ratio_low` (the authorship detector's third signal) has no candidate-facing warden template —
+  Design.md §6's 9-row table doesn't include one for it, only for `TYPING_BURST`, so a low typed_ratio
+  produces a dashboard flag but never a `warn.show`. This is intentional, not a gap.
+- `docker.sandbox.ts` is real and wired (`SANDBOX_PROVIDER=docker`) but not exercised by the automated test
+  suite — `.env.test` leaves `SANDBOX_PROVIDER` unset so it defaults to `mock`, matching Rules.md's "keep
+  mocks realistic and deterministic so the whole flow can be demoed without... Docker". It was manually
+  smoke-tested against a real local Docker daemon (see Decisions log for the `logs()` bug that fix found).
+  Only `python`/`python3`/`javascript`/`node` are supported languages; anything else is a clean `ERROR`
+  result, not a crash.
+- `docker.sandbox.ts`'s per-test wall-clock enforcement is inside the generated harness (Python
+  `subprocess.run(..., timeout=)` / Node `spawnSync(..., timeout:)`), not the container's own cgroup —
+  the container-level kill in `runContainer()` is a second, looser backstop (`timeLimitMs * 20 + 10s`) in
+  case the harness process itself hangs. A test that spawns something the harness can't kill (e.g. it
+  ignores SIGTERM) would only be caught by that outer container-kill.
+- Coding-round REST writes (`coding.service.ts` run/submit) go straight through Prisma, not through
+  `SessionRuntime`'s serialized `writeQueue` — unlike editor.delta/snapshot. This is fine because they
+  don't touch the evidence hash chain or fusion state (the two things the queue actually serializes), and
+  submit's freeze is guarded by its own CAS (`updateMany` on `submittedAt`), not the queue.
 
 ---
 
@@ -325,6 +373,53 @@ Removed: `bcryptjs`, `jsonwebtoken` (Rules: use `argon2`, `jose`).
 ```
 
 ## Task history
+
+### 2026-09-18 — Phase 8 coding round
+- Phase: 8
+- Built: `live/detectors/authorship.detector.ts` (FR-DET-2, pure: per-sessionTaskId running typed/total
+  char totals; large editor paste ≥`PASTE_LARGE_CHARS` → `paste_large`/PASTE, typed_ratio <0.35 once past
+  `AUTHORSHIP_MIN_SOLUTION_CHARS` → `typed_ratio_low`/RHYTHM, sustained >8 chars/s TYPE bursts →
+  `typing_burst`/RHYTHM — reusing PASTE/RHYTHM channels, see Decisions log); `providers/sandbox/
+  docker.sandbox.ts` (real `dockerode` per-run container: python/python3/javascript/node only, no
+  network, read-only rootfs + tmpfs /tmp, 256MB/1cpu/128pids, wall-clock kill, one container executes
+  every test case for the request via a generated harness script; manually verified against a real local
+  Docker daemon — see Decisions log for a `docker-modem` auto-JSON-parse bug that fix uncovered and
+  worked around); `services/coding.service.ts` (getCandidateTasks, runTask — visible tests only, writes a
+  RUN CodeSnapshot; submitTask — CAS claim on `submittedAt`, visible+hidden tests, writes a SUBMIT
+  CodeSnapshot, calls `runtime.freezeTask()` + emits `task.frozen`; getSessionCode for the interviewer);
+  `SessionRuntime.handleEditorDelta`/`handleEditorSnapshot`/`freezeTask` (in-memory per-task seq dedup +
+  frozen-task set, same non-resume caveat as `FusionState`; deltas persisted as `EditorDelta` rows, then
+  authorship-detector output flows through the same `applyFusionAndFlags` pipeline as telemetry); REST:
+  `GET /candidate/tasks`, `POST /candidate/tasks/:taskId/{run,submit}` (run rate-limited 1/3s per
+  session-task via `createRateLimiter`'s `keyGenerator`), `GET /sessions/:id/code`; sockets: candidate
+  `editor.delta`/`editor.snapshot`, candidate-facing `task.frozen`; warden gained the `typing_burst`
+  template (Design.md §6, now 8 of 9 types have wording)
+- Files: `src/live/detectors/authorship.detector.ts`, `src/providers/sandbox/docker.sandbox.ts`,
+  `src/services/coding.service.ts`, `src/validators/coding.schema.ts`,
+  `tests/unit/authorship-detector.test.ts`, `tests/integration/coding.test.ts`, edits to
+  `src/live/{session-runtime,detectors/types,warden}.ts`, `src/config/{constants,detection,env}.ts`,
+  `src/sockets/{index,events}.ts`, `src/controllers/{candidate,session}.controller.ts`,
+  `src/routes/{candidate,session}.routes.ts`, `src/providers/index.ts`, `.env.example`, `package.json`
+- Schema/migrations: none (`CodingTask`/`SessionCodingTask`/`EditorDelta`/`CodeSnapshot`/`CodeExecution`
+  already existed from the initial schema and were already migrated)
+- New env vars: none required; `SANDBOX_PROVIDER` gained a `docker` option (still defaults to `mock`)
+- New dependency: `dockerode` + `@types/dockerode` (already listed in Rules.md §3, no need to ask)
+- Tests: 152 passing total (13 new: `tests/unit/authorship-detector.test.ts` — paste/burst/typed_ratio
+  thresholds, independent per-sessionTaskId state; `tests/integration/coding.test.ts` — candidate task
+  list excludes hiddenTests, run returns visible-only results and is rate-limited, submit runs
+  hidden+visible and never leaks hiddenResults to the candidate while the DB row keeps them, submit
+  freezes the task (further run/submit → 409 TASK_FROZEN) and emits `task.frozen`, interviewer code view
+  sees hidden results (cross-org 404), editor.snapshot persists a CodeSnapshot, a large editor.delta paste
+  crosses into a real `paste_large` flag end-to-end). `npm run typecheck`, `npm run build` clean; also
+  manually smoke-tested `DockerSandboxProvider.execute()` against a real local Docker daemon (python,
+  correct pass/fail per test case, correct stdout capture) after finding and fixing the `logs()` bug
+- Decisions: see Decisions log (PASTE/RHYTHM reuse instead of a new channel, candidate `taskId` =
+  `SessionCodingTask.id`, in-memory editor.delta dedup not Redis, `docker.sandbox.ts`'s `logs({follow:
+  true})` fix, one container per run not per test case, only 4 language runners registered)
+- Issues left: see Known issues (docker sandbox not in the automated suite by default, `typed_ratio_low`
+  has no candidate template — intentional, harness-level vs container-level timeout, coding REST writes
+  bypass the SessionRuntime write queue — intentional)
+- Next: Phase 9 — Seal and evidence verification. Wait for "next".
 
 ### 2026-09-18 — Phase 7 fusion, flags, warden, dashboard loop
 - Phase: 7

@@ -19,6 +19,7 @@ const WARNING_MESSAGES: Record<string, string> = {
   multiple_faces: "More than one person is visible. Please ensure you are alone.",
   gaze_away: "You appear to be looking away from the screen frequently. Please keep your attention on the interview.",
   device_change: "A new audio or video device was connected. Please use only the devices you started with.",
+  typing_burst: "Very fast text entry was detected in the editor. Please type your solution yourself.",
 };
 
 function warnKey(sessionId: string): string {

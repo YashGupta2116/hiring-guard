@@ -65,3 +65,17 @@ export const WARDEN_CAP_ABOVE_TIER1 = 6;
 export const SUGGESTION_LLM_TIMEOUT_MS = 2500;
 /** Suggestions are always shown three at a time. */
 export const SUGGESTION_BATCH_SIZE = 3;
+
+// ---- Phase 8: coding round ----
+
+/** Below this cumulative solution length, typed_ratio isn't evaluated — too short to be meaningful (FR-DET-2). */
+export const AUTHORSHIP_MIN_SOLUTION_CHARS = 200;
+/** typed_ratio (typed chars / total chars) below this on a long-enough solution is evidence of low authorship. */
+export const AUTHORSHIP_TYPED_RATIO_THRESHOLD = 0.35;
+/** Sustained typing above this rate is evidence of a paste disguised as keystrokes. */
+export const AUTHORSHIP_BURST_CHARS_PER_SEC = 8;
+/** Minimum chars in one TYPE change before its rate is considered a "sustained" burst, not a keystroke blip. */
+export const AUTHORSHIP_BURST_MIN_CHARS = 15;
+
+/** `POST /candidate/tasks/:taskId/run` rate limit (Rules.md §9, FR-CODE-3). */
+export const CODE_RUN_RATE_LIMIT_MS = 3000;

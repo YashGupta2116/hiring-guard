@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import { getInput } from "../middlewares/validate.js";
+import * as codingService from "../services/coding.service.js";
 import * as configService from "../services/config.service.js";
 import * as flagService from "../services/flag.service.js";
 import * as lifecycleService from "../services/lifecycle.service.js";
@@ -104,4 +105,9 @@ export async function refreshSuggestions(req: Request, res: Response): Promise<v
 export async function acceptSuggestion(req: Request, res: Response): Promise<void> {
   const { params } = getInput(req, acceptSuggestionSchema);
   ok(res, await suggestionService.acceptSuggestion(req.user!.orgId, params.id, params.suggestionId, req.user!.sub));
+}
+
+export async function getSessionCode(req: Request, res: Response): Promise<void> {
+  const { params } = getInput(req, sessionIdParamSchema);
+  ok(res, await codingService.getSessionCode(req.user!.orgId, params.id));
 }

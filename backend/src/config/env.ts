@@ -48,7 +48,7 @@ const envSchema = z.object({
 
   LLM_PROVIDER: z.enum(["mock"]).default("mock"),
   MEDIA_PROVIDER: z.enum(["mock"]).default("mock"),
-  SANDBOX_PROVIDER: z.enum(["mock"]).default("mock"),
+  SANDBOX_PROVIDER: z.enum(["mock", "docker"]).default("mock"),
 
   EVIDENCE_SIGNING_PRIVATE_KEY: z.string().optional(),
   EVIDENCE_SIGNING_KEY_ID: z.string().default("local-dev-1"),

@@ -36,3 +36,15 @@ export type DetectorContext = {
   /** Read-only rhythm baseline captured during calibration. Only RhythmDetector uses this. */
   rhythmBaseline: number[];
 };
+
+/** One entry of candidate -> server `editor.delta` (Design.md §5.4). */
+export type EditorChange = {
+  changeType: "TYPE" | "PASTE" | "AUTOCOMPLETE" | "UNDO";
+  rangeOffset: number;
+  insertedChars: number;
+  deletedChars: number;
+  text?: string;
+  ts: number;
+  /** Interval in ms between consecutive keystrokes that produced this change; TYPE only. */
+  keyIntervalsMs?: number[];
+};

@@ -10,6 +10,7 @@ import {
   getLiveSnapshot,
   getNotes,
   getSession,
+  getSessionCode,
   listSessions,
   patchConfig,
   refreshSuggestions,
@@ -77,3 +78,4 @@ sessionRouter.post(
   requireSessionAccess({ write: true }),
   acceptSuggestion,
 );
+sessionRouter.get("/sessions/:id/code", validate(sessionIdParamSchema), requireSessionAccess(), getSessionCode);
