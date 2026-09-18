@@ -219,7 +219,11 @@ export default function DashboardPage() {
               <span>Candidate Link</span>
             </button>
           </Link>
-          <Link href={`/app/interviews/${liveSession.id}/live`}>
+          <Link
+            href={`/app/interviews/${liveSession.id}/live`}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
             <button className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-stone-900 hover:bg-stone-800 text-white dark:bg-stone-100 dark:hover:bg-stone-200 dark:text-stone-900 text-xs font-semibold shadow-xs transition-colors cursor-pointer">
               <Video className="h-3.5 w-3.5" />
               <span>Join Room</span>
@@ -511,4 +515,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-

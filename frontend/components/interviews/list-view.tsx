@@ -107,7 +107,11 @@ export function ListView({ interviews }: ListViewProps) {
 
                 <div className="flex items-center gap-2">
                   {item.status === "Live" ? (
-                    <Link href={`/app/interviews/${item.id}/live`}>
+                    <Link
+                      href={`/app/interviews/${item.id}/live`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                    >
                       <Button className="bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-medium px-4 py-2 rounded-lg flex items-center gap-1.5 h-8.5 shadow-xs">
                         <Video className="h-3.5 w-3.5" />
                         Join Room

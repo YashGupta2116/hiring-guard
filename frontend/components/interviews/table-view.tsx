@@ -121,6 +121,8 @@ function RowActionsMenu({ interview }: { interview: Interview }) {
           {interview.status === "Live" && (
             <Link
               href={`/app/interviews/${interview.id}/live`}
+              target="_blank"
+              rel="noopener noreferrer"
               className="flex items-center gap-2 px-3 py-2 text-foreground hover:bg-secondary transition-colors"
               onClick={() => setOpen(false)}
             >

@@ -1,8 +1,10 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
+import { MeetingLayout } from "@/components/layout/meeting-layout";
 
 export default function AppLayout({
   children,
@@ -10,6 +12,8 @@ export default function AppLayout({
   children: React.ReactNode;
 }) {
   const [collapsed, setCollapsed] = useState(true);
+  const pathname = usePathname();
+  const isMeetingRoute = /^\/app\/interviews\/[^/]+\/live\/?$/.test(pathname);
 
   useEffect(() => {
     const removeHydrationArtifacts = () => {
@@ -33,6 +37,10 @@ export default function AppLayout({
 
     return () => observer.disconnect();
   }, []);
+
+  if (isMeetingRoute) {
+    return <MeetingLayout>{children}</MeetingLayout>;
+  }
 
   return (
     <div

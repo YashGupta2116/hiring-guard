@@ -130,14 +130,22 @@ export default function InterviewDetailPage() {
 
         <div className="flex items-center gap-2">
           {interview.status === "Live" ? (
-            <Link href={`/app/interviews/${interview.id}/live`}>
+            <Link
+              href={`/app/interviews/${interview.id}/live`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
               <Button className="bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-medium px-4 py-2 rounded-lg flex items-center gap-2 h-9 shadow-xs">
                 <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
                 Join Live Room
               </Button>
             </Link>
           ) : (
-            <Link href={`/app/interviews/${interview.id}/live`}>
+            <Link
+              href={`/app/interviews/${interview.id}/live`}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
               <Button
                 disabled={!canConductInterview}
                 className="bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-medium px-4 py-2 rounded-lg flex items-center gap-2 h-9 shadow-xs"
