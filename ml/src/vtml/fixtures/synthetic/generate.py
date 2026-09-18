@@ -15,6 +15,7 @@ from typing import Any
 
 import numpy as np
 
+from vtml.detectors.schema import DetectorType
 from vtml.types import Channel, Observation, Source
 
 # An in-flight event before it becomes an Observation. Values are mixed
@@ -33,10 +34,10 @@ _BLUR_INTERVAL_S = 35.0
 # seconds apart (gaze, scene) so a staged session also exercises
 # cross-channel corroboration, per PRD section 5.
 _STAGED_SCRIPT: list[tuple[int, int | None, Channel, str, float]] = [
-    (60_000, 8_000, Channel.GAZE, "gaze.persistent_offscreen", 0.85),
-    (65_000, 5_000, Channel.SCENE, "scene.multiple_faces", 0.80),
-    (120_000, None, Channel.INPUT, "input.large_paste", 0.90),
-    (150_000, 4_000, Channel.FOCUS, "focus.tab_hidden", 0.75),
+    (60_000, 8_000, Channel.GAZE, DetectorType.GAZE_PERSISTENT_OFFSCREEN, 0.85),
+    (65_000, 5_000, Channel.SCENE, DetectorType.SCENE_MULTIPLE_FACES, 0.80),
+    (120_000, None, Channel.INPUT, DetectorType.INPUT_LARGE_PASTE, 0.90),
+    (150_000, 4_000, Channel.FOCUS, DetectorType.FOCUS_TAB_HIDDEN, 0.75),
 ]
 
 
@@ -53,7 +54,7 @@ def _honest_noise(rng: np.random.Generator, duration_s: int) -> list[EventDict]:
             {
                 "t_ms": int(t * 1000),
                 "channel": Channel.GAZE,
-                "type": "gaze.offscreen_glance",
+                "type": DetectorType.GAZE_OFFSCREEN_GLANCE,
                 "confidence": float(rng.uniform(0.15, 0.35)),
                 "duration_ms": int(rng.uniform(200, 700)),
             }
@@ -66,7 +67,7 @@ def _honest_noise(rng: np.random.Generator, duration_s: int) -> list[EventDict]:
             {
                 "t_ms": int(t * 1000),
                 "channel": Channel.FOCUS,
-                "type": "focus.window_blur",
+                "type": DetectorType.FOCUS_WINDOW_BLUR,
                 "confidence": float(rng.uniform(0.15, 0.30)),
                 "duration_ms": int(rng.uniform(200, 750)),
             }

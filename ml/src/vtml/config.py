@@ -82,6 +82,29 @@ class EngineConfig:
     # a factor. Flagged as a Phase 1 assumption in docs/Memory.md.
     downgrade_factor: float = 0.5
 
+    # -- Phase 2 personalised thresholds, task 4 -----------------------
+    # A gaze sample within this many degrees of the candidate's own
+    # baseline neutral yaw is their normal resting angle, not a glance
+    # off-screen -- someone who sits at an angle to their camera is not
+    # permanently looking away. Not in Rules.md section 5 at the time of
+    # writing; recorded there in this phase alongside the KS constants.
+    gaze_personalised_yaw_threshold_deg: float = 15.0
+
+    # Rhythm anomaly: two-sample KS test against the baseline interval
+    # distribution over a sliding window, flagged only when all three
+    # hold. Rules.md section 5, added this phase.
+    rhythm_window_s: float = 30.0
+    rhythm_ks_d_threshold: float = 0.35
+    rhythm_ks_p_threshold: float = 0.01
+    rhythm_burst_rate_threshold: float = 8.0
+
+    # Baseline sufficiency, baseline.py: below these counts a signal
+    # falls back to the population default even once the full 60 s
+    # calibration window has elapsed -- a quiet window means no data,
+    # not bad data. See baseline.py for the reasoning on each.
+    baseline_min_gaze_samples: int = 5
+    baseline_min_keystroke_samples: int = 10
+
 
 STANDARD = EngineConfig(score_midpoint=2.2)
 LENIENT = EngineConfig(score_midpoint=3.2)

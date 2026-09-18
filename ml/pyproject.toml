@@ -20,6 +20,10 @@ dev = [
     "pandas",
     "matplotlib",
     "mypy",
+    # Offline fixture generation only (detectors/offline_video.py). Never
+    # imported by the runtime path -- Rules.md section 3.
+    "mediapipe",
+    "opencv-python-headless",
 ]
 
 [tool.setuptools.packages.find]

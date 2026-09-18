@@ -97,3 +97,11 @@ class IngestResult(BaseModel):
     accepted: int
     dropped: int
     reordered: int
+    # Populated by ingest.normalise() (Phase 2); Engine.ingest's own
+    # dedup-by-seq/sort pass predates the breakdown and leaves these at
+    # their default, folded into its plainer `dropped`/`reordered` counts.
+    dropped_invalid: int = 0
+    dropped_duplicate: int = 0
+    unknown_detector: int = 0
+    clock_anomaly: int = 0
+    late_beyond_buffer: int = 0

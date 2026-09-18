@@ -17,9 +17,10 @@ pip install -e ".[dev]"
 
 ```bash
 pytest
+mypy
 ```
 
-`mypy --strict src/vtml/fusion/ src/vtml/types.py` is also part of the Phase 1 exit criteria and should pass clean.
+`pyproject.toml`'s `[tool.mypy]` section sets `strict = true` and `files = ["src"]`, so bare `mypy` is the type gate for the whole package and should pass clean.
 
 ## Generate a synthetic fixture
 
@@ -30,6 +31,10 @@ python -m vtml.fixtures.synthetic.generate --profile staged --seed 7
 
 Both write a deterministic JSONL stream of `Observation` records to `fixtures/synthetic/`. A staged session also writes a `.labels.json` file alongside it with the scripted event list (`t_start_ms`, `t_end_ms`, `event_type`) used as ground truth.
 
+## Detector types
+
+Every detector type string, its channel, its backend wire mapping, and its hand-set prior live in one place: `src/vtml/detectors/schema.py`. Nothing else in `src/vtml/` hardcodes one as a literal -- `tests/test_registry.py` asserts that.
+
 ## Status
 
-Phase 0 (scaffold) and Phase 1 (fusion core) are complete. See `docs/Memory.md` for current state, key decisions, and the next action.
+Phase 0 (scaffold), Phase 1 (fusion core), and Phase 2 (detector registry, ingest, baselines) are complete. See `docs/Memory.md` for current state, key decisions, and the next action.

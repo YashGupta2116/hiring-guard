@@ -15,7 +15,15 @@ from typing import Any, Literal
 
 import numpy as np
 
+from vtml.baseline import (
+    Baseline,
+    BaselineBuilder,
+    is_within_personal_gaze_tolerance,
+    rhythm_is_anomalous,
+)
 from vtml.config import EngineConfig
+from vtml.detectors.schema import REGISTRY as DETECTOR_REGISTRY
+from vtml.detectors.schema import DetectorType
 from vtml.fusion import corroborate, flags as flags_mod, narrate as narrate_mod, score as score_mod
 from vtml.fusion import windows as windows_mod
 from vtml.fusion.channel import ChannelState, EvidenceItem
@@ -62,6 +70,16 @@ class Engine:
         self._t_now: int = 0
         self._diagnostics: dict[str, int] = {}
         self._rng: np.random.Generator = np.random.default_rng(seed)
+
+        # Phase 2 task 3/4: the first calibration_window_s of a session is
+        # observe-only -- evidence accumulates but no flag emits (see
+        # _process_one). `_baseline` is set exactly once, either by the
+        # first observation whose t_ms reaches the window or by
+        # finalise() if the session closes before it does.
+        self._baseline_builder = BaselineBuilder(config)
+        self._baseline: Baseline | None = None
+        self._baseline_closed: bool = False
+        self._rhythm_window: deque[tuple[int, float]] = deque()
 
     # -- ingest ------------------------------------------------------
 
@@ -116,7 +134,18 @@ class Engine:
             self._bump("unknown_detector")
             return False
 
+        # Architecture.md section 2 step 2: observe-only for the first
+        # calibration_window_s (Rules.md section 5) of session time.
+        # Evidence still accumulates below; only flag emission is gated.
+        calibrating = obs.t_ms < self._config.calibration_window_s * 1000
+        if not self._baseline_closed:
+            self._baseline_builder.observe(obs)
+            if not calibrating:
+                self._baseline = self._baseline_builder.finalise(obs.t_ms)
+                self._baseline_closed = True
+
         llr = self._observation_llr(obs.duration_ms, prior)
+        llr = self._apply_personalisation(obs, llr)
         boost, corroborated_by = corroborate.compute_boost(
             self._channels, channel, obs.t_ms, self._config
         )
@@ -128,7 +157,7 @@ class Engine:
         self._score, degraded = score_mod.safe_score(self._channels, self._config, self._score)
         self._degraded = self._degraded or degraded
 
-        if evidence.llr >= self._config.flag_threshold:
+        if not calibrating and evidence.llr >= self._config.flag_threshold:
             narrative = narrate_mod.narrate(obs.type, obs.duration_ms, corroborated_by)
             self._flag_counter += 1
             flags_mod.emit_or_merge(
@@ -161,6 +190,40 @@ class Engine:
             scale = min(1.0, numerator / denominator)
         raw = prior * scale
         return min(max(raw, self._config.llr_clamp_min), self._config.llr_clamp_max)
+
+    def _apply_personalisation(self, obs: Observation, llr: float) -> float:
+        """Task 4: only detectors with `needs_baseline=True` in the
+        registry take this path, and only once a baseline exists."""
+        if self._baseline is None:
+            return llr
+        spec = DETECTOR_REGISTRY.get(obs.type)
+        if spec is None or not spec.needs_baseline:
+            return llr
+
+        if obs.channel == Channel.GAZE:
+            yaw = obs.features.get("yaw_deg")
+            if yaw is None:
+                return llr
+            if is_within_personal_gaze_tolerance(yaw, self._baseline, self._config):
+                # Within the candidate's own resting angle: not evidence.
+                return 0.0
+            return llr
+
+        if obs.type == DetectorType.INPUT_RHYTHM_SHIFT.value:
+            interval = obs.features.get("interval_ms")
+            chars_per_sec = obs.features.get("chars_per_sec")
+            if interval is None or chars_per_sec is None:
+                return llr
+            self._rhythm_window.append((obs.t_ms, interval))
+            cutoff = obs.t_ms - self._config.rhythm_window_s * 1000
+            while self._rhythm_window and self._rhythm_window[0][0] < cutoff:
+                self._rhythm_window.popleft()
+            recent = [v for _, v in self._rhythm_window]
+            if rhythm_is_anomalous(recent, chars_per_sec, self._baseline, self._config):
+                return llr
+            return 0.0
+
+        return llr
 
     # -- suppression ---------------------------------------------------
 
@@ -199,6 +262,13 @@ class Engine:
         return self._build_result(score=score, band=band, status=status)
 
     def finalise(self, t_ms: int) -> SessionResult:
+        if not self._baseline_closed:
+            # Session closed before calibration_window_s elapsed: force
+            # the builder to close now. BaselineBuilder.finalise() itself
+            # decides complete vs fallback from t_ms, same as the normal
+            # in-window closing path.
+            self._baseline = self._baseline_builder.finalise(t_ms)
+            self._baseline_closed = True
         for state in self._channels.values():
             state.decay_to(t_ms)
         windows_mod.close_all(self._windows, t_ms)
@@ -211,6 +281,9 @@ class Engine:
     def _build_result(
         self, score: float, band: score_mod.Band, status: Literal["scoring", "degraded"]
     ) -> SessionResult:
+        calibration: Literal["complete", "fallback"] = (
+            "fallback" if self._baseline is not None and self._baseline.fallback else "complete"
+        )
         return SessionResult(
             score=score,
             status=status,
@@ -218,7 +291,7 @@ class Engine:
             channels={channel: state.llr for channel, state in self._channels.items()},
             flags=list(self._flags),
             unscored=list(self._windows),
-            calibration="complete",
+            calibration=calibration,
             weights_version=self._weights.version,
             diagnostics=dict(self._diagnostics),
         )
