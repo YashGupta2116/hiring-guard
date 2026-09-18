@@ -11,10 +11,19 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 
 from vtml.types import Channel, Observation, Source
+
+# An in-flight event before it becomes an Observation. Values are mixed
+# (int timestamps, Channel enums, float confidences, optional durations),
+# so this stays loose by necessity.
+EventDict = dict[str, Any]
+
+# A ground-truth label for a staged event: integer bounds plus a type string.
+LabelDict = dict[str, int | str]
 
 _SESSION_DEFAULT_S = 180
 _GLANCE_INTERVAL_S = 20.0
@@ -35,8 +44,8 @@ def _detector_name(channel: Channel) -> str:
     return f"synthetic.{channel.value}@1.0.0"
 
 
-def _honest_noise(rng: np.random.Generator, duration_s: int) -> list[dict]:
-    events: list[dict] = []
+def _honest_noise(rng: np.random.Generator, duration_s: int) -> list[EventDict]:
+    events: list[EventDict] = []
 
     t = float(rng.uniform(2.0, _GLANCE_INTERVAL_S))
     while t < duration_s:
@@ -67,8 +76,8 @@ def _honest_noise(rng: np.random.Generator, duration_s: int) -> list[dict]:
     return events
 
 
-def _staged_events_and_labels() -> tuple[list[dict], list[dict]]:
-    events = [
+def _staged_events_and_labels() -> tuple[list[EventDict], list[LabelDict]]:
+    events: list[EventDict] = [
         {
             "t_ms": t_start,
             "channel": channel,
@@ -78,7 +87,7 @@ def _staged_events_and_labels() -> tuple[list[dict], list[dict]]:
         }
         for t_start, duration, channel, type_, confidence in _STAGED_SCRIPT
     ]
-    labels = [
+    labels: list[LabelDict] = [
         {"t_start_ms": t_start, "t_end_ms": t_start + (duration or 0), "event_type": type_}
         for t_start, duration, _channel, type_, _confidence in _STAGED_SCRIPT
     ]
@@ -87,10 +96,10 @@ def _staged_events_and_labels() -> tuple[list[dict], list[dict]]:
 
 def generate(
     profile: str, seed: int, duration_s: int = _SESSION_DEFAULT_S
-) -> tuple[list[Observation], list[dict]]:
+) -> tuple[list[Observation], list[LabelDict]]:
     rng = np.random.default_rng(seed)
     events = _honest_noise(rng, duration_s)
-    labels: list[dict] = []
+    labels: list[LabelDict] = []
 
     if profile == "staged":
         staged_events, labels = _staged_events_and_labels()
@@ -123,7 +132,7 @@ def _write_jsonl(observations: list[Observation], path: Path) -> None:
             f.write("\n")
 
 
-def _write_labels(labels: list[dict], path: Path) -> None:
+def _write_labels(labels: list[LabelDict], path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8", newline="\n") as f:
         json.dump(labels, f, indent=2)
