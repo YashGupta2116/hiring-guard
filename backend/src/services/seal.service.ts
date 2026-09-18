@@ -2,6 +2,7 @@ import { RECORDING_FINALIZE_TIMEOUT_MS, SEAL_DRAIN_TIMEOUT_MS, SEAL_PROGRESS_TTL
 import { closeAllOpenUnscoredWindows } from "../live/fusion/unscored.js";
 import { registry } from "../live/registry.js";
 import type { EndReason } from "../live/session-runtime.js";
+import { enqueuePipeline } from "../pipeline/flow.js";
 import { getMedia } from "../providers/index.js";
 import { broadcastSessionState } from "../sockets/session-broadcast.js";
 import { logger } from "../utils/logger.js";
@@ -136,8 +137,7 @@ export async function sealSession(orgId: string, sessionId: string, reason: EndR
     if (completed < 9) {
       const processing = await transition(sessionId, ["SEALING"], "PROCESSING", { orgId, actorType: "SYSTEM" });
       await broadcastSessionState(sessionId, "PROCESSING", processing.startedAt, processing.endedAt, reason);
-      // Pipeline flow enqueue (BullMQ FlowProducer) lands in Phase 10; PROCESSING has no automatic
-      // follow-up yet, so a session just stays PROCESSING until then.
+      await enqueuePipeline(orgId, sessionId);
       await markStepDone(sessionId, (completed = 9));
     }
   } catch (err) {

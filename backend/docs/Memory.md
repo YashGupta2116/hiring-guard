@@ -8,10 +8,10 @@
 
 ## Current status
 
-- **Current phase:** Phase 9 — Seal and evidence verification (✅ done). Session stops after each
-  phase and waits for "next".
+- **Current phase:** Phase 10 — Post-processing pipeline and report (✅ done). Session stops after
+  each phase and waits for "next".
 - **Last updated:** 2026-09-18
-- **Next step:** Phase 10 — Post-processing pipeline and report. Wait for "next".
+- **Next step:** Phase 11 — Retention, hardening, docs. Wait for "next".
 
 ## Phase tracker
 
@@ -27,7 +27,7 @@
 | 7 Fusion, flags, warden | ✅ | build + 139 tests pass; fusion.engine (decay/corroboration/floor/score, pure), flag-builder (threshold crossing + 15s merge), warden (tier/cooldown/cap, fixed templates), integrity.tick 2s + snapshots 10s, GET flags + POST adjudicate, notes (REST + socket), suggestions (manual refresh + accept), candidate-boundary socket test |
 | 8 Coding round | ✅ | build + 152 tests pass; `GET /candidate/tasks`, `editor.delta`/`editor.snapshot` sockets → `editor_deltas`/`code_snapshots`, `authorship.detector.ts` (paste/typed_ratio/burst reusing PASTE/RHYTHM channels), `docker.sandbox.ts` (real per-run container) + existing `mock.sandbox.ts`, run (rate-limited)/submit (hidden results, freezes task), interviewer `GET /sessions/:id/code` |
 | 9 Seal & evidence | ✅ | build + 157 tests pass; real 9-step `seal.service.ts` (Redis `s:{sid}:seal` step counter, resumable), recording start (LIVE)/stop (seal step 4) via `MediaProvider`, `evidence.service.ts` gained `verifyChain`/`exportEvidenceLog`/`buildAndSignManifest`/`verifySession`, `GET /sessions/:id/evidence/verify`, boot-time `resumeStuckSeals()` |
-| 10 Pipeline & report | ⬜ | |
+| 10 Pipeline & report | ✅ | build + 167 tests pass; real 8-step BullMQ pipeline (`pipeline/flow.ts` + `pipeline/steps/*`): SealVerify (own queued job, no tree-child of anything downstream reads), TranscriptFinalize (Q&A pairing, back-channel filtering, mock topic labels), IntegrityRescore (authoritative offline replay via the same pure `fusion.engine.ts` functions, adjudication-adjusted, sets `supersededByReview`), CodeEvaluate, MediaIndex (resolves the Phase 7/9 `mediaOffsetMs: null` TODO), AnswerGrading (rubric-validated via zod `.strict()`), CompositeScore (Architecture §6.9 formula, unchanged), RenderReport (`eta` → HTML, optional `puppeteer` → PDF) + delivery (summary-only email, `report.ready`, PROCESSING→COMPLETE). `GET /sessions/:id/report`, `GET /sessions/:id/pipeline`, `POST /sessions/:id/report/recompute`, `GET /reports/:id/html`, `GET /reports/:id/pdf` |
 | 11 Retention & hardening | ⬜ | |
 
 ---
@@ -212,6 +212,30 @@ backend/
 ├── .env.example, .env.test.example, .gitignore, vitest.config.ts
 ```
 
+**Phase 10 additions** (`src/pipeline/`, new this phase):
+```
+├── src/pipeline/
+│   ├── flow.ts                   enqueuePipeline() (real BullMQ FlowProducer, production),
+│   │   runPipelineInline() (direct sequential call, tests — see Decisions log),
+│   │   processPipelineStep() (the Worker processor registered in worker.ts), deliverReport()
+│   │   (email + report.ready + PROCESSING→COMPLETE, called once RENDER_REPORT succeeds)
+│   ├── step-runner.ts            runStep(): every step's own pipeline_step_runs row RUNNING→SUCCEEDED|FAILED
+│   └── steps/                    seal-verify, transcript-finalize, integrity-rescore, code-evaluate,
+│       media-index, answer-grading, composite-score, render-report .step.ts — each exports a
+│       plain compute*(sessionId) function, directly callable (no BullMQ needed) same as processJdParse
+├── src/services/report.service.ts   getReport, getPipelineStatus, recomputeReport (session-scoped),
+│   getReportHtml/getReportPdf (reportId-scoped, own inline org/role check — see flag.service.ts precedent)
+├── src/controllers/report.controller.ts, src/routes/report.routes.ts   only the two reportId-scoped
+│   endpoints; report/pipeline/recompute live in session.controller.ts/session.routes.ts instead,
+│   matching how this repo already places session-scoped endpoints (evidence/verify, code, etc.)
+├── src/validators/report.schema.ts, src/validators/grade.schema.ts   reportIdParamSchema,
+│   gradeResultSchema (`.strict()` rubric validation — Phases.md §10)
+├── templates/report.eta          HTML report template (Phase 10 introduces `templates/` — didn't exist before)
+└── contracts/, docs/cross-component-architecture.md   from the earlier session this phase, unrelated to Phase 10 itself
+```
+New env var: `REPORT_PDF_ENABLED` (default `false`; PDF is optional, HTML is not — Architecture.md §1).
+New deps: `eta`, `puppeteer` (both pre-approved, Rules.md §3).
+
 ## Conventions established in Phase 0 (follow these)
 
 - Validation: `router.post(path, validate(schemas), controller)`; in controller `const { body, query, params } = getInput(req, schemas)`. Export the `schemas` object from `validators/<name>.schema.ts` and reuse it in both places. Express 5 `req.query` is read-only, so never assign to it.
@@ -293,6 +317,15 @@ Removed: `bcryptjs`, `jsonwebtoken` (Rules: use `argon2`, `jose`).
 | 2026-09-18 | Pipeline flow enqueue (seal step 9's last clause) is not implemented — `PROCESSING` has no automatic follow-up | The BullMQ `FlowProducer` and every pipeline step are Phase 10 work (Phases.md/Architecture.md §6.8); a session just stays in `PROCESSING` until Phase 10 exists. Noted as a one-line comment in `seal.service.ts`, not a silent TODO |
 | 2026-09-18 | `tests/setup.ts` sets a fixed, hardcoded Ed25519 test keypair (`EVIDENCE_SIGNING_PRIVATE_KEY`/`_KEY_ID`) via `??=`, same pattern as the other test secrets already there | `getSigner()` throws without a key; `.env.test` deliberately doesn't set one (same reason the other secrets live in `tests/setup.ts` instead of a committed `.env.test`, per its own header comment). The key is test-only and not sensitive — no different from the other hardcoded test secrets already in that file |
 | 2026-09-18 | Cross-component review of `backend/` vs `ml/` (a separate, non-integrated Python fusion engine): confirmed `backend/src/live/` stays the canonical live scorer — see `../../docs/cross-component-architecture.md` for the full reasoning. No constant in `config/detection.ts` changed. Added `getUnknownDetectorTypeCounts()` and a log-once-per-type warning inside `getLlr()`, which used to return `0` silently for any unrecognised `type` string — the exact failure mode a mismatched producer (a CV/ASR service, or any future `ml/` integration, whose detector vocabulary is disjoint from `LLR_TABLE`'s, see the contract file below) would hit today with no error and a permanently-clean-looking score. Added `contracts/detector-registry.json` (repo root) as the shared record of both components' channel/detector vocabularies, and `tests/unit/detection-contract.test.ts` to catch it drifting from `LLR_TABLE`/`MonitoringChannel` | The "no ML" decision above (2026-09-17) is about backend scope, not about `ml/` not existing — it does, as a sibling component, and the two had zero shared documentation until this session |
+| 2026-09-18 | **Phase 10.** `technical` = mean(`correctness`,`depth`,`handsOn`) per `AnswerGrade`, averaged across pairs, blended 50/50 with `CodeEvaluation`'s hidden-test pass rate when a coding round exists (falls back to whichever input exists if only one does). `communication` = mean(`structure`,`specificity`) per pair, averaged across pairs | Architecture.md §6.9 assigns `structure`+`specificity` to communication explicitly but never says which of the other three dimensions feed `technical`, nor the code/grade blend weight. `correctness`/`depth`/`handsOn` is the natural remainder once communication's two are claimed; 50/50 is a plain average, not favouring either signal without a reason to. The top-level composite formula itself (0.55/0.20/0.25, the I-band logic) is untouched — this only fills in what "weighted mean of answer grades + code evaluation" means numerically |
+| 2026-09-18 | **Phase 10.** `reviewRequired = true, composite = null` for *any* missing input (IntegrityRescore failed, or no Q&A pairs at all — e.g. a pure coding screen), not just `integrity < 70` | The formula's own branches (Architecture §6.9) only name the `I < 70` case. A missing input isn't that case, but lands at the same place the spec already defines for "can't stand behind a number" — never a guessed or partial composite |
+| 2026-09-18 | **Phase 10.** `pipeline/flow.ts`: `SealVerify` runs as its own independently-queued BullMQ job (real `attempts:3`/backoff), not as a node inside the `FlowProducer` tree. The other 7 steps are a real tree: `RenderReport -> {CompositeScore -> {AnswerGrading -> TranscriptFinalize, CodeEvaluate, IntegrityRescore}, MediaIndex}` | The true dependency graph is a DAG — SealVerify's completion (in spirit) precedes 4 different steps, but nothing downstream actually *reads* its output (every step re-queries Postgres for what it needs, never a BullMQ child value — see `step-runner.ts`), and `FlowProducer` only models trees (a job can't be the shared child of two different parents without BullMQ instantiating it twice). Running it as an independent job sidesteps the tree constraint honestly instead of duplicating it 4x or faking the ordering |
+| 2026-09-18 | **Phase 10.** `IntegrityRescore` replays every observation through the exact same pure functions in `live/fusion/fusion.engine.ts` (no fork), in `seq` order, excluding an observation if its channel was inside an `UnscoredWindow` at its own `ts` (mirrors `session-runtime.ts`'s live frozen-channel skip) and zeroing/halving an observation's LLR if it's linked to a DISMISSED/DOWNGRADED flag. Calibration-window observations still accumulate (only flag emission is gated), matching live exactly | `flag.service.ts`'s live adjudicate nudge already says "Phase 10's IntegrityRescore is the authoritative recompute" — this is that recompute. Skipping the frozen-window exclusion would silently un-freeze evidence live deliberately never scored (Rules.md: "no disconnection, drop or gap ever produces a positive LLR"). Matching live's calibration behaviour (not ml/'s stricter one — see `cross-component-architecture.md`) keeps the rescore an authoritative replay of *this* engine, not a quiet adoption of the other one's rule |
+| 2026-09-18 | **Phase 10.** A flag is marked `supersededByReview = true` iff it has at least one `FlagAdjudication`, regardless of which action (CONFIRM/DISMISS/DOWNGRADE) | Most literal reading of the field name: a human review event is what supersedes the raw live computation for that flag. `origin: OFFLINE` flag creation is implemented and tested (`IntegrityRescore` creates one when a replay finds a crossing no existing flag already covers), but under today's inputs — adjudication only ever removes evidence — a replay with the same observations can't produce a crossing live didn't already find, so this path doesn't fire in practice yet; it's real and ready for when a fitted detector or a second replay pass makes it possible |
+| 2026-09-18 | **Phase 10.** `MediaIndex` resolves the `mediaOffsetMs: null` TODO left in Phase 7/9 (`note.service.ts`'s own comment: "needs the recording's `egressStartedAt` anchor... which doesn't exist until Phase 9") — computes every flag's and note's offset from `Recording.egressStartedAt` and writes a consolidated marker table to `Recording.mediaIndex` | The anchor now always exists by the time this step runs (seal always finalises the recording first); this was a deferred computation waiting for exactly this phase, not a new design |
+| 2026-09-18 | **Phase 10.** `POST /sessions/:id/report/recompute` calls `enqueuePipeline` (real queue, 202 semantics) and re-runs the *whole* pipeline, not just IntegrityRescore+CompositeScore; the summary email is only sent on the run that actually transitions `PROCESSING -> COMPLETE`, never again on a later recompute | Every step already upserts/replaces its own rows, so a full re-run costs nothing extra and keeps this to one code path instead of a second partial-pipeline one. Re-sending the identical summary email on every recompute would be spam nobody asked for; `report.ready` still fires each time so a dashboard can refresh |
+| 2026-09-18 | **Phase 10.** Tests call `runPipelineInline()` (`pipeline/flow.ts`) — every step run synchronously, in dependency order, no BullMQ queue involved — instead of driving the real `enqueuePipeline()` + a worker process | Same precedent `tests/integration/session.test.ts` already set for `processJdParse`: call the processor directly rather than spin up a real worker in-process. `enqueuePipeline()` itself is exercised implicitly (seal.service.ts step 9 calls it on every `POST .../end` in the existing seal/session tests, which still pass), just not awaited to completion anywhere |
+| 2026-09-18 | **Phase 10.** `tests/integration/pipeline.test.ts`'s email assertion reads `(getMail() as LogMailProvider).sent` in-memory, not a real mailbox | `tests/setup.ts` forces `MAIL_PROVIDER=log` in every test run (so no SMTP server is required); `LogMailProvider` already keeps every sent message in memory for exactly this purpose. A first attempt tried asserting against the mailpit HTTP API directly and got zero messages for this reason — not a bug in the pipeline, a mismatch with how mail is configured under test |
 
 ---
 
@@ -304,6 +337,9 @@ Removed: `bcryptjs`, `jsonwebtoken` (Rules: use `argon2`, `jose`).
 
 ## Known issues / open questions
 
+- **Phase 10.** No worker actually runs the real BullMQ pipeline in this dev/test setup yet — `npm run worker` registers the `pipeline` queue's `Worker` (`worker.ts`), but nothing here starts it automatically the way `docker compose up` starts Postgres/Redis. A session that ends without `npm run worker` running will sit in PROCESSING with queued-but-unprocessed jobs until a worker process is started. Tests sidestep this with `runPipelineInline()` (see Decisions log); a real deployment needs the worker process running, same as it already needed one for `jd-parse`.
+- **Phase 10.** `PDF_ENABLED=false` by default; `npm install` still downloaded puppeteer's Chromium (~300MB) since REPORT_PDF_ENABLED is only checked at render time, not install time. No way around this while `puppeteer` (not `puppeteer-core`) is the Rules.md §3-approved package; revisit if install size becomes a problem.
+- **Phase 10.** Backend's live engine accumulates LLR through the calibration window and only gates flag *emission* (`session-runtime.ts`); `ml/`'s engine gates accumulation too (corrected there as an explicit bug fix, per `ml/docs/Memory.md`). `IntegrityRescore` intentionally matches backend's own live behaviour, not ml/'s — see Decisions log and `docs/cross-component-architecture.md`. Not fixed here since it's a fusion-constant-adjacent behaviour change that needs asking first, same as any other `config/detection.ts`-adjacent change.
 - Schema has no `mediaReadyAt`; using Redis instead (revisit if needed for audit).
 - `mockSandbox` does not run code; `mockLlm` is keyword-based. Both intentional until later phases.
 - No "last active org" persistence: login/`/auth/me` always resolve to the oldest membership. Fine while

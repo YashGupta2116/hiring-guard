@@ -6,6 +6,7 @@ import * as evidenceService from "../services/evidence.service.js";
 import * as flagService from "../services/flag.service.js";
 import * as lifecycleService from "../services/lifecycle.service.js";
 import * as noteService from "../services/note.service.js";
+import * as reportService from "../services/report.service.js";
 import * as sessionService from "../services/session.service.js";
 import * as suggestionService from "../services/suggestion.service.js";
 import { accepted, created, list, noContent, ok } from "../utils/respond.js";
@@ -111,6 +112,21 @@ export async function acceptSuggestion(req: Request, res: Response): Promise<voi
 export async function getSessionCode(req: Request, res: Response): Promise<void> {
   const { params } = getInput(req, sessionIdParamSchema);
   ok(res, await codingService.getSessionCode(req.user!.orgId, params.id));
+}
+
+export async function getReport(req: Request, res: Response): Promise<void> {
+  const { params } = getInput(req, sessionIdParamSchema);
+  ok(res, await reportService.getReport(req.user!.orgId, params.id));
+}
+
+export async function getPipelineStatus(req: Request, res: Response): Promise<void> {
+  const { params } = getInput(req, sessionIdParamSchema);
+  ok(res, await reportService.getPipelineStatus(req.user!.orgId, params.id));
+}
+
+export async function recomputeReport(req: Request, res: Response): Promise<void> {
+  const { params } = getInput(req, sessionIdParamSchema);
+  accepted(res, await reportService.recomputeReport(req.user!.orgId, params.id));
 }
 
 export async function getEvidenceVerification(req: Request, res: Response): Promise<void> {

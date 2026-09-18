@@ -10,10 +10,13 @@ import {
   getFlags,
   getLiveSnapshot,
   getNotes,
+  getPipelineStatus,
+  getReport,
   getSession,
   getSessionCode,
   listSessions,
   patchConfig,
+  recomputeReport,
   refreshSuggestions,
   removeInterviewer,
   startSession,
@@ -85,4 +88,12 @@ sessionRouter.get(
   validate(sessionIdParamSchema),
   requireSessionAccess(),
   getEvidenceVerification,
+);
+sessionRouter.get("/sessions/:id/report", validate(sessionIdParamSchema), requireSessionAccess(), getReport);
+sessionRouter.get("/sessions/:id/pipeline", validate(sessionIdParamSchema), requireSessionAccess(), getPipelineStatus);
+sessionRouter.post(
+  "/sessions/:id/report/recompute",
+  validate(sessionIdParamSchema),
+  requireSessionAccess(),
+  recomputeReport,
 );

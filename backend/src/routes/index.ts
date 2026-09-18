@@ -11,6 +11,7 @@ import { joinRouter } from "./join.routes.js";
 import { linkRouter } from "./link.routes.js";
 import { orgRouter } from "./org.routes.js";
 import { questionBankRouter } from "./question-bank.routes.js";
+import { reportRouter } from "./report.routes.js";
 import { sessionRouter } from "./session.routes.js";
 
 /** Everything mounted here lives under /api/v1. */
@@ -21,6 +22,7 @@ apiRouter.use(authRouter);
 apiRouter.use(orgRouter);
 apiRouter.use(candidateDirectoryRouter);
 apiRouter.use(sessionRouter);
+apiRouter.use(reportRouter);
 apiRouter.use(flagRouter);
 apiRouter.use(jdRouter);
 apiRouter.use(codingTaskRouter);

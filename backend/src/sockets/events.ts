@@ -15,6 +15,7 @@ export const INTERVIEWER_EVENTS = {
   WARN_ISSUED: "warn.issued",
   NOTE_ADDED: "note.added",
   QS_SUGGESTIONS: "qs.suggestions",
+  REPORT_READY: "report.ready",
 } as const;
 
 /** Server -> candidate. Allow-list only — never add an event here without checking Rules.md §9.1. */

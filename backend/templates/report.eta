@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Interview report<% if (it.model.session.candidateName) { %> — <%= it.model.session.candidateName %><% } %></title>
+<style>
+  body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #1a1a1a; max-width: 800px; margin: 40px auto; padding: 0 20px; }
+  h1 { font-size: 20px; }
+  h2 { font-size: 15px; margin-top: 32px; border-bottom: 1px solid #ddd; padding-bottom: 4px; }
+  .scores { display: flex; gap: 16px; flex-wrap: wrap; }
+  .score-card { border: 1px solid #ddd; border-radius: 8px; padding: 12px 16px; min-width: 120px; }
+  .score-card .label { font-size: 11px; text-transform: uppercase; color: #666; }
+  .score-card .value { font-size: 24px; font-weight: 600; }
+  .degraded-banner { background: #fff4e5; border: 1px solid #f0b429; border-radius: 6px; padding: 10px 14px; font-size: 13px; margin-bottom: 16px; }
+  .review-banner { background: #fdecea; border: 1px solid #e57373; border-radius: 6px; padding: 10px 14px; font-size: 13px; margin-bottom: 16px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid #eee; }
+  .sev-HIGH { color: #b91c1c; font-weight: 600; }
+  .sev-MEDIUM { color: #b45309; font-weight: 600; }
+  .sev-LOW { color: #555; }
+  .superseded { opacity: 0.55; text-decoration: line-through; }
+  footer { margin-top: 40px; font-size: 11px; color: #888; }
+</style>
+</head>
+<body>
+
+<h1>Interview report<% if (it.model.session.candidateName) { %> — <%= it.model.session.candidateName %><% } %></h1>
+<p style="color:#666; font-size:13px;">Generated <%= it.generatedAt %></p>
+
+<% if (it.model.degraded) { %>
+<div class="degraded-banner">
+  This report is <strong>degraded</strong>: <%= it.model.lostSteps.join(", ") %> did not complete. Every other
+  section reflects whatever evidence exists; nothing below is estimated to fill the gap.
+</div>
+<% } %>
+
+<% if (it.model.scores.reviewRequired) { %>
+<div class="review-banner">
+  A composite score could not be produced for this session — manual reviewer judgement is required.
+</div>
+<% } %>
+
+<h2>Scores</h2>
+<div class="scores">
+  <div class="score-card"><div class="label">Technical</div><div class="value"><%= it.model.scores.technical !== null ? it.model.scores.technical.toFixed(1) : "—" %></div></div>
+  <div class="score-card"><div class="label">Communication</div><div class="value"><%= it.model.scores.communication !== null ? it.model.scores.communication.toFixed(1) : "—" %></div></div>
+  <div class="score-card"><div class="label">Integrity</div><div class="value"><%= it.model.scores.integrity !== null ? it.model.scores.integrity.toFixed(1) : "—" %></div></div>
+  <div class="score-card"><div class="label">Composite</div><div class="value"><%= it.model.scores.composite !== null ? it.model.scores.composite.toFixed(1) : "—" %></div></div>
+</div>
+<p style="font-size:13px; color:#555;">Flags — high: <%= it.model.scores.flagCounts.HIGH %>, medium: <%= it.model.scores.flagCounts.MEDIUM %>, low: <%= it.model.scores.flagCounts.LOW %></p>
+
+<% if (it.model.qaPairs.length > 0) { %>
+<h2>Questions and answers</h2>
+<% it.model.qaPairs.forEach(function(pair){ %>
+<div style="margin-bottom:16px;">
+  <p style="font-weight:600; font-size:13px;"><%= pair.question %><% if (pair.topic) { %> <span style="font-weight:400; color:#888;">(<%= pair.topic %>)</span><% } %></p>
+  <p style="font-size:13px; color:#333;"><%= pair.answer %></p>
+  <% if (pair.grade) { %>
+  <p style="font-size:11px; color:#666;">
+    correctness <%= pair.grade.correctness.toFixed(0) %> · depth <%= pair.grade.depth.toFixed(0) %> ·
+    specificity <%= pair.grade.specificity.toFixed(0) %> · structure <%= pair.grade.structure.toFixed(0) %> ·
+    hands-on <%= pair.grade.handsOn.toFixed(0) %>
+  </p>
+  <% } %>
+</div>
+<% }) %>
+<% } %>
+
+<% if (it.model.codeEvaluations.length > 0) { %>
+<h2>Coding round</h2>
+<table>
+<thead><tr><th>Hidden tests</th><th>Typed ratio</th><th>Burst rate</th></tr></thead>
+<tbody>
+<% it.model.codeEvaluations.forEach(function(c){ %>
+<tr>
+  <td><%= c.hiddenPassed %> / <%= c.hiddenTotal %></td>
+  <td><%= c.typedRatio !== null ? (c.typedRatio * 100).toFixed(0) + "%" : "—" %></td>
+  <td><%= (c.burstRate * 100).toFixed(0) %>%</td>
+</tr>
+<% }) %>
+</tbody>
+</table>
+<% } %>
+
+<h2>Integrity flags</h2>
+<% if (it.model.flags.length === 0) { %>
+<p style="font-size:13px; color:#666;">No flags were raised during this session.</p>
+<% } else { %>
+<table>
+<thead><tr><th>Time</th><th>Type</th><th>Channel</th><th>Severity</th><th>Status</th><th>Narrative</th></tr></thead>
+<tbody>
+<% it.model.flags.forEach(function(flag){ %>
+<tr class="<%= flag.supersededByReview ? 'superseded' : '' %>">
+  <td><%= flag.startTs %></td>
+  <td><%= flag.type %></td>
+  <td><%= flag.channel %></td>
+  <td class="sev-<%= flag.severity %>"><%= flag.severity %></td>
+  <td><%= flag.status %></td>
+  <td><%= flag.narrative %></td>
+</tr>
+<% }) %>
+</tbody>
+</table>
+<% } %>
+
+<h2>Methodology</h2>
+<table>
+<tr><td>Detector version</td><td><%= it.methodology.detectorVersion %></td></tr>
+<tr><td>Weights version</td><td><%= it.methodology.weightsVersion %></td></tr>
+<tr><td>Evidence chain head</td><td><%= it.methodology.chainHead || "—" %></td></tr>
+<tr><td>Last sequence</td><td><%= it.methodology.lastSeq !== null ? it.methodology.lastSeq : "—" %></td></tr>
+<tr><td>Unscored windows</td><td><%= it.methodology.unscoredWindows.length %></td></tr>
+<tr><td>Superseded flags</td><td><%= it.methodology.supersededFlags.length %></td></tr>
+</table>
+
+<% if (it.methodology.unscoredWindows.length > 0) { %>
+<table style="margin-top:8px;">
+<thead><tr><th>Channel</th><th>Reason</th><th>Start</th><th>End</th></tr></thead>
+<tbody>
+<% it.methodology.unscoredWindows.forEach(function(w){ %>
+<tr><td><%= w.channel %></td><td><%= w.reason %></td><td><%= w.startTs %></td><td><%= w.endTs || "open" %></td></tr>
+<% }) %>
+</tbody>
+</table>
+<% } %>
+
+<footer>
+  This report reflects observed signals only. It states what was observed, not a verdict — every
+  flag links to its own evidence and every score is reconstructable from it.
+</footer>
+
+</body>
+</html>

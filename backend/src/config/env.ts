@@ -52,6 +52,9 @@ const envSchema = z.object({
 
   EVIDENCE_SIGNING_PRIVATE_KEY: z.string().optional(),
   EVIDENCE_SIGNING_KEY_ID: z.string().default("local-dev-1"),
+
+  /** PDF is optional (Architecture.md §1); HTML report rendering is never gated by this. */
+  REPORT_PDF_ENABLED: z.coerce.boolean().default(false),
 });
 
 const parsed = envSchema.safeParse(process.env);

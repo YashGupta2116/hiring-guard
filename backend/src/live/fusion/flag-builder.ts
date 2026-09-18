@@ -22,7 +22,8 @@ const NARRATIVE_TEMPLATES: Record<string, (payload: Record<string, unknown>) => 
   second_voice: () => "A second voice was detected.",
 };
 
-function narrativeFor(type: string, payload: Record<string, unknown>): string {
+/** Exported for pipeline/steps/integrity-rescore.step.ts, which builds OFFLINE-origin flags outside this module's live merge/emit path but wants the same narrative templates, not a second copy. */
+export function narrativeFor(type: string, payload: Record<string, unknown>): string {
   const template = NARRATIVE_TEMPLATES[type];
   return template ? template(payload) : `Anomalous ${type.replace(/_/g, " ")} activity was detected.`;
 }
