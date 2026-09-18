@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Inter, Fraunces, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
+import { AuthProvider } from "@/lib/auth/auth-context";
 import { StoreProvider } from "@/lib/store/interview-store";
 import { ToastProvider } from "@/components/ui/toast";
 import { HydrationCleanup } from "@/components/hydration-cleanup";
@@ -37,9 +38,11 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <StoreProvider>
-            <ToastProvider>{children}</ToastProvider>
-          </StoreProvider>
+          <AuthProvider>
+            <StoreProvider>
+              <ToastProvider>{children}</ToastProvider>
+            </StoreProvider>
+          </AuthProvider>
         </ThemeProvider>
       </body>
     </html>

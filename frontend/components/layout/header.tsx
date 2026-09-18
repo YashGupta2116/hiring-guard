@@ -15,11 +15,10 @@ import {
   UserCheck,
   ChevronDown,
   LogOut,
-  Check,
 } from "lucide-react";
-import { useStore } from "@/lib/store/interview-store";
+import { useAuth, useCurrentUser } from "@/lib/auth/auth-context";
+import { useToast } from "@/components/ui/toast";
 import { ScheduleModal } from "@/components/interviews/schedule-modal";
-import { cn } from "@/lib/utils";
 
 interface HeaderProps {
   collapsed: boolean;
@@ -29,9 +28,10 @@ interface HeaderProps {
 export function Header({ collapsed, setCollapsed }: HeaderProps) {
   const router = useRouter();
   const { theme, setTheme } = useTheme();
-  const { currentUser, setCurrentUser, users } = useStore();
+  const currentUser = useCurrentUser();
+  const { signOut } = useAuth();
+  const { toast } = useToast();
   const [mounted, setMounted] = useState(false);
-  const [showRoleMenu, setShowRoleMenu] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
@@ -41,8 +41,13 @@ export function Header({ collapsed, setCollapsed }: HeaderProps) {
     setMounted(true);
   }, []);
 
-  const handleLogout = () => {
-    router.push("/login");
+  const handleLogout = async () => {
+    try {
+      await signOut();
+    } catch {
+      toast({ title: "Sign out failed", description: "The server could not be reached; your local session was cleared.", type: "error" });
+    }
+    router.replace("/login");
   };
 
   const notifications = [
@@ -82,7 +87,7 @@ export function Header({ collapsed, setCollapsed }: HeaderProps) {
                 VeriTrust
               </span>
               <span className="text-[11px] text-stone-400 dark:text-stone-500 font-sans mt-0.5 leading-none">
-                Acme Systems
+                {currentUser.orgName}
               </span>
             </div>
           </div>
@@ -107,47 +112,12 @@ export function Header({ collapsed, setCollapsed }: HeaderProps) {
 
         {/* Right: Actions */}
         <div className="flex items-center gap-2.5 sm:gap-3 shrink-0">
-          {/* Role Pill Switcher */}
-          <div className="relative hidden lg:block">
-            <button
-              onClick={() => {
-                setShowRoleMenu(!showRoleMenu);
-                setShowUserMenu(false);
-              }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-stone-200 dark:border-stone-800 bg-white/60 dark:bg-stone-900/60 hover:bg-stone-100 dark:hover:bg-stone-800 text-xs font-medium text-stone-700 dark:text-stone-300 transition-colors cursor-pointer"
-            >
-              <UserCheck className="h-3.5 w-3.5 text-stone-500" />
-              <span>
-                Role: <strong className="font-semibold text-stone-900 dark:text-stone-100">{currentUser.role}</strong>
-              </span>
-              <ChevronDown className="h-3 w-3 text-stone-400 ml-0.5" />
-            </button>
-
-            {showRoleMenu && (
-              <div className="absolute right-0 top-10 w-52 rounded-xl border border-stone-200 dark:border-stone-800 bg-white dark:bg-stone-900 p-2 shadow-xl z-50 animate-in fade-in-50 zoom-in-95">
-                <div className="px-2 py-1 text-[10px] font-semibold text-stone-400 dark:text-stone-500 uppercase tracking-wider">
-                  Switch Active Role
-                </div>
-                <div className="space-y-0.5 mt-1">
-                  {users.map((u) => (
-                    <button
-                      key={u.id}
-                      onClick={() => {
-                        setCurrentUser(u);
-                        setShowRoleMenu(false);
-                      }}
-                      className={cn(
-                        "flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-left text-xs transition-colors hover:bg-stone-100 dark:hover:bg-stone-800",
-                        currentUser.id === u.id && "bg-stone-100 dark:bg-stone-800/80 font-medium text-stone-900 dark:text-stone-100"
-                      )}
-                    >
-                      <span className="truncate">{u.role} ({u.name.split(" ")[0]})</span>
-                      {currentUser.id === u.id && <Check className="h-3.5 w-3.5 text-stone-700 dark:text-stone-300" />}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
+          {/* Role (read-only; roles are managed per organisation member) */}
+          <div className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-stone-200 dark:border-stone-800 bg-white/60 dark:bg-stone-900/60 text-xs font-medium text-stone-700 dark:text-stone-300">
+            <UserCheck className="h-3.5 w-3.5 text-stone-500" />
+            <span>
+              Role: <strong className="font-semibold text-stone-900 dark:text-stone-100">{currentUser.role}</strong>
+            </span>
           </div>
 
           {/* + Schedule Button */}
@@ -165,7 +135,6 @@ export function Header({ collapsed, setCollapsed }: HeaderProps) {
             <button
               onClick={() => {
                 setShowNotifications(!showNotifications);
-                setShowRoleMenu(false);
                 setShowUserMenu(false);
               }}
               className="relative p-2 rounded-xl text-stone-500 hover:text-stone-900 dark:text-stone-400 dark:hover:text-stone-100 hover:bg-stone-200/50 dark:hover:bg-stone-800 transition-colors"
@@ -218,7 +187,6 @@ export function Header({ collapsed, setCollapsed }: HeaderProps) {
             <button
               onClick={() => {
                 setShowUserMenu(!showUserMenu);
-                setShowRoleMenu(false);
               }}
               className="flex items-center gap-2 pl-1 pr-1.5 py-1 rounded-xl hover:bg-stone-200/50 dark:hover:bg-stone-800 transition-colors cursor-pointer"
             >
@@ -241,31 +209,7 @@ export function Header({ collapsed, setCollapsed }: HeaderProps) {
                 <div className="px-2 py-1.5 border-b border-stone-100 dark:border-stone-800 mb-1">
                   <div className="font-semibold text-xs text-stone-900 dark:text-stone-100">{currentUser.name}</div>
                   <div className="text-[11px] text-stone-400">{currentUser.email}</div>
-                </div>
-
-                <div className="px-2 py-1 text-[10px] font-semibold text-stone-400 dark:text-stone-500 uppercase tracking-wider">
-                  Switch Persona
-                </div>
-                <div className="space-y-0.5 mt-1">
-                  {users.map((u) => (
-                    <button
-                      key={u.id}
-                      onClick={() => {
-                        setCurrentUser(u);
-                        setShowUserMenu(false);
-                      }}
-                      className={cn(
-                        "flex w-full items-center justify-between rounded-lg px-2 py-1.5 text-left text-xs transition-colors hover:bg-stone-100 dark:hover:bg-stone-800",
-                        currentUser.id === u.id && "bg-stone-100 dark:bg-stone-800/80 font-medium text-stone-900 dark:text-stone-100"
-                      )}
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <img src={u.avatar} alt={u.name} className="h-5 w-5 rounded-full object-cover shrink-0" />
-                        <span className="truncate text-stone-800 dark:text-stone-200">{u.name.split(" ")[0]}</span>
-                      </div>
-                      <span className="text-[10px] text-stone-400">{u.role}</span>
-                    </button>
-                  ))}
+                  <div className="text-[10px] text-stone-400 mt-0.5">{currentUser.title}</div>
                 </div>
 
                 <div className="my-1.5 border-t border-stone-100 dark:border-stone-800" />

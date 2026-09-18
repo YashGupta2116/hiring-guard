@@ -3,7 +3,7 @@ dist/
 src/generated/
 .env
 .env.test
-storage/
+/storage/
 .test-storage*/
 coverage/
 *.tsbuildinfo

@@ -20,11 +20,13 @@ import {
   Home,
 } from "lucide-react";
 import { usePermissions } from "@/components/auth/role-guard";
+import { useCurrentUser } from "@/lib/auth/auth-context";
 import { useToast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 
 export default function SettingsPage() {
-  const { currentUser, setCurrentUser, users, resetDemoData } = useStore();
+  const { users, resetDemoData } = useStore();
+  const currentUser = useCurrentUser();
   const { canManageSettings, canManageTeam } = usePermissions();
   const { toast } = useToast();
 
@@ -44,15 +46,11 @@ export default function SettingsPage() {
 
   const handleSaveProfile = (e: React.FormEvent) => {
     e.preventDefault();
-    setCurrentUser({
-      ...currentUser,
-      name: profileName,
-      title: profileTitle,
-    });
+    // Profile editing needs a backend user-update endpoint; that lands with the Settings page integration.
     toast({
-      title: "Profile Updated",
-      description: "User profile preferences have been saved.",
-      type: "success",
+      title: "Not saved yet",
+      description: "Profile editing is connected in the Settings phase.",
+      type: "info",
     });
   };
 
@@ -437,21 +435,6 @@ export default function SettingsPage() {
                   <Badge variant="outline" size="sm" className="text-[10px]">
                     {u.role}
                   </Badge>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      setCurrentUser(u);
-                      toast({
-                        title: `Switched Persona to ${u.name}`,
-                        description: `Now evaluating platform as ${u.role}.`,
-                        type: "info",
-                      });
-                    }}
-                    className="h-6.5 text-[11px] px-2"
-                  >
-                    Switch to
-                  </Button>
                 </div>
               </div>
             ))}

@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useStore } from "@/lib/store/interview-store";
+import { useCurrentUser } from "@/lib/auth/auth-context";
 import { VideoPanel } from "@/components/live-interview/video-panel";
 import { LiveSidebar } from "@/components/live-interview/live-sidebar";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -39,7 +40,8 @@ export default function LiveInterviewPage() {
   const params = useParams();
   const router = useRouter();
   const id = params.id as string;
-  const { getInterviewById, currentUser } = useStore();
+  const { getInterviewById } = useStore();
+  const currentUser = useCurrentUser();
   const { toast } = useToast();
 
   const interview = getInterviewById(id);

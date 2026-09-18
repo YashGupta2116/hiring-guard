@@ -1,48 +1,47 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useStore } from "@/lib/store/interview-store";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useAuth } from "@/lib/auth/auth-context";
+import { ApiError } from "@/lib/api/client";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Shield, Sparkles, ArrowRight, CheckCircle2, Lock, Mail, Users } from "lucide-react";
+import { Shield, ArrowRight, CheckCircle2, Lock, Mail } from "lucide-react";
 import { useToast } from "@/components/ui/toast";
 
-export default function LoginPage() {
+/** Only same-origin app paths are honoured, so ?next= cannot bounce a user to another site. */
+function safeNext(next: string | null): string {
+  return next && next.startsWith("/app") && !next.startsWith("//") ? next : "/app/dashboard";
+}
+
+function LoginForm() {
   const router = useRouter();
-  const { users, setCurrentUser } = useStore();
+  const searchParams = useSearchParams();
+  const { status, signIn } = useAuth();
   const { toast } = useToast();
-  const [email, setEmail] = useState("marcus.s@veritrust.ai");
-  const [password, setPassword] = useState("••••••••••••");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const destination = safeNext(searchParams.get("next"));
 
-  const handleLogin = (e: React.FormEvent) => {
+  useEffect(() => {
+    if (status === "authenticated") router.replace(destination);
+  }, [status, router, destination]);
+
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
     setIsLoading(true);
-
-    setTimeout(() => {
-      // Find matching user or fallback to first
-      const found = users.find((u) => u.email.toLowerCase() === email.toLowerCase()) || users[1];
-      setCurrentUser(found);
+    try {
+      await signIn(email.trim(), password);
+      toast({ title: "Signed in", description: "Welcome back to VeriTrust.", type: "success" });
+      router.replace(destination);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Sign in failed. Please try again.");
+    } finally {
       setIsLoading(false);
-      toast({
-        title: `Welcome back, ${found.name}`,
-        description: `Logged in as ${found.role} (${found.title})`,
-        type: "success",
-      });
-      router.push("/app/dashboard");
-    }, 600);
-  };
-
-  const handlePersonaSelect = (user: (typeof users)[0]) => {
-    setCurrentUser(user);
-    toast({
-      title: `Active Persona: ${user.name}`,
-      description: `Role privileges updated to ${user.role}`,
-      type: "info",
-    });
-    router.push("/app/dashboard");
+    }
   };
 
   return (
@@ -119,46 +118,17 @@ export default function LoginPage() {
               Sign in to your workspace
             </h2>
             <p className="text-xs text-muted-foreground mt-1">
-              Enter your credentials or choose a pre-configured demo persona
+              Enter your work email and password
             </p>
-          </div>
-
-          {/* Quick Demo Persona Switcher Banner */}
-          <div className="rounded-lg border border-border bg-secondary/30 p-3.5 space-y-2.5">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-1.5 text-xs font-medium text-foreground">
-                <Users className="h-3.5 w-3.5 text-muted-foreground" />
-                <span>Instant Demo Personas</span>
-              </div>
-              <span className="text-[10px] text-muted-foreground font-mono">1-click login</span>
-            </div>
-
-            <div className="grid grid-cols-3 gap-2">
-              {users.map((user) => (
-                <button
-                  key={user.id}
-                  type="button"
-                  onClick={() => handlePersonaSelect(user)}
-                  className="flex flex-col items-center p-2 rounded-md border border-border bg-background hover:border-foreground/30 hover:bg-secondary/60 transition-all text-center group"
-                >
-                  <img
-                    src={user.avatar}
-                    alt={user.name}
-                    className="h-7 w-7 rounded-full object-cover mb-1 ring-1 ring-border group-hover:ring-foreground/40 transition-all"
-                  />
-                  <span className="text-xs font-medium text-foreground truncate w-full">
-                    {user.name.split(" ")[0]}
-                  </span>
-                  <span className="text-[10px] text-muted-foreground mt-0.5 font-mono">
-                    {user.role}
-                  </span>
-                </button>
-              ))}
-            </div>
           </div>
 
           {/* Login Form */}
           <form onSubmit={handleLogin} className="space-y-3.5">
+          {error && (
+            <div role="alert" className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-600 dark:text-red-400">
+              {error}
+            </div>
+          )}
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-foreground flex items-center justify-between">
                 Work Email
@@ -170,6 +140,7 @@ export default function LoginPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
+                  autoComplete="email"
                   placeholder="name@company.com"
                   className="w-full rounded-md border border-border bg-background pl-9 pr-3.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/60 focus-visible:border-foreground/40 focus-visible:outline-none transition-colors"
                 />
@@ -179,9 +150,6 @@ export default function LoginPage() {
             <div className="space-y-1.5">
               <div className="flex items-center justify-between text-xs">
                 <label className="font-medium text-foreground">Password</label>
-                <a href="#" className="text-muted-foreground hover:text-foreground text-xs transition-colors">
-                  Forgot password?
-                </a>
               </div>
               <div className="relative">
                 <Lock className="absolute left-3 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
@@ -190,6 +158,7 @@ export default function LoginPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   required
+                  autoComplete="current-password"
                   className="w-full rounded-md border border-border bg-background pl-9 pr-3.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/60 focus-visible:border-foreground/40 focus-visible:outline-none transition-colors"
                 />
               </div>
@@ -209,5 +178,13 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginForm />
+    </Suspense>
   );
 }

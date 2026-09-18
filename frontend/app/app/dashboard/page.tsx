@@ -16,6 +16,7 @@ import {
   MoreVertical,
 } from "lucide-react";
 import { useStore } from "@/lib/store/interview-store";
+import { useCurrentUser } from "@/lib/auth/auth-context";
 import { ScheduleModal } from "@/components/interviews/schedule-modal";
 import { AddCandidateModal } from "@/components/candidates/add-candidate-modal";
 import { GenerateQuestionModal } from "@/components/questions/generate-question-modal";
@@ -51,7 +52,8 @@ function ScoreRing({ score, color }: { score: number; color: "green" | "red" }) 
 }
 
 export default function DashboardPage() {
-  const { interviews, candidates, reports, currentUser } = useStore();
+  const { interviews, candidates, reports } = useStore();
+  const currentUser = useCurrentUser();
 
   const [scheduleModalOpen, setScheduleModalOpen] = useState(false);
   const [candidateModalOpen, setCandidateModalOpen] = useState(false);

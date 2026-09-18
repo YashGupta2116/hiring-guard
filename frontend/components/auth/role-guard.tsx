@@ -1,9 +1,9 @@
 "use client";
 
 import React from "react";
-import { useStore } from "@/lib/store/interview-store";
+import { useCurrentUser } from "@/lib/auth/auth-context";
 import { UserRole } from "@/lib/types";
-import { ShieldAlert, ArrowRight, UserCheck } from "lucide-react";
+import { ShieldAlert, ArrowRight } from "lucide-react";
 import { Button } from "../ui/button";
 import Link from "next/link";
 
@@ -14,7 +14,7 @@ interface RoleGuardProps {
 }
 
 export function RoleGuard({ allowedRoles, children, fallback }: RoleGuardProps) {
-  const { currentUser, setCurrentUser, users } = useStore();
+  const currentUser = useCurrentUser();
 
   const isAllowed = allowedRoles.includes(currentUser.role);
 
@@ -35,31 +35,13 @@ export function RoleGuard({ allowedRoles, children, fallback }: RoleGuardProps) 
         Access Restricted: {currentUser.role} Role
       </h3>
       <p className="mt-2 max-w-md text-sm text-muted-foreground leading-relaxed">
-        Your current active persona (<strong>{currentUser.name}</strong>) has read-only{" "}
-        <strong>{currentUser.role}</strong> permissions. This action or page requires{" "}
+        Your account (<strong>{currentUser.name}</strong>) has <strong>{currentUser.role}</strong>{" "}
+        permissions. This action or page requires{" "}
         {allowedRoles.join(" or ")} privileges.
       </p>
 
       <div className="mt-6 flex flex-col items-center gap-3">
-        <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-          Demo Persona Switcher
-        </span>
-        <div className="flex flex-wrap items-center justify-center gap-2">
-          {users
-            .filter((u) => allowedRoles.includes(u.role))
-            .map((u) => (
-              <Button
-                key={u.id}
-                size="sm"
-                variant="outline"
-                onClick={() => setCurrentUser(u)}
-                className="gap-2 border-border hover:bg-secondary hover:text-foreground text-xs"
-              >
-                <UserCheck className="h-3.5 w-3.5 text-foreground" />
-                Switch to {u.name} ({u.role})
-              </Button>
-            ))}
-        </div>
+        <p className="text-xs text-muted-foreground">Ask an organisation owner or admin to change your role.</p>
         <Link href="/app/dashboard" className="mt-2">
           <Button variant="ghost" size="sm" className="gap-1.5 text-xs text-muted-foreground">
             Return to Dashboard <ArrowRight className="h-3.5 w-3.5" />
@@ -71,7 +53,7 @@ export function RoleGuard({ allowedRoles, children, fallback }: RoleGuardProps) 
 }
 
 export function usePermissions() {
-  const { currentUser } = useStore();
+  const currentUser = useCurrentUser();
   const isAdmin = currentUser.role === "Admin";
   const isInterviewer = currentUser.role === "Interviewer";
   const isViewer = currentUser.role === "Viewer";

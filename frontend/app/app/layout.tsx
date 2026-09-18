@@ -5,8 +5,9 @@ import { usePathname } from "next/navigation";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Header } from "@/components/layout/header";
 import { MeetingLayout } from "@/components/layout/meeting-layout";
+import { AuthGate } from "@/lib/auth/auth-context";
 
-export default function AppLayout({
+function AppShell({
   children,
 }: {
   children: React.ReactNode;
@@ -62,5 +63,13 @@ export default function AppLayout({
         </main>
       </div>
     </div>
+  );
+}
+
+export default function AppLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <AuthGate>
+      <AppShell>{children}</AppShell>
+    </AuthGate>
   );
 }

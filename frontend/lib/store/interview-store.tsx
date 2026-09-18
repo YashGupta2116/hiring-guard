@@ -6,11 +6,9 @@ import { MOCK_CANDIDATES } from "../mock-data/candidates";
 import { MOCK_INTERVIEWS } from "../mock-data/interviews";
 import { MOCK_QUESTIONS } from "../mock-data/questions";
 import { MOCK_REPORTS } from "../mock-data/reports";
-import { CURRENT_USER_DEFAULT, MOCK_USERS } from "../mock-data/users";
+import { MOCK_USERS } from "../mock-data/users";
 
 interface StoreContextType {
-  currentUser: User;
-  setCurrentUser: (user: User) => void;
   users: User[];
   interviews: Interview[];
   candidates: Candidate[];
@@ -36,7 +34,6 @@ const StoreContext = createContext<StoreContextType | null>(null);
 const STORAGE_KEY_PREFIX = "veritrust_state_";
 
 export function StoreProvider({ children }: { children: React.ReactNode }) {
-  const [currentUser, setCurrentUserState] = useState<User>(CURRENT_USER_DEFAULT);
   const [interviews, setInterviews] = useState<Interview[]>(MOCK_INTERVIEWS);
   const [candidates, setCandidates] = useState<Candidate[]>(MOCK_CANDIDATES);
   const [reports, setReports] = useState<Report[]>(MOCK_REPORTS);
@@ -46,9 +43,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   // Hydrate from localStorage once on client mount
   useEffect(() => {
     try {
-      const savedUser = localStorage.getItem(STORAGE_KEY_PREFIX + "user");
-      if (savedUser) setCurrentUserState(JSON.parse(savedUser));
-
       const savedInterviews = localStorage.getItem(STORAGE_KEY_PREFIX + "interviews");
       if (savedInterviews) setInterviews(JSON.parse(savedInterviews));
 
@@ -71,7 +65,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (!isHydrated) return;
     try {
-      localStorage.setItem(STORAGE_KEY_PREFIX + "user", JSON.stringify(currentUser));
       localStorage.setItem(STORAGE_KEY_PREFIX + "interviews", JSON.stringify(interviews));
       localStorage.setItem(STORAGE_KEY_PREFIX + "candidates", JSON.stringify(candidates));
       localStorage.setItem(STORAGE_KEY_PREFIX + "reports", JSON.stringify(reports));
@@ -79,11 +72,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
     } catch (e) {
       console.error("Failed to persist store to localStorage", e);
     }
-  }, [currentUser, interviews, candidates, reports, questions, isHydrated]);
-
-  const setCurrentUser = (user: User) => {
-    setCurrentUserState(user);
-  };
+  }, [interviews, candidates, reports, questions, isHydrated]);
 
   const addInterview = (interview: Interview) => {
     setInterviews((prev) => [interview, ...prev]);
@@ -126,13 +115,12 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   };
 
   const resetDemoData = () => {
-    setCurrentUserState(CURRENT_USER_DEFAULT);
     setInterviews(MOCK_INTERVIEWS);
     setCandidates(MOCK_CANDIDATES);
     setReports(MOCK_REPORTS);
     setQuestions(MOCK_QUESTIONS);
     try {
-      localStorage.removeItem(STORAGE_KEY_PREFIX + "user");
+      localStorage.removeItem(STORAGE_KEY_PREFIX + "user"); // legacy key from the persona switcher
       localStorage.removeItem(STORAGE_KEY_PREFIX + "interviews");
       localStorage.removeItem(STORAGE_KEY_PREFIX + "candidates");
       localStorage.removeItem(STORAGE_KEY_PREFIX + "reports");
@@ -161,8 +149,6 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
   return (
     <StoreContext.Provider
       value={{
-        currentUser,
-        setCurrentUser,
         users: MOCK_USERS,
         interviews,
         candidates,
