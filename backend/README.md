@@ -84,6 +84,52 @@ Full list with defaults: [`.env.example`](.env.example). Everything is parsed an
 
 Full diagram and data flows: [`docs/Architecture.md`](docs/Architecture.md) §3–§7.
 
+## Deploying
+
+The API and worker each run from the same image (`Dockerfile`), a multi-stage build with no native
+Prisma query-engine binary to worry about (Prisma here uses the `@prisma/adapter-pg` driver adapter
+directly over `pg` — see `src/utils/prisma.ts` — so the generated client is plain compiled JS, not a
+platform-specific binary).
+
+```bash
+docker build -t veritrust-backend .
+docker run --rm veritrust-backend node_modules/.bin/prisma migrate deploy   # once, before first boot
+docker run -d -p 9000:9000 --env-file .env.production veritrust-backend                 # API
+docker run -d --env-file .env.production veritrust-backend node dist/worker.js          # worker
+```
+
+To smoke-test this exact image locally against real Postgres/Redis/mailpit before a real deploy:
+
+```bash
+docker compose --profile app up -d --build
+```
+
+That brings up `migrate` (runs once and exits), `api`, and `worker` alongside the existing infra
+containers. **This is for local verification only** — it reads secrets from your own `.env` via
+`env_file`, which is fine on your machine but is not how a real deployment should supply secrets
+(use your platform's own secret manager / env-var injection instead).
+
+**Required for any real deployment:**
+- Set `NODE_ENV=production` explicitly. Don't rely on it defaulting — the app degrades gracefully
+  either way (see below), but every other production-only behavior (rate-limit windows, PDF
+  puppeteer path, log format) keys off this.
+- Run `prisma migrate deploy` (not `migrate dev`) as a one-off step before the API/worker start.
+- Run the worker as its own long-lived process/service (`node dist/worker.js`) — a session will
+  never leave `PROCESSING` and a join link will never expire without one running.
+- Mount a persistent volume at `STORAGE_LOCAL_DIR` (`/app/storage` in the image) if using
+  `STORAGE_PROVIDER=local` — it's not durable across container replacement otherwise. There is no
+  S3 provider built yet (see `docs/REMAINING_WORK.md`).
+- Generate real secrets (`npm run keys:generate`) — never reuse the values in `.env.example`.
+- If `REPORT_PDF_ENABLED=true`, puppeteer's bundled Chromium needs its shared-library dependencies
+  present in the image (not installed by this Dockerfile, to keep the default image lean — add them,
+  or switch to `puppeteer-core` against an external Chromium service, before enabling it).
+
+The container's `HEALTHCHECK` (and `GET /api/v1/ready`) checks real Postgres + Redis connectivity,
+so an orchestrator will correctly hold traffic back until both are reachable. `SIGTERM` is handled
+directly (exec-form `CMD`, not shell form) by both `src/index.ts` and `src/worker.ts` — each drains
+in-flight work, disconnects Prisma/Redis, and exits, with a 10s hard-kill fallback if something
+hangs.
+
 ## Testing manually
 
 ```bash

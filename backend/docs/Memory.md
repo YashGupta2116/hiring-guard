@@ -9,12 +9,14 @@
 ## Current status
 
 - **Current phase:** Phase 11 — Retention, hardening, docs (✅ done). This was also the last phase in
-  `Phases.md`; everything through Phase 11 is now built.
+  `Phases.md`; everything through Phase 11 is now built, and both bugs found in Phase 10's self-check
+  are now fixed too (see Decisions log's two "Bug fix" entries).
 - **Last updated:** 2026-09-18
-- **Next step:** None queued. Two known bugs from the Phase 10 self-check are still unfixed — see
-  Known issues ("IntegrityRescore decays to wall-clock run time, not session end" and "RenderReport
-  failure leaves the pipeline stuck RUNNING forever") — fix those, or pick up frontend/backend wiring
-  or a real CV/ASR/LLM provider (all still `Deferred` in `Phases.md`).
+- **Next step:** None queued in `Phases.md`. Both Phase 10 self-check bugs are fixed, and this backend
+  is now containerized and verified deployable (`Dockerfile` + `docker-compose.yml`'s `app` profile,
+  built and actually run end-to-end this session — see Decisions log's "Deployment" entries and
+  `docs/REMAINING_WORK.md` §1/§1a). Candidates for a future session: wire the frontend to this API
+  (currently 100% mock-data), or build a real CV/ASR/LLM provider (all still `Deferred`).
 
 ## Phase tracker
 
@@ -369,6 +371,15 @@ Removed: `bcryptjs`, `jsonwebtoken` (Rules: use `argon2`, `jose`).
 | 2026-09-18 | **Phase 11.** Added a `Retry-After` response header (seconds, from the limiter's own `windowMs`) in `rate-limit.ts`'s 429 handler | Design.md's error table already documented `429 \| rate limited (Retry-After header)` — the header was never actually being set, only `retryAfterMs` inside the JSON error body. Found while reviewing rate-limit config for Phase 11's security-review checklist item |
 | 2026-09-18 | **Phase 11.** `npm audit` findings (deepmerge-ts/mysql2 via `@prisma/config`→`prisma` CLI; uuid via `dockerode`) were left unfixed, not force-fixed | All three fixes npm proposes require `npm audit fix --force` (a downgrade to `prisma@6.19.3`, or a dockerode major bump) — both explicitly forbidden (Rules.md/CLAUDE.md: never `--force`, never move off Prisma 7). All three are dev-tooling-only (prisma CLI's MySQL/config-merge code paths, never touched — this app only uses `pg`) or gated behind the optional `SANDBOX_PROVIDER=docker` path, not exposed to any request handler |
 | 2026-09-18 | **Phase 11.** `scripts/load-test-telemetry.ts` measures backlog by polling `prisma.observation.count()` directly from an external script, not by adding new instrumentation to `SessionRuntime` | `handleTelemetryBatch` already funnels every write through one serialized `writeQueue` per session (Phase 6/7 decisions above) with no exposed queue-depth metric; querying Postgres for "how many of what I sent has actually landed" is an honest end-to-end measurement of exactly the thing Phases.md's target cares about, without adding a metrics endpoint nobody else asked for |
+| 2026-09-18 | **Bug fix.** `integrity-rescore.step.ts` now projects final decay to `(session.endedAt ?? new Date()).getTime()`, not `Date.now()` | This was the Phase 10 self-check's first unfixed bug: decaying to wall-clock run time made the "authoritative" rescored score depend on how long the pipeline job sat queued, or how late a recompute ran — not reproducible. `session.endedAt` is already set on LIVE→SEALING (`session-state.service.ts`) and is exactly "the instant this session's evidence stopped", which is what decay should be measured to. Regression test in `pipeline.test.ts` calls `computeIntegrityRescore` twice with `vi.setSystemTime()` advancing 10 real minutes between calls and asserts the score is bit-for-bit identical — confirmed this fails on the old code (99.4 vs 95.6) and passes on the fix |
+| 2026-09-18 | **Bug fix.** `pipeline/flow.ts`'s `RENDER_REPORT` case now calls `deliverReport()` from a `catch` block when `isLastAttempt` is true, in addition to the existing success-path call | This was the Phase 10 self-check's second unfixed bug: `runStep` re-throwing on a `computeRenderReport` failure meant `deliverReport` — the only place that sets `PipelineRun.status` and transitions PROCESSING→COMPLETE — never ran, since RENDER_REPORT is the flow tree's root with nothing downstream of it. `isLastAttempt` (computed in `processPipelineStep` from `job.attemptsMade + 1 >= job.opts.attempts`, mirroring BullMQ's own `Job.shouldRetryJob` check; always `true` for the no-retry `runPipelineInline` test path) exists specifically so an *intermediate* failed attempt that BullMQ will still retry doesn't prematurely mark the run DEGRADED/COMPLETE and send the summary email before a later retry gets a chance to actually succeed — only the truly-exhausted final attempt falls back to delivering degraded. Regression test forces `getStorage().put` to reject once via `vi.spyOn` and confirms the session still reaches COMPLETE/DEGRADED instead of staying stuck in PROCESSING; confirmed this fails on the old code |
+| 2026-09-18 | **Deployment.** Added `Dockerfile` (multi-stage: `deps`/`build`/`prod-deps`/`runtime`) and `docker-compose.yml`'s opt-in `app` profile (`migrate`/`api`/`worker` services), both new this session | User asked to "complete anything left for deployment, so there are no issues deploying" — no Dockerfile existed at all before this; `docker-compose.yml` only ever ran infra (Postgres/Redis/mailpit), never the app itself. Actually built and ran the full containerized stack end-to-end (not just written and assumed correct) — see the two bugs it caught, below |
+| 2026-09-18 | **Deployment.** `Dockerfile`'s `build` stage sets a placeholder `DATABASE_URL` before `RUN npm run build` | `prisma.config.ts` calls `env("DATABASE_URL")` eagerly, so `prisma generate` (which only introspects `schema.prisma` and never actually connects) still fails to even load its config without *some* resolvable value present at build time. The placeholder is build-stage-only — the final `runtime` stage gets its real `DATABASE_URL` from the environment at container start, same as every other secret |
+| 2026-09-18 | **Deployment.** The `migrate` compose service targets the Dockerfile's `build` stage, not the final `runtime` image | `prisma` (the CLI, needed for `migrate deploy`) is a devDependency; the `runtime` stage is deliberately `npm ci --omit=dev` to keep the deployed image lean, so it doesn't have the CLI. `build` still has the full source tree and dev deps, so it's what actually runs the one-off migration job |
+| 2026-09-18 | **Deployment bug, found and fixed.** `logger.ts` now falls back to plain JSON logging if the `pino-pretty` transport can't be loaded, instead of letting `pino()` throw | The Docker smoke test reproduced a real crash: `docker-compose.yml`'s local-only `app` profile injects the developer's own `.env` (`NODE_ENV=development`) via `env_file`, so `isProduction` was false and `logger.ts` tried to load `pino-pretty` — a devDependency absent from the `runtime` image's `node_modules` (`npm ci --omit=dev`) — and `pino()` threw `"unable to determine transport target"` synchronously, taking the whole process down before it logged a single line. Fixed at two layers: `docker-compose.yml`'s `app` profile now explicitly forces `NODE_ENV: production` (documented in README as required for any real deployment too), **and** `logger.ts` itself now wraps the pretty-transport attempt in try/catch so a forgotten/misconfigured `NODE_ENV` degrades to unformatted-but-working logs instead of crash-looping the container. Verified the fallback directly: ran the built image with `NODE_ENV=development` and confirmed it logs instead of throwing |
+| 2026-09-18 | **Deployment bug, found and fixed.** `docker-compose.yml`'s `worker` service explicitly sets `healthcheck: disable: true` | The `Dockerfile`'s `HEALTHCHECK` probes the API's `GET /api/v1/ready` over HTTP; `worker.js` never opens a port, so that inherited check would report the worker container permanently unhealthy. Caught because `docker compose ps` showed `worker` stuck on "health: starting" after `api` was already "healthy" |
+| 2026-09-18 | **Deployment.** `worker.ts`'s shutdown handler rebuilt to match `index.ts`'s: guarded against double-invocation, a 10s force-kill fallback, and now disconnects Prisma/Redis before exiting; also now handles `unhandledRejection`/`uncaughtException` (previously only `SIGTERM`/`SIGINT`, and just `process.exit(0)` with no disconnect or timeout) | The two processes had drifted to different robustness levels since `index.ts`'s pattern was written in an earlier phase; an orchestrator's rolling restart sends `SIGTERM` to both, and the worker deserves the same clean-drain guarantee the API already had before this goes anywhere real |
+| 2026-09-18 | **Cleanup.** Deleted `pnpm-lock.yaml`/`pnpm-workspace.yaml` (untracked, appeared unexplained during an earlier session on this same day) and did a clean `rm -rf node_modules && npm install` | `node_modules/.pnpm` existed — something had run a real `pnpm install` against this npm-only project (Rules.md §3 doesn't list pnpm at all) at some point, leaving a hybrid npm/pnpm `node_modules` that happened to still pass typecheck/test/build but is exactly the kind of drift that causes "works here, breaks in CI" surprises, and a stray lockfile is itself a deployment risk on any platform that auto-detects the package manager from whichever lockfile is present. The Docker image build was already unaffected either way (it only ever copies `package.json`/`package-lock.json` into a fresh `npm ci`), but the host environment needed the same guarantee |
 
 ---
 
@@ -380,7 +391,7 @@ Removed: `bcryptjs`, `jsonwebtoken` (Rules: use `argon2`, `jose`).
 
 ## Known issues / open questions
 
-- **Phase 10.** No worker actually runs the real BullMQ pipeline in this dev/test setup yet — `npm run worker` registers the `pipeline` queue's `Worker` (`worker.ts`), but nothing here starts it automatically the way `docker compose up` starts Postgres/Redis. A session that ends without `npm run worker` running will sit in PROCESSING with queued-but-unprocessed jobs until a worker process is started. Tests sidestep this with `runPipelineInline()` (see Decisions log); a real deployment needs the worker process running, same as it already needed one for `jd-parse`.
+- **Phase 10, resolved for local dev/test.** Nothing here starts `npm run worker` automatically the way `docker compose up` starts Postgres/Redis — still true for the plain host workflow. For a real deployment this is now resolved: `Dockerfile` + `docker-compose.yml`'s `app` profile define `worker` as its own long-lived service, actually run and driven through a real session this session (see Decisions log's "Dockerfile + deployment" entry). Tests still sidestep this with `runPipelineInline()`.
 - **Phase 10.** `PDF_ENABLED=false` by default; `npm install` still downloaded puppeteer's Chromium (~300MB) since REPORT_PDF_ENABLED is only checked at render time, not install time. No way around this while `puppeteer` (not `puppeteer-core`) is the Rules.md §3-approved package; revisit if install size becomes a problem.
 - **Phase 10.** Backend's live engine accumulates LLR through the calibration window and only gates flag *emission* (`session-runtime.ts`); `ml/`'s engine gates accumulation too (corrected there as an explicit bug fix, per `ml/docs/Memory.md`). `IntegrityRescore` intentionally matches backend's own live behaviour, not ml/'s — see Decisions log and `docs/cross-component-architecture.md`. Not fixed here since it's a fusion-constant-adjacent behaviour change that needs asking first, same as any other `config/detection.ts`-adjacent change.
 - Schema has no `mediaReadyAt`; using Redis instead (revisit if needed for audit).
@@ -474,24 +485,6 @@ Removed: `bcryptjs`, `jsonwebtoken` (Rules: use `argon2`, `jose`).
 - Recording finalize failure just marks `Recording.status = FAILED` and continues (per spec); nothing
   surfaces that failure to the interviewer/report beyond the DB row itself — Phase 10's `MediaIndex` step
   or the report's `degraded`/`lostSteps` fields would be the natural place to surface it later.
-- **Unfixed bug (found in a Phase 10 self-check, still real).** `integrity-rescore.step.ts`'s call to
-  `projectState(state, Date.now(), frozenNow)` decays every channel's final accumulator to *wall-clock
-  run time*, not the session's actual end time. Since every channel decays (tau 180–300s), the
-  "authoritative" rescored integrity score is not reproducible — it depends on how long the pipeline job
-  sat queued, or how much later someone calls `POST /sessions/:id/report/recompute`, which contradicts
-  the project's own "every score is reconstructable" guarantee. Tests don't catch it because they run the
-  step immediately after ending the session (near-zero elapsed time). Fix: use
-  `(session.endedAt ?? new Date()).getTime()` instead of `Date.now()` — `session.endedAt` is already set
-  on the LIVE→SEALING transition (`session-state.service.ts`).
-- **Unfixed bug (found in the same self-check, still real).** In `pipeline/flow.ts`'s `RENDER_REPORT`
-  step, if `computeRenderReport` itself throws (storage failure, puppeteer crash), `runStep` marks the
-  step FAILED and re-throws, so `deliverReport()` — the *only* place that sets `PipelineRun.status` to
-  SUCCEEDED/DEGRADED and transitions PROCESSING→COMPLETE — never runs. Unlike every other step's failure
-  (which still reaches `deliverReport` and produces a degraded report), a RenderReport failure leaves the
-  session stuck in PROCESSING forever: no `Report` row, no email, no `report.ready`. No test exercises
-  RenderReport itself failing (only `SealVerify`'s forced failure is tested). Needs `deliverReport`'s
-  status-update/transition logic to run even when `computeRenderReport` fails — e.g. a fallback minimal
-  report path, or moving the "mark run DEGRADED and transition" logic outside the step's own try/throw.
 - **Phase 11.** The 60-minute/4-events-per-second load-test target (Phases.md §11) was only run as a
   5-minute smoke test in this session (`LOAD_TEST_DURATION_SECONDS=300`), not the literal full hour —
   zero backlog throughout. `scripts/load-test-telemetry.ts` defaults to the full spec; run it
@@ -522,6 +515,66 @@ Removed: `bcryptjs`, `jsonwebtoken` (Rules: use `argon2`, `jose`).
 ```
 
 ## Task history
+
+### 2026-09-18 — Containerized deployment
+- Phase: 11 (post-completion follow-up; no new phase work)
+- Built: `Dockerfile` (multi-stage: `deps`/`build`/`prod-deps`/`runtime`, non-root user, exec-form
+  `CMD`, HTTP `HEALTHCHECK` via Node's global `fetch` since a slim image has no curl/wget) and
+  `docker-compose.yml`'s opt-in `app` profile (`migrate`/`api`/`worker` services alongside the
+  existing infra containers). Actually built the images and ran the full stack — not just written
+  and assumed correct: a real session went through `register → session → config → link → preflight
+  → policy → consent → media-ready → start → end`, the containerized `worker` picked up the real
+  BullMQ job over the Docker network, all 8 pipeline steps `SUCCEEDED`, session reached `COMPLETE`
+  with a non-degraded report — then verified both `api` and `worker` handle `SIGTERM` cleanly
+  (`docker stop`, both exited in <0.3s, well inside the 10s grace period). Two real bugs surfaced by
+  this exercise, both fixed (see Decisions log's two "Deployment bug, found and fixed" entries):
+  `logger.ts` crash-looping under a misconfigured `NODE_ENV`, and the `worker` service inheriting a
+  healthcheck it could never pass. Also hardened `worker.ts`'s shutdown to match `index.ts`'s
+  (force-timeout, Prisma/Redis disconnect, `unhandledRejection`/`uncaughtException` handling — it
+  previously only handled `SIGTERM`/`SIGINT` with a bare `process.exit(0)`). Separately: found and
+  cleaned up a stray `pnpm-lock.yaml`/`pnpm-workspace.yaml` pair and a hybrid npm/pnpm
+  `node_modules` from an earlier, unexplained `pnpm install` against this npm-only project — deleted
+  both files, did a clean `rm -rf node_modules && npm install`, reverified. Restored local dev DB
+  state afterward (the Docker smoke test's `docker compose down -v` had dropped the dev Postgres
+  volume, including `veritrust_test`) via `prisma migrate dev`/`migrate deploy`
+- Files: `Dockerfile` (new), `.dockerignore` (new), `docker-compose.yml`, `src/utils/logger.ts`,
+  `src/worker.ts`, `README.md` (new "Deploying" section), `docs/STATUS_REPORT.md`,
+  `docs/REMAINING_WORK.md`
+- Schema/migrations: none
+- New env vars: none (no new required vars; `docker-compose.yml`'s `app` profile documents which
+  existing ones a deployment must override — `DATABASE_URL`, `REDIS_URL`, `NODE_ENV`, `SMTP_HOST`)
+- Tests: 179 passing (unchanged — this was infra/deployment work, not application logic); typecheck
+  and build clean; full containerized stack verified live as described above
+- Decisions: see Decisions log's "Deployment" and "Deployment bug, found and fixed" entries
+- Issues left: none new. `docs/REMAINING_WORK.md` §1's "no worker auto-start" item is now resolved
+  for a real deployment (still true for the bare host workflow, by design — `npm run dev`/
+  `npm run worker` in separate terminals is the faster local-dev loop)
+- Next: none queued — see Current status
+
+### 2026-09-18 — Bug fixes + full sanity check
+- Phase: 11 (post-completion follow-up; no new phase work)
+- Built: fixed both bugs flagged in Phase 10's self-check (see Decisions log's two "Bug fix"
+  entries) — `integrity-rescore.step.ts` now decays to `session.endedAt`, not `Date.now()`;
+  `pipeline/flow.ts`'s RENDER_REPORT case now falls back to `deliverReport()` on its last attempt
+  so a render failure can't strand a session in PROCESSING forever. Verified each fix by reverting
+  it locally and confirming its regression test fails on the old code before restoring the fix.
+  Then ran a full sanity check: `npm run typecheck`, `npm test` (179 passing), `npm run build`, then
+  booted a real `npm run dev` + `npm run worker` and drove one session through the actual HTTP API
+  and Socket.IO end to end (register → session → config → join link → preflight/policy/consent →
+  media-ready → start → end), confirming the real BullMQ queue (not `runPipelineInline`) processed
+  all 8 pipeline steps, the session reached COMPLETE with a non-degraded report, and
+  `GET /sessions/:id/audit` returned the full transition history
+- Files: `src/pipeline/steps/integrity-rescore.step.ts`, `src/pipeline/flow.ts`,
+  `tests/integration/pipeline.test.ts` (+2 tests)
+- Schema/migrations: none
+- New env vars: none
+- Tests: 179 passing (2 new); typecheck/build clean; live smoke test against real Postgres/Redis
+  passed (session reached COMPLETE with `degraded: false`, `htmlAvailable: true`)
+- Decisions: see Decisions log (`session.endedAt` for decay; `isLastAttempt` gate on `deliverReport`'s
+  fallback, mirroring BullMQ's own `shouldRetryJob` math so an intermediate retry never prematurely
+  completes the run)
+- Issues left: none new
+- Next: none queued — see Current status
 
 ### 2026-09-18 — Phase 11 retention, hardening, docs
 - Phase: 11 (last phase in `Phases.md`)

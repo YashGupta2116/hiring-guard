@@ -33,5 +33,73 @@ services:
       - "1025:1025" # SMTP
       - "8025:8025" # Web UI: http://localhost:8025
 
+  # ---- App containers (opt-in) ----
+  # Local dev doesn't need these: `npm run dev` / `npm run worker` on the host is faster to iterate
+  # on. They exist so the exact production image (Dockerfile) can be built and smoke-tested locally
+  # before a real deploy — run with `docker compose --profile app up --build`.
+  migrate:
+    # Targets the `build` stage, not the final runtime image: the `prisma` CLI is a devDependency
+    # (the runtime image is `npm ci --omit=dev`, deliberately without it — see Dockerfile), and only
+    # `build` still has the full source tree plus dev deps to run it from.
+    build:
+      context: .
+      target: build
+    profiles: ["app"]
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/veritrust
+      REDIS_URL: redis://redis:6379
+    command: ["node_modules/.bin/prisma", "migrate", "deploy"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    build: .
+    profiles: ["app"]
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/veritrust
+      REDIS_URL: redis://redis:6379
+      SMTP_HOST: mailpit
+    ports:
+      - "9000:9000"
+    volumes:
+      - storage:/app/storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
+  worker:
+    build: .
+    profiles: ["app"]
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      DATABASE_URL: postgresql://postgres:postgres@postgres:5432/veritrust
+      REDIS_URL: redis://redis:6379
+      SMTP_HOST: mailpit
+    command: ["node", "dist/worker.js"]
+    # The Dockerfile's HEALTHCHECK probes the API's /ready over HTTP; the worker never opens a port,
+    # so that check would just fail forever here — disable it rather than inherit a meaningless one.
+    healthcheck:
+      disable: true
+    volumes:
+      - storage:/app/storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+
 volumes:
   pgdata:
+  storage:

@@ -3,6 +3,8 @@ import { env } from "./config/env.js";
 import { processPipelineStep } from "./pipeline/flow.js";
 import { createRedisConnection } from "./utils/redis.js";
 import { logger } from "./utils/logger.js";
+import { prisma } from "./utils/prisma.js";
+import { redis } from "./utils/redis.js";
 import {
   QUEUE_NAMES,
   retentionQueue,
@@ -14,6 +16,8 @@ import {
 import { processJdParse } from "./workers/jd-parse.worker.js";
 import { processLinkExpiry } from "./workers/link-expiry.worker.js";
 import { processRetention } from "./workers/retention.worker.js";
+
+const SHUTDOWN_TIMEOUT_MS = 10_000;
 
 const connection = createRedisConnection();
 
@@ -39,11 +43,37 @@ await retentionQueue.upsertJobScheduler(
 
 logger.info("workers started");
 
-async function shutdown(): Promise<void> {
-  logger.info("workers shutting down");
-  await Promise.all([jdParseWorker.close(), linkExpiryWorker.close(), pipelineWorker.close(), retentionWorker.close()]);
-  process.exit(0);
+let shuttingDown = false;
+
+async function shutdown(signal: string, exitCode = 0): Promise<void> {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  logger.info({ signal }, "workers shutting down");
+
+  const force = setTimeout(() => {
+    logger.error("forced worker shutdown after timeout");
+    process.exit(1);
+  }, SHUTDOWN_TIMEOUT_MS);
+  force.unref();
+
+  // Worker.close() waits for the current job to finish before releasing its lock, so an
+  // in-flight step run doesn't get silently double-picked-up by the next deploy's worker.
+  await Promise.allSettled([jdParseWorker.close(), linkExpiryWorker.close(), pipelineWorker.close(), retentionWorker.close()]);
+  await Promise.allSettled([prisma.$disconnect(), redis.quit()]);
+
+  clearTimeout(force);
+  process.exit(exitCode);
 }
 
-process.on("SIGTERM", shutdown);
-process.on("SIGINT", shutdown);
+process.on("SIGINT", () => void shutdown("SIGINT"));
+process.on("SIGTERM", () => void shutdown("SIGTERM"));
+
+process.on("unhandledRejection", (reason) => {
+  logger.fatal({ err: reason }, "unhandled promise rejection");
+  void shutdown("unhandledRejection", 1);
+});
+
+process.on("uncaughtException", (error) => {
+  logger.fatal({ err: error }, "uncaught exception");
+  void shutdown("uncaughtException", 1);
+});

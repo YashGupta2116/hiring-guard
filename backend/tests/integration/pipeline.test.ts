@@ -1,9 +1,10 @@
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import request from "supertest";
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { createApp } from "../../src/app.js";
 import { runPipelineInline } from "../../src/pipeline/flow.js";
+import { computeIntegrityRescore } from "../../src/pipeline/steps/integrity-rescore.step.js";
 import { getMail, getStorage } from "../../src/providers/index.js";
 import type { LogMailProvider } from "../../src/providers/mail/log.mail.js";
 import { appendObservations } from "../../src/services/evidence.service.js";
@@ -250,5 +251,42 @@ describe("pipeline (Phase 10)", () => {
     // Never the candidate's actual words, and never a flag's narrative text — summary only (Rules.md).
     expect(sent!.text).not.toContain("composite index");
     expect(sent!.text).not.toContain("query");
+  });
+
+  it("a RenderReport failure on the last attempt still delivers (degraded, no stuck PROCESSING)", async () => {
+    const owner = await registerOwner();
+    const { sessionId } = await startAndEndLiveSession(owner.accessToken);
+
+    vi.spyOn(getStorage(), "put").mockRejectedValueOnce(new Error("simulated storage failure"));
+
+    const runId = await runPipelineInline(owner.orgId, sessionId);
+
+    const session = await prisma.interviewSession.findUniqueOrThrow({ where: { id: sessionId } });
+    expect(session.status).toBe("COMPLETE"); // must not stay stuck in PROCESSING forever
+
+    const run = await prisma.pipelineRun.findUniqueOrThrow({ where: { id: runId } });
+    expect(run.status).toBe("DEGRADED");
+    expect(run.finishedAt).not.toBeNull();
+
+    const renderStep = await prisma.pipelineStepRun.findUnique({ where: { runId_step: { runId, step: "RENDER_REPORT" } } });
+    expect(renderStep?.status).toBe("FAILED");
+
+    expect(await prisma.report.findUnique({ where: { sessionId } })).toBeNull();
+  });
+
+  it("IntegrityRescore is reproducible regardless of how long it sat queued before running", async () => {
+    const owner = await registerOwner();
+    const { sessionId } = await startAndEndLiveSession(owner.accessToken);
+
+    const first = await computeIntegrityRescore(sessionId);
+
+    // Simulate the pipeline job actually running 10 minutes later (well past every channel's decay
+    // tau, 180-300s) — the score must decay to the session's own end, not to whenever this runs.
+    vi.useFakeTimers();
+    vi.setSystemTime(Date.now() + 10 * 60_000);
+    const second = await computeIntegrityRescore(sessionId);
+    vi.useRealTimers();
+
+    expect(second.integrityScore).toBe(first.integrityScore);
   });
 });

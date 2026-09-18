@@ -152,7 +152,11 @@ export async function computeIntegrityRescore(sessionId: string): Promise<Integr
   }
 
   const frozenNow = new Set<MonitoringChannel>(); // finalise treats nothing as still-frozen; open windows without endTs are rare edge cases, not modelled here
-  const finalAccumulators = projectState(state, Date.now(), frozenNow);
+  // Project decay to the session's own end, not wall-clock run time — otherwise this "authoritative"
+  // score would keep drifting lower the longer it sits queued or the later someone recomputes it,
+  // breaking the "every score is reconstructable" guarantee (Rules.md/PRD).
+  const rescoredAt = (session.endedAt ?? new Date()).getTime();
+  const finalAccumulators = projectState(state, rescoredAt, frozenNow);
   const integrityScore = computeIntegrity(computeScoreFromAccumulators(finalAccumulators, frozenNow), sensitivity);
 
   const flagsToSupersede = flags.filter((f) => f.adjudications.length > 0 && !f.supersededByReview).map((f) => f.id);

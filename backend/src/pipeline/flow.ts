@@ -24,8 +24,18 @@ type StepJobData = PipelineStepJobData;
  * delivers (Architecture.md §6.8: "RenderReport -> deliver") once it succeeds, since it is the
  * root of the flow tree — by FlowProducer's own semantics, its job only runs once every other
  * step has finished or exhausted retries, which is exactly "the pipeline is done."
+ *
+ * If `computeRenderReport` itself throws, `runStep` marks RENDER_REPORT FAILED and re-throws —
+ * unlike every other step (whose failure still lets its parent/sibling reach RenderReport, which
+ * still calls `deliverReport`), RENDER_REPORT is the tree's root, so nothing downstream would ever
+ * call `deliverReport` for it. Without `isLastAttempt`'s fallback below, a session whose render
+ * step keeps failing (a storage or puppeteer crash) would stay PROCESSING forever: no report, no
+ * email, no `report.ready`, indistinguishable from "still working." `isLastAttempt` is true once
+ * BullMQ has no retry left for this job (or always, for the no-retry inline test path) — only then
+ * is it safe to call `deliverReport` as a fallback, since it marks the run DEGRADED and transitions
+ * PROCESSING -> COMPLETE, which must happen at most once and only once retries are truly exhausted.
  */
-async function executeStep(data: StepJobData): Promise<unknown> {
+async function executeStep(data: StepJobData, isLastAttempt: boolean): Promise<unknown> {
   const { runId, sessionId, orgId, step } = data;
   switch (step) {
     case "SEAL_VERIFY":
@@ -43,9 +53,16 @@ async function executeStep(data: StepJobData): Promise<unknown> {
     case "COMPOSITE_SCORE":
       return runStep(runId, step, () => computeCompositeScore(sessionId, runId));
     case "RENDER_REPORT": {
-      const output = await runStep(runId, step, () => computeRenderReport(orgId, sessionId, runId));
-      await deliverReport(runId, sessionId);
-      return output;
+      try {
+        const output = await runStep(runId, step, () => computeRenderReport(orgId, sessionId, runId));
+        await deliverReport(runId, sessionId);
+        return output;
+      } catch (err) {
+        if (isLastAttempt) {
+          await deliverReport(runId, sessionId);
+        }
+        throw err;
+      }
     }
     default:
       throw new Error(`Unknown pipeline step: ${String(step)}`);
@@ -102,7 +119,11 @@ async function deliverReport(runId: string, sessionId: string): Promise<void> {
 
 /** BullMQ Worker processor (`worker.ts`) for the `pipeline` queue — every step job, real run. */
 export async function processPipelineStep(job: Job<StepJobData>): Promise<unknown> {
-  return executeStep(job.data);
+  // Mirrors Job.shouldRetryJob's own check: while a job is processing attempt N, `attemptsMade`
+  // is still N-1 (it's only bumped on settle) — so "no retry left" is attemptsMade + 1 >= attempts.
+  const maxAttempts = job.opts.attempts ?? 1;
+  const isLastAttempt = job.attemptsMade + 1 >= maxAttempts;
+  return executeStep(job.data, isLastAttempt);
 }
 
 /**
@@ -183,7 +204,8 @@ export async function runPipelineInline(orgId: string, sessionId: string): Promi
     "RENDER_REPORT",
   ];
   for (const step of order) {
-    await executeStep({ runId, sessionId, orgId, step }).catch((err: unknown) => {
+    // No retry mechanism inline — this one call is always the only (and so the last) attempt.
+    await executeStep({ runId, sessionId, orgId, step }, true).catch((err: unknown) => {
       logger.warn({ err, sessionId, runId, step }, "pipeline step failed (inline run continues)");
     });
   }
