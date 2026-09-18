@@ -2,7 +2,47 @@ import { enqueuePipeline } from "../pipeline/flow.js";
 import { AppError } from "../utils/app-error.js";
 import { prisma } from "../utils/prisma.js";
 
+import type { Prisma } from "../generated/prisma/client.js";
+
 const PRIVILEGED_ROLES = new Set(["OWNER", "ADMIN", "REVIEWER"]);
+
+/** Composite-score formula (Architecture.md §6.9): integrity >= 85 full marks, 70-85 partial, < 70 review required. */
+const BAND_RANGES = {
+  HIGH: { gte: 85 },
+  MODERATE: { gte: 70, lt: 85 },
+  REVIEW: { lt: 70 },
+} as const;
+
+const reportSessionInclude = {
+  session: {
+    select: {
+      id: true,
+      title: true,
+      status: true,
+      startedAt: true,
+      endedAt: true,
+      durationMinutes: true,
+      candidate: { select: { id: true, name: true, email: true } },
+      interviewers: { where: { isPrimary: true }, select: { user: { select: { name: true } } } },
+    },
+  },
+} satisfies Prisma.ReportInclude;
+
+type ReportWithSession = Prisma.ReportGetPayload<{ include: typeof reportSessionInclude }>;
+
+function toSessionSummary(report: ReportWithSession) {
+  const s = report.session;
+  return {
+    id: s.id,
+    title: s.title,
+    status: s.status,
+    startedAt: s.startedAt?.toISOString() ?? null,
+    endedAt: s.endedAt?.toISOString() ?? null,
+    durationMinutes: s.durationMinutes,
+    candidate: s.candidate,
+    interviewerName: s.interviewers[0]?.user.name ?? null,
+  };
+}
 
 /** Same access rule as `requireSessionAccess()` (session-access.ts), re-derived here because these
  * two endpoints are keyed by `reportId`, not `sessionId` — there is no `:id` route param to run
@@ -40,6 +80,72 @@ function toReportDto(report: NonNullable<Awaited<ReturnType<typeof prisma.report
     createdAt: report.createdAt.toISOString(),
     updatedAt: report.updatedAt.toISOString(),
   };
+}
+
+/** `GET /reports` — the org's reports, newest first. Non-privileged users only see sessions they are bound to. */
+export async function listReports(
+  orgId: string,
+  userId: string,
+  role: string,
+  opts: { q?: string; band?: keyof typeof BAND_RANGES; limit: number; cursor?: string },
+) {
+  const where: Prisma.ReportWhereInput = {
+    session: {
+      orgId,
+      ...(PRIVILEGED_ROLES.has(role) ? {} : { interviewers: { some: { userId } } }),
+      ...(opts.q
+        ? {
+            OR: [
+              { title: { contains: opts.q, mode: "insensitive" } },
+              { candidate: { is: { OR: [{ name: { contains: opts.q, mode: "insensitive" } }, { email: { contains: opts.q, mode: "insensitive" } }] } } },
+            ],
+          }
+        : {}),
+    },
+    ...(opts.band ? { integrityScore: BAND_RANGES[opts.band] } : {}),
+  };
+
+  const [rows, total] = await Promise.all([
+    prisma.report.findMany({
+      where,
+      include: reportSessionInclude,
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: opts.limit + 1,
+      ...(opts.cursor ? { cursor: { id: opts.cursor }, skip: 1 } : {}),
+    }),
+    prisma.report.count({ where }),
+  ]);
+
+  const hasMore = rows.length > opts.limit;
+  const page = hasMore ? rows.slice(0, opts.limit) : rows;
+  return {
+    items: page.map((r) => ({
+      id: r.id,
+      sessionId: r.sessionId,
+      createdAt: r.createdAt.toISOString(),
+      scores: {
+        technical: r.technicalScore,
+        communication: r.communicationScore,
+        integrity: r.integrityScore,
+        composite: r.compositeScore,
+        reviewRequired: r.reviewRequired,
+      },
+      degraded: r.degraded,
+      session: toSessionSummary(r),
+    })),
+    nextCursor: hasMore ? (page[page.length - 1]?.id ?? null) : null,
+    total,
+  };
+}
+
+/** `GET /reports/:reportId` — the same report JSON as `GET /sessions/:id/report`, plus who and when. */
+export async function getReportById(orgId: string, userId: string, role: string, reportId: string) {
+  const report = await prisma.report.findUnique({ where: { id: reportId }, include: reportSessionInclude });
+  if (!report) {
+    throw new AppError("NOT_FOUND", "Report not found.");
+  }
+  await assertReportAccess(orgId, userId, role, report.sessionId);
+  return { ...toReportDto(report), session: toSessionSummary(report) };
 }
 
 /** `GET /sessions/:id/report` — `requireSessionAccess()` already ran, this just loads the row. */

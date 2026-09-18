@@ -6,6 +6,12 @@ loadDotenv({
   quiet: true,
 });
 
+/**
+ * `z.coerce.boolean()` is unusable for env flags: it is `Boolean(string)`, so the string "false" is truthy.
+ * Accept only explicit spellings instead.
+ */
+const flag = z.enum(["true", "false", "1", "0"]).transform((value) => value === "true" || value === "1");
+
 const csv = z
   .string()
   .default("")
@@ -54,7 +60,7 @@ const envSchema = z.object({
   EVIDENCE_SIGNING_KEY_ID: z.string().default("local-dev-1"),
 
   /** PDF is optional (Architecture.md §1); HTML report rendering is never gated by this. */
-  REPORT_PDF_ENABLED: z.coerce.boolean().default(false),
+  REPORT_PDF_ENABLED: flag.default(false),
 
   /** Retention windows, days (PRD FR-RET-1 / Phases.md §11). */
   RETENTION_MEDIA_DAYS: z.coerce.number().int().min(1).default(90),

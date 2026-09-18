@@ -309,6 +309,13 @@ export default function InterviewDetailPage() {
                 Start Live Room
               </Button>
             </Link>
+          ) : session.status === "SEALING" || (session.status === "PROCESSING" && !session.reportId) ? (
+            <Link href={`/app/interviews/${session.id}/processing`}>
+              <Button className="bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-medium px-4 py-2 rounded-lg flex items-center gap-2 h-9 shadow-xs">
+                <FileText className="h-3.5 w-3.5" />
+                View Processing
+              </Button>
+            </Link>
           ) : session.reportId ? (
             <Link href={`/app/reports/${session.reportId}`}>
               <Button className="bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-medium px-4 py-2 rounded-lg flex items-center gap-2 h-9 shadow-xs">

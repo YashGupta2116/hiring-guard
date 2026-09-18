@@ -95,7 +95,7 @@ export default function LiveInterviewPage() {
       await room.end();
       setEndDialogOpen(false);
       toast({ title: "Interview ended", description: "Evidence is being sealed and the report is being prepared.", type: "info" });
-      router.push(`/app/interviews/${session.id}`);
+      router.push(`/app/interviews/${session.id}/processing`);
     } catch (err) {
       setEnding(false);
       toast({ title: "Couldn't end the interview", description: err instanceof ApiError ? err.message : "Please try again.", type: "error" });
@@ -148,6 +148,11 @@ export default function LiveInterviewPage() {
             <Link href={`/app/interviews/${session.id}`} className="text-muted-foreground hover:text-foreground underline">
               Interview details
             </Link>
+            {ended && !room.reportId && (status === "SEALING" || status === "PROCESSING") && (
+              <Link href={`/app/interviews/${session.id}/processing`} className="text-muted-foreground hover:text-foreground underline">
+                Processing status
+              </Link>
+            )}
             {room.reportId && (
               <Link href={`/app/reports/${room.reportId}`} className="text-muted-foreground hover:text-foreground underline">
                 Report

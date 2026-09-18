@@ -139,3 +139,29 @@ export async function apiRequestPage<T, M>(path: string, options: RequestOptions
   const raw = await execute(path, options);
   return raw.body as { data: T; meta: M };
 }
+
+/** Fetches a non-JSON response (an HTML or PDF report) with the same auth and one refresh retry as `apiRequest`. */
+export async function apiRequestBlob(path: string): Promise<Blob> {
+  const attempt = async (): Promise<Response> => {
+    try {
+      return await fetch(`${API_BASE_URL}${path}`, {
+        credentials: "include",
+        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+      });
+    } catch {
+      throw new ApiError(0, "NETWORK", "Cannot reach the VeriTrust server. Check that the backend is running.");
+    }
+  };
+
+  let res = await attempt();
+  if (res.status === 401) {
+    const renewed = await refreshAccessToken();
+    if (renewed) res = await attempt();
+    else onSessionExpired?.();
+  }
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as { error?: { code?: string; message?: string } } | null;
+    throw new ApiError(res.status, body?.error?.code ?? "UNKNOWN", body?.error?.message ?? `Request failed (${res.status}).`);
+  }
+  return res.blob();
+}
