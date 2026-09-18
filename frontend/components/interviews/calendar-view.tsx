@@ -2,27 +2,29 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
-import { Interview } from "@/lib/types";
 import { CandidateAvatar } from "@/components/ui/candidate-avatar";
 import { Button } from "@/components/ui/button";
-import { ChevronLeft, ChevronRight, Clock, Radio, History, CheckCircle2, Plus } from "lucide-react";
+import { candidateAvatarUrl } from "@/lib/api/candidates";
+import {
+  formatClock,
+  localDateKey,
+  sessionCandidateName,
+  sessionRole,
+  sessionStart,
+  sessionUiStatus,
+  type ApiSession,
+} from "@/lib/api/sessions";
+import { ChevronLeft, ChevronRight, Clock, Radio, History, CheckCircle2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface CalendarViewProps {
-  interviews: Interview[];
+  interviews: ApiSession[];
 }
 
 // Per-status visual language, pixel-matched to the product's card design
 const STATUS_STYLE: Record<
   string,
-  {
-    icon: React.ReactNode;
-    cardBg: string;
-    timeText: string;
-    pillBg: string;
-    pillText: string;
-    dot: string;
-  }
+  { icon: React.ReactNode; cardBg: string; timeText: string; pillBg: string; pillText: string; dot: string }
 > = {
   Scheduled: {
     icon: <Clock className="h-3 w-3 shrink-0 text-muted-foreground" />,
@@ -66,147 +68,138 @@ const STATUS_STYLE: Record<
   },
 };
 
-export function CalendarView({ interviews }: CalendarViewProps) {
-  const [currentMonth, setCurrentMonth] = useState("September 2026");
+const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
-  // September 2026 begins on a Tuesday (day index 2) and has 30 days
-  const daysInMonth = Array.from({ length: 30 }, (_, i) => i + 1);
-  const leadingOffset = 2; // Tuesday start
+export function CalendarView({ interviews }: CalendarViewProps) {
+  const [cursor, setCursor] = useState(() => {
+    const now = new Date();
+    return new Date(now.getFullYear(), now.getMonth(), 1);
+  });
+
+  const year = cursor.getFullYear();
+  const month = cursor.getMonth();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const leadingOffset = cursor.getDay(); // 0 = Sunday
+  const trailing = (7 - ((leadingOffset + daysInMonth) % 7)) % 7;
+  const todayKey = localDateKey(new Date());
+
+  const { byDay, unscheduled, inMonth } = (() => {
+    const map = new Map<string, ApiSession[]>();
+    let unscheduledCount = 0;
+    let monthCount = 0;
+    for (const s of interviews) {
+      const start = sessionStart(s);
+      if (!start) {
+        unscheduledCount += 1;
+        continue;
+      }
+      const key = localDateKey(start);
+      map.set(key, [...(map.get(key) ?? []), s]);
+      if (start.getFullYear() === year && start.getMonth() === month) monthCount += 1;
+    }
+    const sorted = new Map<string, ApiSession[]>();
+    map.forEach((list, key) => sorted.set(key, [...list].sort((a, b) => sessionStart(a)!.getTime() - sessionStart(b)!.getTime())));
+    return { byDay: sorted, unscheduled: unscheduledCount, inMonth: monthCount };
+  })();
+
+  const shiftMonth = (delta: number) => setCursor(new Date(year, month + delta, 1));
 
   return (
     <div className="rounded-lg border border-border bg-card overflow-hidden">
-      {/* Calendar Header */}
       <div className="flex items-center justify-between p-3.5 border-b border-border bg-secondary/30">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-1">
-            <Button size="sm" variant="outline" className="h-7 w-7 p-0">
+            <Button size="sm" variant="outline" className="h-7 w-7 p-0" aria-label="Previous month" onClick={() => shiftMonth(-1)}>
               <ChevronLeft className="h-3.5 w-3.5" />
             </Button>
-            <Button size="sm" variant="outline" className="h-7 w-7 p-0">
+            <Button size="sm" variant="outline" className="h-7 w-7 p-0" aria-label="Next month" onClick={() => shiftMonth(1)}>
               <ChevronRight className="h-3.5 w-3.5" />
             </Button>
           </div>
-          <h3 className="text-sm font-semibold text-foreground">{currentMonth}</h3>
+          <h3 className="text-sm font-semibold text-foreground">
+            {MONTH_NAMES[month]} {year}
+          </h3>
           <span className="text-xs text-muted-foreground">
-            {interviews.length} scheduled sessions
+            {inMonth} {inMonth === 1 ? "session" : "sessions"}
+            {unscheduled > 0 ? ` • ${unscheduled} unscheduled (not shown)` : ""}
           </span>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Button size="sm" variant="outline" className="h-7 px-2.5 text-xs">
-            Today
-          </Button>
-          <div className="flex items-center gap-1">
-            <Button size="sm" variant="outline" className="h-7 w-7 p-0">
-              <ChevronLeft className="h-3.5 w-3.5" />
-            </Button>
-            <Button size="sm" variant="outline" className="h-7 w-7 p-0">
-              <ChevronRight className="h-3.5 w-3.5" />
-            </Button>
-          </div>
-        </div>
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-7 px-2.5 text-xs"
+          onClick={() => {
+            const now = new Date();
+            setCursor(new Date(now.getFullYear(), now.getMonth(), 1));
+          }}
+        >
+          Today
+        </Button>
       </div>
 
-      {/* Weekday Names Header */}
       <div className="grid grid-cols-7 border-b border-border text-center text-[11px] font-medium text-muted-foreground bg-secondary/20 py-2">
-        <span>Sun</span>
-        <span>Mon</span>
-        <span>Tue</span>
-        <span>Wed</span>
-        <span>Thu</span>
-        <span>Fri</span>
-        <span>Sat</span>
+        {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
+          <span key={d}>{d}</span>
+        ))}
       </div>
 
-      {/* Calendar Grid */}
       <div className="grid grid-cols-7 auto-rows-fr divide-x divide-y divide-border/60">
-        {/* Leading blanks */}
         {Array.from({ length: leadingOffset }).map((_, i) => (
           <div key={`offset-${i}`} className="min-h-[215px] bg-secondary/15 p-2 opacity-30" />
         ))}
 
-        {/* Days of September */}
-        {daysInMonth.map((day) => {
-          const dateStr = `2026-09-${day.toString().padStart(2, "0")}`;
-          const dayInterviews = interviews.filter((i) => i.date === dateStr);
-          const isToday = day === 15; // 2026-09-15 is today
+        {Array.from({ length: daysInMonth }, (_, i) => i + 1).map((day) => {
+          const key = localDateKey(new Date(year, month, day));
+          const dayInterviews = byDay.get(key) ?? [];
+          const isToday = key === todayKey;
 
           return (
             <div
               key={day}
-              className={cn(
-                "min-h-[215px] p-2 transition-colors flex flex-col group",
-                isToday ? "bg-secondary/40 ring-1 ring-inset ring-border" : "hover:bg-secondary/20"
-              )}
+              className={cn("min-h-[215px] p-2 transition-colors flex flex-col", isToday ? "bg-secondary/40 ring-1 ring-inset ring-border" : "hover:bg-secondary/20")}
             >
               <div className="flex items-center justify-between mb-1.5">
                 <span
                   className={cn(
                     "inline-flex h-5 w-5 items-center justify-center rounded-full text-xs font-semibold",
-                    isToday ? "bg-foreground text-background" : "text-foreground"
+                    isToday ? "bg-foreground text-background" : "text-foreground",
                   )}
                 >
                   {day}
                 </span>
-                {dayInterviews.length === 0 ? (
-                  <button
-                    className="h-5 w-5 rounded flex items-center justify-center text-muted-foreground/50 opacity-0 group-hover:opacity-100 hover:bg-secondary hover:text-muted-foreground transition-opacity"
-                    title="Add interview"
-                  >
-                    <Plus className="h-3.5 w-3.5" />
-                  </button>
-                ) : (
-                  <button
-                    className="h-4 w-4 rounded flex items-center justify-center text-muted-foreground opacity-0 group-hover:opacity-100 hover:bg-secondary transition-opacity"
-                    title="Add interview"
-                  >
-                    <Plus className="h-3 w-3" />
-                  </button>
-                )}
               </div>
 
-              {/* Event Cards */}
               <div className="space-y-1.5 overflow-y-auto flex-1">
                 {dayInterviews.map((item) => {
-                  const s = STATUS_STYLE[item.status] ?? STATUS_STYLE.Scheduled;
+                  const status = sessionUiStatus(item);
+                  const s = STATUS_STYLE[status] ?? STATUS_STYLE.Scheduled;
+                  const name = sessionCandidateName(item);
                   return (
                     <Link
                       key={item.id}
                       href={`/app/interviews/${item.id}`}
-                      className={cn(
-                        "block rounded-lg border px-2 py-2 transition-colors shadow-2xs",
-                        s.cardBg
-                      )}
+                      className={cn("block rounded-lg border px-2 py-2 transition-colors shadow-2xs", s.cardBg)}
                     >
                       <div className={cn("flex items-center gap-1.5 text-[11px] font-semibold", s.timeText)}>
                         {s.icon}
-                        <span>{item.time}</span>
+                        <span>{formatClock(sessionStart(item)!)}</span>
                       </div>
 
                       <div className="flex items-center gap-2 mt-1.5">
                         <CandidateAvatar
-                          src={item.candidateAvatar}
-                          name={item.candidateName}
+                          src={item.candidate ? candidateAvatarUrl(item.candidate) : undefined}
+                          name={name}
                           className="h-7 w-7 text-[10px]"
                         />
-                        <span className="font-semibold text-foreground text-xs leading-tight truncate">
-                          {item.candidateName}
-                        </span>
+                        <span className="font-semibold text-foreground text-xs leading-tight truncate">{name}</span>
                       </div>
 
-                      <div className="text-[11px] text-muted-foreground leading-tight mt-1 line-clamp-2">
-                        {item.jobRole}
-                      </div>
+                      <div className="text-[11px] text-muted-foreground leading-tight mt-1 line-clamp-2">{sessionRole(item)}</div>
 
-                      <div
-                        className={cn(
-                          "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold mt-1.5",
-                          s.pillBg,
-                          s.pillText
-                        )}
-                      >
+                      <div className={cn("inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold mt-1.5", s.pillBg, s.pillText)}>
                         <span className={cn("h-1.5 w-1.5 rounded-full shrink-0", s.dot)} />
-                        <span>{item.status}</span>
+                        <span>{status}</span>
                       </div>
                     </Link>
                   );
@@ -216,13 +209,8 @@ export function CalendarView({ interviews }: CalendarViewProps) {
           );
         })}
 
-        {/* Trailing blanks to complete row */}
-        {Array.from({ length: 3 }).map((_, i) => (
-          <div key={`trail-${i}`} className="min-h-[215px] bg-secondary/15 p-2 opacity-30 flex items-center justify-center">
-            <span className="text-muted-foreground/40">
-              <Plus className="h-4 w-4" />
-            </span>
-          </div>
+        {Array.from({ length: trailing }).map((_, i) => (
+          <div key={`trail-${i}`} className="min-h-[215px] bg-secondary/15 p-2 opacity-30" />
         ))}
       </div>
     </div>

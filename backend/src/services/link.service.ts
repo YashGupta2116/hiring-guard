@@ -57,22 +57,36 @@ export async function createLink(orgId: string, sessionId: string, actorId: stri
   return { linkId: joinToken.id, url, kind: joinToken.kind, expiresAt: joinToken.expiresAt };
 }
 
-export async function listLinks(orgId: string, sessionId: string) {
+/**
+ * `includeUrl` is for callers who could have created the link themselves (session writers). The join
+ * token carries no expiry and is validated against `join_tokens` on every use, so re-signing it for the
+ * same jti yields an equivalent, still-revocable URL; read-only reviewers never receive it.
+ */
+export async function listLinks(orgId: string, sessionId: string, includeUrl = false) {
   const session = await prisma.interviewSession.findFirst({ where: { id: sessionId, orgId } });
   if (!session) {
     throw new AppError("NOT_FOUND", "Session not found.");
   }
 
   const tokens = await prisma.joinToken.findMany({ where: { sessionId }, orderBy: { createdAt: "desc" } });
-  return tokens.map((t) => ({
-    linkId: t.id,
-    kind: t.kind,
-    notBefore: t.notBefore,
-    expiresAt: t.expiresAt,
-    usedAt: t.usedAt,
-    useCount: t.useCount,
-    revokedAt: t.revokedAt,
-  }));
+  const now = Date.now();
+  return Promise.all(
+    tokens.map(async (t) => {
+      const usable = !t.revokedAt && t.expiresAt.getTime() > now && !(t.kind === "ONE_TIME" && t.usedAt);
+      const url =
+        includeUrl && usable ? `${env.APP_URL}/join/${await signJoinToken({ jti: t.jti, sid: sessionId, kind: t.kind })}` : null;
+      return {
+        linkId: t.id,
+        url,
+        kind: t.kind,
+        notBefore: t.notBefore,
+        expiresAt: t.expiresAt,
+        usedAt: t.usedAt,
+        useCount: t.useCount,
+        revokedAt: t.revokedAt,
+      };
+    }),
+  );
 }
 
 export async function revokeLink(orgId: string, sessionId: string, linkId: string, actorId: string): Promise<void> {

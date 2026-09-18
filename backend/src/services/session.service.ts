@@ -10,6 +10,7 @@ const sessionInclude = {
   candidate: true,
   jobDescription: { select: { parseStatus: true } },
   tasks: { include: { task: { select: { id: true, title: true } } }, orderBy: { position: "asc" as const } },
+  report: { select: { id: true } },
 } as const;
 
 export type CreateSessionInput = {
@@ -64,8 +65,12 @@ function toDto(session: Awaited<ReturnType<typeof findSessionOrThrow>>) {
     interviewers: session.interviewers.map((i) => ({ userId: i.userId, name: i.user.name, isPrimary: i.isPrimary })),
     jdStatus: session.jobDescription?.parseStatus ?? null,
     tasks: session.tasks.map((t) => ({ sessionTaskId: t.id, taskId: t.taskId, title: t.task.title, position: t.position })),
+    reportId: session.report?.id ?? null,
+    armedAt: session.armedAt,
+    admittedAt: session.admittedAt,
     startedAt: session.startedAt,
     endedAt: session.endedAt,
+    sealedAt: session.sealedAt,
     createdAt: session.createdAt,
   };
 }

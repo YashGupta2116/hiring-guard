@@ -49,7 +49,8 @@ export const sessionRouter = Router();
 
 sessionRouter.use("/sessions", requireUser);
 
-sessionRouter.post("/sessions", validate(createSessionSchema), createSession);
+// REVIEWER is read-only across the product; only OWNER/ADMIN/INTERVIEWER may create sessions.
+sessionRouter.post("/sessions", requireRole("OWNER", "ADMIN", "INTERVIEWER"), validate(createSessionSchema), createSession);
 sessionRouter.get("/sessions", validate(listSessionsSchema), listSessions);
 sessionRouter.get("/sessions/:id", validate(sessionIdParamSchema), requireSessionAccess(), getSession);
 sessionRouter.patch("/sessions/:id", validate(updateSessionSchema), requireSessionAccess({ write: true }), updateSession);

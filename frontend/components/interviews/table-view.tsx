@@ -2,108 +2,72 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
-import { Interview } from "@/lib/types";
 import { SessionPill } from "@/components/ui/session-pill";
 import { CandidateAvatar } from "@/components/ui/candidate-avatar";
-import {
-  FileText,
-  Trash2,
-  Video,
-  User,
-  Code2,
-  Layers,
-  MoreVertical,
-  Eye,
-  PlayCircle,
-} from "lucide-react";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { FileText, Trash2, Video, User, Code2, Layers, MoreVertical, Eye, PlayCircle } from "lucide-react";
 import { usePermissions } from "@/components/auth/role-guard";
-import { useStore } from "@/lib/store/interview-store";
 import { useToast } from "@/components/ui/toast";
+import { ApiError } from "@/lib/api/client";
+import { candidateAvatarUrl } from "@/lib/api/candidates";
+import {
+  cancelSession,
+  formatClock,
+  interviewTypeLabel,
+  localDateKey,
+  primaryInterviewerName,
+  sessionCandidateName,
+  sessionRole,
+  sessionStart,
+  type ApiSession,
+  type InterviewTypeCode,
+} from "@/lib/api/sessions";
 import { cn } from "@/lib/utils";
 
 interface TableViewProps {
-  interviews: Interview[];
+  interviews: ApiSession[];
+  /** Called after a row action changed something (e.g. cancelled), so the list can refetch. */
+  onChanged: () => void;
 }
 
-type RoundCategory = "Technical" | "Behavioral" | "Coding" | "System Design";
-
-const ROUND_STYLE: Record<
-  RoundCategory,
-  { icon: React.ElementType; classes: string }
-> = {
-  Technical: {
-    icon: Video,
-    classes: "bg-blue-100/70 dark:bg-blue-950/40 border-blue-500/20 text-blue-700 dark:text-blue-300",
-  },
-  Behavioral: {
-    icon: User,
-    classes: "bg-violet-100/70 dark:bg-violet-950/40 border-violet-500/20 text-violet-700 dark:text-violet-300",
-  },
-  Coding: {
-    icon: Code2,
-    classes: "bg-green-100/70 dark:bg-green-950/40 border-green-500/20 text-green-700 dark:text-green-300",
-  },
-  "System Design": {
-    icon: Layers,
-    classes: "bg-violet-100/70 dark:bg-violet-950/40 border-violet-500/20 text-violet-700 dark:text-violet-300",
-  },
+const TYPE_STYLE: Record<InterviewTypeCode | "NONE", { icon: React.ElementType; classes: string }> = {
+  TECHNICAL: { icon: Video, classes: "bg-blue-100/70 dark:bg-blue-950/40 border-blue-500/20 text-blue-700 dark:text-blue-300" },
+  BEHAVIORAL: { icon: User, classes: "bg-violet-100/70 dark:bg-violet-950/40 border-violet-500/20 text-violet-700 dark:text-violet-300" },
+  CODING: { icon: Code2, classes: "bg-green-100/70 dark:bg-green-950/40 border-green-500/20 text-green-700 dark:text-green-300" },
+  SYSTEM_DESIGN: { icon: Layers, classes: "bg-violet-100/70 dark:bg-violet-950/40 border-violet-500/20 text-violet-700 dark:text-violet-300" },
+  MIXED: { icon: Layers, classes: "bg-amber-100/70 dark:bg-amber-950/40 border-amber-500/20 text-amber-700 dark:text-amber-300" },
+  NONE: { icon: Layers, classes: "bg-secondary border-border text-muted-foreground" },
 };
 
-// The data model tracks the interview's subject area (interviewType), not its
-// round format. This derives a display category from that + whether a coding
-// round is configured, so the Type column has a sensible badge to show.
-function roundCategory(interview: Interview): RoundCategory {
-  if (interview.codingRoundConfig) return "Coding";
-  switch (interview.interviewType) {
-    case "Algorithms & Data Structures":
-      return "Coding";
-    case "Distributed Systems":
-      return "System Design";
-    case "Frontend Architecture":
-    case "Backend Engineering":
-    default:
-      return "Technical";
-  }
-}
+const CANCELLABLE = new Set(["DRAFT", "CONFIGURED", "ARMED", "ADMITTED"]);
 
-function RowActionsMenu({ interview }: { interview: Interview }) {
+function RowActionsMenu({ interview, onChanged }: { interview: ApiSession; onChanged: () => void }) {
   const [open, setOpen] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
-  const { cancelInterview } = useStore();
   const { canDeleteInterview } = usePermissions();
   const { toast } = useToast();
 
   useEffect(() => {
     if (!open) return;
     const handleClickOutside = (e: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setOpen(false);
     };
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [open]);
 
-  const handleCancel = () => {
-    if (!canDeleteInterview) {
-      toast({
-        title: "Action Restricted",
-        description: "Only Admins can cancel interviews.",
-        type: "error",
-      });
-      setOpen(false);
-      return;
+  const handleCancel = async () => {
+    try {
+      await cancelSession(interview.id);
+      toast({ title: "Interview cancelled", description: `Session with ${sessionCandidateName(interview)} was cancelled.`, type: "info" });
+      onChanged();
+    } catch (err) {
+      toast({ title: "Couldn't cancel the interview", description: err instanceof ApiError ? err.message : "Please try again.", type: "error" });
     }
-    cancelInterview(interview.id);
-    toast({
-      title: "Interview Cancelled",
-      description: `Session with ${interview.candidateName} marked as cancelled.`,
-      type: "info",
-    });
-    setOpen(false);
   };
 
-  const canCancel = interview.status !== "Completed" && interview.status !== "Cancelled" && canDeleteInterview;
+  const canCancel = canDeleteInterview && CANCELLABLE.has(interview.status);
 
   return (
     <div className="relative inline-block text-left" ref={menuRef}>
@@ -118,7 +82,7 @@ function RowActionsMenu({ interview }: { interview: Interview }) {
 
       {open && (
         <div className="absolute right-0 top-8 z-20 w-44 rounded-lg border border-border bg-card shadow-lg py-1 text-xs">
-          {interview.status === "Live" && (
+          {interview.status === "LIVE" && (
             <Link
               href={`/app/interviews/${interview.id}/live`}
               target="_blank"
@@ -138,7 +102,7 @@ function RowActionsMenu({ interview }: { interview: Interview }) {
             <Eye className="h-3.5 w-3.5" /> View Details
           </Link>
 
-          {interview.status === "Completed" && interview.reportId && (
+          {interview.reportId && (
             <Link
               href={`/app/reports/${interview.reportId}`}
               className="flex items-center gap-2 px-3 py-2 text-foreground hover:bg-secondary transition-colors"
@@ -152,7 +116,10 @@ function RowActionsMenu({ interview }: { interview: Interview }) {
             <>
               <div className="my-1 border-t border-border" />
               <button
-                onClick={handleCancel}
+                onClick={() => {
+                  setOpen(false);
+                  setConfirmOpen(true);
+                }}
                 className="w-full flex items-center gap-2 px-3 py-2 text-terra-600 dark:text-terra-400 hover:bg-terra-500/10 transition-colors"
               >
                 <Trash2 className="h-3.5 w-3.5" /> Cancel Interview
@@ -161,11 +128,21 @@ function RowActionsMenu({ interview }: { interview: Interview }) {
           )}
         </div>
       )}
+
+      <ConfirmDialog
+        open={confirmOpen}
+        onOpenChange={setConfirmOpen}
+        title="Cancel Interview Session?"
+        description={`Cancel the interview for ${sessionCandidateName(interview)}? This revokes candidate access and cannot be undone.`}
+        confirmText="Cancel Interview"
+        variant="destructive"
+        onConfirm={handleCancel}
+      />
     </div>
   );
 }
 
-export function TableView({ interviews }: TableViewProps) {
+export function TableView({ interviews, onChanged }: TableViewProps) {
   return (
     <div className="rounded-lg border border-border bg-card overflow-hidden">
       <table className="w-full text-left text-xs border-collapse">
@@ -183,84 +160,62 @@ export function TableView({ interviews }: TableViewProps) {
         </thead>
         <tbody className="divide-y divide-border/60">
           {interviews.map((interview) => {
-            const round = roundCategory(interview);
-            const roundStyle = ROUND_STYLE[round];
-            const RoundIcon = roundStyle.icon;
+            const typeStyle = TYPE_STYLE[interview.config.interviewType ?? "NONE"];
+            const TypeIcon = typeStyle.icon;
+            const start = sessionStart(interview);
+            const name = sessionCandidateName(interview);
+            const lead = primaryInterviewerName(interview);
 
             return (
-              <tr
-                key={interview.id}
-                className="hover:bg-secondary/40 transition-colors"
-              >
-                {/* Candidate */}
+              <tr key={interview.id} className="hover:bg-secondary/40 transition-colors">
                 <td className="px-3.5 py-2">
                   <div className="flex items-center gap-2.5">
-                    <CandidateAvatar
-                      src={interview.candidateAvatar}
-                      name={interview.candidateName}
-                      size="md"
-                    />
+                    <CandidateAvatar src={interview.candidate ? candidateAvatarUrl(interview.candidate) : undefined} name={name} size="md" />
                     <div>
-                      <div className="font-semibold text-foreground text-xs">
-                        {interview.candidateName}
-                      </div>
-                      <div className="text-[10px] text-muted-foreground">
-                        {interview.candidateEmail}
-                      </div>
+                      <Link href={`/app/interviews/${interview.id}`} className="font-semibold text-foreground text-xs hover:underline">
+                        {name}
+                      </Link>
+                      <div className="text-[10px] text-muted-foreground">{interview.candidate?.email ?? "—"}</div>
                     </div>
                   </div>
                 </td>
 
-                {/* Role */}
-                <td className="px-3.5 py-2 font-medium text-foreground text-xs">
-                  {interview.jobRole}
-                </td>
+                <td className="px-3.5 py-2 font-medium text-foreground text-xs">{sessionRole(interview)}</td>
 
-                {/* Type */}
                 <td className="px-3.5 py-2">
-                  <span
-                    className={cn(
-                      "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold",
-                      roundStyle.classes
-                    )}
-                  >
-                    <RoundIcon className="h-3 w-3 shrink-0" />
-                    {round}
+                  <span className={cn("inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold", typeStyle.classes)}>
+                    <TypeIcon className="h-3 w-3 shrink-0" />
+                    {interviewTypeLabel(interview.config.interviewType)}
                   </span>
                 </td>
 
-                {/* Date & Time */}
                 <td className="px-3.5 py-2 text-foreground whitespace-nowrap">
-                  <span className="font-medium">{interview.date}</span>
-                  <span className="text-muted-foreground ml-1.5 text-[11px]">{interview.time}</span>
+                  {start ? (
+                    <>
+                      <span className="font-medium">{localDateKey(start)}</span>
+                      <span className="text-muted-foreground ml-1.5 text-[11px]">{formatClock(start)}</span>
+                    </>
+                  ) : (
+                    <span className="text-muted-foreground">Not scheduled</span>
+                  )}
                 </td>
 
-                {/* Duration */}
-                <td className="px-3.5 py-2 text-muted-foreground text-[11px]">
-                  {interview.durationMinutes}m
-                </td>
+                <td className="px-3.5 py-2 text-muted-foreground text-[11px]">{interview.durationMinutes}m</td>
 
-                {/* Status */}
                 <td className="px-3.5 py-2">
                   <SessionPill status={interview.status} size="sm" />
                 </td>
 
-                {/* Interviewer */}
                 <td className="px-3.5 py-2">
                   <div className="flex items-center gap-1.5 text-muted-foreground text-[11px]">
-                    <CandidateAvatar
-                      src={interview.interviewerAvatar}
-                      name={interview.interviewerName}
-                      size="sm"
-                    />
-                    <span className="truncate">{interview.interviewerName.split(" ")[0]}</span>
+                    <CandidateAvatar src={`https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(lead)}`} name={lead} size="sm" />
+                    <span className="truncate">{lead.split(" ")[0]}</span>
                   </div>
                 </td>
 
-                {/* Actions */}
                 <td className="px-3.5 py-2 text-right">
                   <div className="flex items-center justify-end">
-                    <RowActionsMenu interview={interview} />
+                    <RowActionsMenu interview={interview} onChanged={onChanged} />
                   </div>
                 </td>
               </tr>

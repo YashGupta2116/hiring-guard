@@ -11,6 +11,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { ErrorState } from "@/components/ui/error-state";
 import { LoadingState } from "@/components/ui/loading-state";
 import { usePermissions } from "@/components/auth/role-guard";
+import { ScheduleModal } from "@/components/interviews/schedule-modal";
 import { useToast } from "@/components/ui/toast";
 import {
   CANDIDATE_STATUSES,
@@ -75,6 +76,7 @@ export default function CandidateProfilePage() {
   const [notesDraft, setNotesDraft] = useState("");
   const [savingNotes, setSavingNotes] = useState(false);
   const [savingStatus, setSavingStatus] = useState(false);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -178,9 +180,8 @@ export default function CandidateProfilePage() {
 
         {canManageCandidates && (
           <Button
-            disabled
-            title="Scheduling connects to the Interviews integration"
-            className="h-9 px-3.5 rounded-xl bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900 text-xs font-semibold shadow-xs gap-1.5 shrink-0"
+            onClick={() => setScheduleOpen(true)}
+            className="h-9 px-3.5 rounded-xl bg-stone-900 hover:bg-stone-800 text-white dark:bg-stone-100 dark:hover:bg-stone-200 dark:text-stone-900 text-xs font-semibold shadow-xs gap-1.5 shrink-0 cursor-pointer"
           >
             <Plus className="h-3.5 w-3.5 stroke-[2.5]" />
             <span>Schedule interview</span>
@@ -521,6 +522,8 @@ export default function CandidateProfilePage() {
           )}
         </div>
       )}
+
+      <ScheduleModal open={scheduleOpen} onOpenChange={setScheduleOpen} defaultCandidateId={candidate.id} onCreated={reload} />
     </div>
   );
 }

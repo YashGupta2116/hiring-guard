@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import { getInput } from "../middlewares/validate.js";
+import { prisma } from "../utils/prisma.js";
 import * as linkService from "../services/link.service.js";
 import { created, list, noContent, ok } from "../utils/respond.js";
 import { createLinkSchema, listLinksSchema, revokeLinkSchema } from "../validators/link.schema.js";
@@ -11,7 +12,13 @@ export async function createLink(req: Request, res: Response): Promise<void> {
 
 export async function listLinks(req: Request, res: Response): Promise<void> {
   const { params } = getInput(req, listLinksSchema);
-  const items = await linkService.listLinks(req.user!.orgId, params.id);
+  // Same rule as requireSessionAccess({ write: true }): OWNER/ADMIN, or an interviewer bound to the session.
+  const { role, sub } = req.user!;
+  const canWrite =
+    role === "OWNER" ||
+    role === "ADMIN" ||
+    (await prisma.sessionInterviewer.findUnique({ where: { sessionId_userId: { sessionId: params.id, userId: sub } } })) !== null;
+  const items = await linkService.listLinks(req.user!.orgId, params.id, canWrite);
   list(res, items, { nextCursor: null, limit: items.length });
 }
 
