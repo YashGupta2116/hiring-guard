@@ -77,6 +77,8 @@ export async function runTask(sessionId: string, sessionTaskId: string, input: R
     stdout: result.stdout,
     stderr: result.stderr,
     durationMs: result.durationMs,
+    /** Lets the candidate UI say so when results come from the demo runner, which does not execute code. */
+    runner: getSandbox().name,
   };
 }
 
@@ -130,7 +132,7 @@ export async function submitTask(sessionId: string, sessionTaskId: string, input
   registry.get(sessionId)?.freezeTask(sessionTaskId);
   emitToCandidate(sessionId, CANDIDATE_EVENTS.TASK_FROZEN, { taskId: sessionTaskId });
 
-  return { submitted: true, visibleResults };
+  return { submitted: true, visibleResults, runner: getSandbox().name };
 }
 
 export async function getSessionCode(orgId: string, sessionId: string) {

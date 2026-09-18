@@ -22,8 +22,12 @@ const AuthContext = createContext<AuthContextType | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>("loading");
   const [user, setUser] = useState<AuthUser | null>(null);
+  const pathname = usePathname();
+  // Candidates authenticate with their interview link, never with a staff session; don't probe for one.
+  const isCandidateRoute = pathname.startsWith("/join") || pathname.startsWith("/interview/");
 
   useEffect(() => {
+    if (isCandidateRoute) return;
     let cancelled = false;
     authApi
       .restoreSession()
@@ -45,7 +49,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       cancelled = true;
       setSessionExpiredHandler(null);
     };
-  }, []);
+  }, [isCandidateRoute]);
 
   const signIn = useCallback(async (email: string, password: string) => {
     const next = await authApi.login(email, password);

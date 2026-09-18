@@ -6,6 +6,7 @@ import {
   INTEGRITY_SNAPSHOT_MS,
   INTEGRITY_TICK_MS,
   PRODUCER_HEALTH_CHECK_MS,
+  CANDIDATE_TIME_REMAINING_MS,
   TIMER_TICK_MS,
 } from "../config/constants.js";
 import { CHANNEL_FLOOR, CHANNEL_WEIGHTS, getLlr } from "../config/detection.js";
@@ -74,6 +75,7 @@ export class SessionRuntime {
   private producerHealthInterval?: NodeJS.Timeout;
   private integrityTickInterval?: NodeJS.Timeout;
   private integritySnapshotInterval?: NodeJS.Timeout;
+  private lastCandidateRemainingAt = 0;
   private ended = false;
 
   private readonly ingest: TelemetryIngest;
@@ -142,6 +144,13 @@ export class SessionRuntime {
       remainingMs: state.remainingMs,
       frozen: false,
     });
+
+    // The candidate only ever learns how much time is left (Design.md §5.5), and only every few seconds.
+    const now = Date.now();
+    if (now - this.lastCandidateRemainingAt >= CANDIDATE_TIME_REMAINING_MS) {
+      this.lastCandidateRemainingAt = now;
+      emitToCandidate(this.opts.sessionId, CANDIDATE_EVENTS.TIME_REMAINING, { remainingMs: state.remainingMs });
+    }
   }
 
   // ---- Fusion, flags, warden (FR-FUS-1, FR-FUS-2, FR-WARN-1) ----

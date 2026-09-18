@@ -94,15 +94,22 @@ export type RequestOptions = {
   body?: unknown;
   /** Set false for public endpoints (login/register) so a 401 is not treated as an expired session. */
   auth?: boolean;
+  /**
+   * Use this token instead of the signed-in user's access token (e.g. the candidate token). A request
+   * with a bearer never triggers the interviewer refresh flow or the session-expired handler.
+   */
+  bearer?: string;
 };
 
 async function execute(path: string, options: RequestOptions): Promise<RawResponse> {
-  const { method = "GET", body, auth = true } = options;
+  const { method = "GET", body, bearer } = options;
+  const auth = bearer ? false : (options.auth ?? true);
 
   const attempt = () => {
     const headers: Record<string, string> = {};
     if (body !== undefined) headers["Content-Type"] = "application/json";
-    if (auth && accessToken) headers.Authorization = `Bearer ${accessToken}`;
+    if (bearer) headers.Authorization = `Bearer ${bearer}`;
+    else if (auth && accessToken) headers.Authorization = `Bearer ${accessToken}`;
     return send(path, { method, headers, body: body !== undefined ? JSON.stringify(body) : undefined });
   };
 
