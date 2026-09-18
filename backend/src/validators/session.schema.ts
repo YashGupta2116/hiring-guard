@@ -26,6 +26,14 @@ export const listSessionsSchema = {
   }),
 };
 
+export const listAuditLogSchema = {
+  params: z.object({ id: z.string().min(1) }),
+  query: z.object({
+    limit: z.coerce.number().int().min(1).max(SESSION_LIST_MAX_LIMIT).default(20),
+    cursor: z.string().min(1).optional(),
+  }),
+};
+
 export const sessionIdParamSchema = {
   params: z.object({ id: z.string().min(1) }),
 };

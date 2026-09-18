@@ -8,10 +8,13 @@
 
 ## Current status
 
-- **Current phase:** Phase 10 — Post-processing pipeline and report (✅ done). Session stops after
-  each phase and waits for "next".
+- **Current phase:** Phase 11 — Retention, hardening, docs (✅ done). This was also the last phase in
+  `Phases.md`; everything through Phase 11 is now built.
 - **Last updated:** 2026-09-18
-- **Next step:** Phase 11 — Retention, hardening, docs. Wait for "next".
+- **Next step:** None queued. Two known bugs from the Phase 10 self-check are still unfixed — see
+  Known issues ("IntegrityRescore decays to wall-clock run time, not session end" and "RenderReport
+  failure leaves the pipeline stuck RUNNING forever") — fix those, or pick up frontend/backend wiring
+  or a real CV/ASR/LLM provider (all still `Deferred` in `Phases.md`).
 
 ## Phase tracker
 
@@ -28,7 +31,7 @@
 | 8 Coding round | ✅ | build + 152 tests pass; `GET /candidate/tasks`, `editor.delta`/`editor.snapshot` sockets → `editor_deltas`/`code_snapshots`, `authorship.detector.ts` (paste/typed_ratio/burst reusing PASTE/RHYTHM channels), `docker.sandbox.ts` (real per-run container) + existing `mock.sandbox.ts`, run (rate-limited)/submit (hidden results, freezes task), interviewer `GET /sessions/:id/code` |
 | 9 Seal & evidence | ✅ | build + 157 tests pass; real 9-step `seal.service.ts` (Redis `s:{sid}:seal` step counter, resumable), recording start (LIVE)/stop (seal step 4) via `MediaProvider`, `evidence.service.ts` gained `verifyChain`/`exportEvidenceLog`/`buildAndSignManifest`/`verifySession`, `GET /sessions/:id/evidence/verify`, boot-time `resumeStuckSeals()` |
 | 10 Pipeline & report | ✅ | build + 167 tests pass; real 8-step BullMQ pipeline (`pipeline/flow.ts` + `pipeline/steps/*`): SealVerify (own queued job, no tree-child of anything downstream reads), TranscriptFinalize (Q&A pairing, back-channel filtering, mock topic labels), IntegrityRescore (authoritative offline replay via the same pure `fusion.engine.ts` functions, adjudication-adjusted, sets `supersededByReview`), CodeEvaluate, MediaIndex (resolves the Phase 7/9 `mediaOffsetMs: null` TODO), AnswerGrading (rubric-validated via zod `.strict()`), CompositeScore (Architecture §6.9 formula, unchanged), RenderReport (`eta` → HTML, optional `puppeteer` → PDF) + delivery (summary-only email, `report.ready`, PROCESSING→COMPLETE). `GET /sessions/:id/report`, `GET /sessions/:id/pipeline`, `POST /sessions/:id/report/recompute`, `GET /reports/:id/html`, `GET /reports/:id/pdf` |
-| 11 Retention & hardening | ⬜ | |
+| 11 Retention & hardening | ✅ | build + 177 tests pass; `retention.service.ts` (4 windows: media+frames 90d, observations 180d hard-delete, evidence log 30d floor, reports+transcripts 3y hard-delete — each writes an `audit_logs` receipt), nightly BullMQ job (`upsertJobScheduler`, `RETENTION_CRON`) run from `npm run worker`; `GET /sessions/:id/audit` (OWNER/ADMIN only, cursor-paginated); rate-limit/helmet/CORS review (all already in place — added the missing `Retry-After` header on 429s); `npm audit` run (3 unfixable-without-`--force` findings, documented, not forced); `scripts/load-test-telemetry.ts` + `backend/README.md` |
 
 ---
 
@@ -236,6 +239,39 @@ backend/
 New env var: `REPORT_PDF_ENABLED` (default `false`; PDF is optional, HTML is not — Architecture.md §1).
 New deps: `eta`, `puppeteer` (both pre-approved, Rules.md §3).
 
+**Phase 11 additions** (new this phase):
+```
+├── src/services/retention.service.ts   runRetention(now = new Date()) — `now` is injectable so
+│   tests seed fixtures at fixed past offsets instead of racing real wall-clock time. Four purge
+│   functions, each self-contained: purgeMedia (90d, clears Recording.compositeUri/hlsUri/checksum/
+│   mediaIndex + storage.deletePrefix, row stays), purgeObservations (180d, hard `deleteMany` — the
+│   append-only exception Rules.md §8 already carves out for the retention job), purgeEventLogs
+│   (floor = max(observations window, 30d) — deletes only the raw ndjson event log object,
+│   `EvidenceManifest.manifestUri`/signature/chainHead stay so the chain head is still verifiable
+│   long after the raw log is gone), purgeReportsAndTranscripts (3y, hard-deletes `Report`/
+│   `TranscriptSegment` rows + report storage objects — neither table is in the append-only set).
+│   Every purge writes one `audit_logs` row per session per category (action `retention.deleted`)
+├── src/workers/retention.worker.ts     processRetention() — thin wrapper, calls runRetention()
+├── src/worker.ts                       registers the retention Worker + `retentionQueue.
+│   upsertJobScheduler("retention-nightly", {pattern: RETENTION_CRON}, ...)` at boot — idempotent
+│   by scheduler id, so a worker restart updates the existing schedule instead of duplicating it
+├── src/services/audit.service.ts       gained `listForSession()` — cursor-paginated (BigInt id
+│   desc, same `limit+1`/`cursor`+`skip:1` pattern as `session.service.listSessions`)
+├── GET /sessions/:id/audit             OWNER/ADMIN only (`requireRole` before `requireSessionAccess`
+│   — narrower than every other session-scoped GET, which also allows REVIEWER/bound INTERVIEWER;
+│   Design.md §4.11 already specced this row as `U (O,A)` before this phase touched the file)
+├── src/middlewares/rate-limit.ts       `handler` now sets a real `Retry-After` header (seconds) on
+│   every 429 — Design.md's error table already documented one; only the JSON body carried it before
+└── scripts/load-test-telemetry.ts      drives one live session's `/candidate` socket at 4 tel.batch/s
+    (alternating focus blur/focus, 2000ms synthetic ts steps so every pair clears FOCUS_IGNORE_MS and
+    scores exactly one Observation) against a running `npm run dev`, polling Postgres directly for
+    backlog instead of trusting client-side timing. Defaults to the full 60-minute spec;
+    `LOAD_TEST_DURATION_SECONDS` overrides for a smoke run
+```
+New env vars: `RETENTION_MEDIA_DAYS` (90), `RETENTION_OBSERVATIONS_DAYS` (180),
+`RETENTION_EVIDENCE_LOG_FLOOR_DAYS` (30), `RETENTION_REPORTS_DAYS` (1095), `RETENTION_CRON`
+(`0 3 * * *`). No new deps, no schema change.
+
 ## Conventions established in Phase 0 (follow these)
 
 - Validation: `router.post(path, validate(schemas), controller)`; in controller `const { body, query, params } = getInput(req, schemas)`. Export the `schemas` object from `validators/<name>.schema.ts` and reuse it in both places. Express 5 `req.query` is read-only, so never assign to it.
@@ -326,6 +362,13 @@ Removed: `bcryptjs`, `jsonwebtoken` (Rules: use `argon2`, `jose`).
 | 2026-09-18 | **Phase 10.** `POST /sessions/:id/report/recompute` calls `enqueuePipeline` (real queue, 202 semantics) and re-runs the *whole* pipeline, not just IntegrityRescore+CompositeScore; the summary email is only sent on the run that actually transitions `PROCESSING -> COMPLETE`, never again on a later recompute | Every step already upserts/replaces its own rows, so a full re-run costs nothing extra and keeps this to one code path instead of a second partial-pipeline one. Re-sending the identical summary email on every recompute would be spam nobody asked for; `report.ready` still fires each time so a dashboard can refresh |
 | 2026-09-18 | **Phase 10.** Tests call `runPipelineInline()` (`pipeline/flow.ts`) — every step run synchronously, in dependency order, no BullMQ queue involved — instead of driving the real `enqueuePipeline()` + a worker process | Same precedent `tests/integration/session.test.ts` already set for `processJdParse`: call the processor directly rather than spin up a real worker in-process. `enqueuePipeline()` itself is exercised implicitly (seal.service.ts step 9 calls it on every `POST .../end` in the existing seal/session tests, which still pass), just not awaited to completion anywhere |
 | 2026-09-18 | **Phase 10.** `tests/integration/pipeline.test.ts`'s email assertion reads `(getMail() as LogMailProvider).sent` in-memory, not a real mailbox | `tests/setup.ts` forces `MAIL_PROVIDER=log` in every test run (so no SMTP server is required); `LogMailProvider` already keeps every sent message in memory for exactly this purpose. A first attempt tried asserting against the mailpit HTTP API directly and got zero messages for this reason — not a bug in the pipeline, a mismatch with how mail is configured under test |
+| 2026-09-18 | **Phase 11.** Retention keeps the `Recording` row and clears only its media pointers (`compositeUri`/`hlsUri`/`checksum`/`mediaIndex` → null); `Observation`/`Report`/`TranscriptSegment` are hard-deleted outright | `Recording` isn't in Rules.md's append-only set either way, but the row's non-media fields (`egressId`, timestamps, `status`) are cheap provenance an audit-log reader can still point to ("a recording existed, here's when"); `Observation` is explicitly named in the append-only *exception* ("except the retention job"), and `Report`/`TranscriptSegment` aren't append-only at all, so hard-deleting them needed no special sanction |
+| 2026-09-18 | **Phase 11.** Evidence-log purge deletes only `EvidenceManifest.eventLogUri`'s storage object; `manifestUri`, `signature`, `chainHead`, `lastSeq` all stay in the DB row untouched, forever | Phases.md ties the log to the observations window but floors it at 30 days independently — read as: the *raw* replay-able log can go, but the signed proof that a chain existed and where it ended must remain checkable for the full report-retention window (3y), otherwise a report outliving its own evidence log would have no way to show the report wasn't fabricated after the fact |
+| 2026-09-18 | **Phase 11.** `worker.ts` schedules the nightly retention job via BullMQ's `upsertJobScheduler`, not `queue.add(..., {repeat})` | This installed BullMQ version (6.3.6) removed inline `repeat` from `JobsOptions` in favour of `upsertJobScheduler` (a `tsc` error caught this immediately) — it's also strictly better here: it's idempotent by scheduler id, so restarting `npm run worker` updates the existing nightly schedule instead of registering a second one |
+| 2026-09-18 | **Phase 11.** `GET /sessions/:id/audit` uses `requireRole("OWNER","ADMIN")` *before* `requireSessionAccess()`, unlike every other session-scoped GET in this file (which allow REVIEWER and a bound INTERVIEWER too) | Design.md §4.11 already specced this endpoint as `U (O,A)` — narrower than the report/pipeline/evidence rows' `U (O,A,R,I)` — before this phase touched the file, presumably because audit entries can carry other users' actorIds/metadata that a bound interviewer or reviewer shouldn't see. Ordering `requireRole` first also means a non-O/A caller gets 403 without a DB lookup revealing whether the session even exists |
+| 2026-09-18 | **Phase 11.** Added a `Retry-After` response header (seconds, from the limiter's own `windowMs`) in `rate-limit.ts`'s 429 handler | Design.md's error table already documented `429 \| rate limited (Retry-After header)` — the header was never actually being set, only `retryAfterMs` inside the JSON error body. Found while reviewing rate-limit config for Phase 11's security-review checklist item |
+| 2026-09-18 | **Phase 11.** `npm audit` findings (deepmerge-ts/mysql2 via `@prisma/config`→`prisma` CLI; uuid via `dockerode`) were left unfixed, not force-fixed | All three fixes npm proposes require `npm audit fix --force` (a downgrade to `prisma@6.19.3`, or a dockerode major bump) — both explicitly forbidden (Rules.md/CLAUDE.md: never `--force`, never move off Prisma 7). All three are dev-tooling-only (prisma CLI's MySQL/config-merge code paths, never touched — this app only uses `pg`) or gated behind the optional `SANDBOX_PROVIDER=docker` path, not exposed to any request handler |
+| 2026-09-18 | **Phase 11.** `scripts/load-test-telemetry.ts` measures backlog by polling `prisma.observation.count()` directly from an external script, not by adding new instrumentation to `SessionRuntime` | `handleTelemetryBatch` already funnels every write through one serialized `writeQueue` per session (Phase 6/7 decisions above) with no exposed queue-depth metric; querying Postgres for "how many of what I sent has actually landed" is an honest end-to-end measurement of exactly the thing Phases.md's target cares about, without adding a metrics endpoint nobody else asked for |
 
 ---
 
@@ -431,6 +474,35 @@ Removed: `bcryptjs`, `jsonwebtoken` (Rules: use `argon2`, `jose`).
 - Recording finalize failure just marks `Recording.status = FAILED` and continues (per spec); nothing
   surfaces that failure to the interviewer/report beyond the DB row itself — Phase 10's `MediaIndex` step
   or the report's `degraded`/`lostSteps` fields would be the natural place to surface it later.
+- **Unfixed bug (found in a Phase 10 self-check, still real).** `integrity-rescore.step.ts`'s call to
+  `projectState(state, Date.now(), frozenNow)` decays every channel's final accumulator to *wall-clock
+  run time*, not the session's actual end time. Since every channel decays (tau 180–300s), the
+  "authoritative" rescored integrity score is not reproducible — it depends on how long the pipeline job
+  sat queued, or how much later someone calls `POST /sessions/:id/report/recompute`, which contradicts
+  the project's own "every score is reconstructable" guarantee. Tests don't catch it because they run the
+  step immediately after ending the session (near-zero elapsed time). Fix: use
+  `(session.endedAt ?? new Date()).getTime()` instead of `Date.now()` — `session.endedAt` is already set
+  on the LIVE→SEALING transition (`session-state.service.ts`).
+- **Unfixed bug (found in the same self-check, still real).** In `pipeline/flow.ts`'s `RENDER_REPORT`
+  step, if `computeRenderReport` itself throws (storage failure, puppeteer crash), `runStep` marks the
+  step FAILED and re-throws, so `deliverReport()` — the *only* place that sets `PipelineRun.status` to
+  SUCCEEDED/DEGRADED and transitions PROCESSING→COMPLETE — never runs. Unlike every other step's failure
+  (which still reaches `deliverReport` and produces a degraded report), a RenderReport failure leaves the
+  session stuck in PROCESSING forever: no `Report` row, no email, no `report.ready`. No test exercises
+  RenderReport itself failing (only `SealVerify`'s forced failure is tested). Needs `deliverReport`'s
+  status-update/transition logic to run even when `computeRenderReport` fails — e.g. a fallback minimal
+  report path, or moving the "mark run DEGRADED and transition" logic outside the step's own try/throw.
+- **Phase 11.** The 60-minute/4-events-per-second load-test target (Phases.md §11) was only run as a
+  5-minute smoke test in this session (`LOAD_TEST_DURATION_SECONDS=300`), not the literal full hour —
+  zero backlog throughout. `scripts/load-test-telemetry.ts` defaults to the full spec; run it
+  unattended (or via `nohup`) for a real hour-long sign-off before treating this item as fully verified
+  in a specific deployment environment.
+- **Phase 11.** Retention windows key off `InterviewSession.endedAt`/`Recording.endedAt`/
+  `EvidenceManifest.sealedAt` — a session that never reaches `endedAt` (e.g. stuck `ABORTED` before any
+  `endReason` timestamp is set, or a pre-existing row from before this phase with `endedAt: null`) is
+  never selected by any purge query and will never be retention-swept. Not currently possible for a
+  normal session (every terminal state sets `endedAt` — see `timestampFieldsFor()` in
+  `session-state.service.ts`), but worth checking if a future status ever skips it.
 
 ---
 
@@ -450,6 +522,68 @@ Removed: `bcryptjs`, `jsonwebtoken` (Rules: use `argon2`, `jose`).
 ```
 
 ## Task history
+
+### 2026-09-18 — Phase 11 retention, hardening, docs
+- Phase: 11 (last phase in `Phases.md`)
+- Built: `retention.service.ts` (4 windows, each with its own audit-log receipt — see "Phase 11
+  additions" above and the Decisions log for the media/event-log/hard-delete reasoning) +
+  `retention.worker.ts` + a nightly `upsertJobScheduler` registration in `worker.ts`;
+  `GET /sessions/:id/audit` (service/controller/route/validator, OWNER/ADMIN only, cursor-paginated);
+  security review of existing helmet/CORS/rate-limit config against Phases.md §11 (all three were
+  already in place from earlier phases — auth/join/code-run all rate-limited per PRD §5's spec; the
+  one real gap found and fixed was a missing `Retry-After` header on 429s); `npm audit` run (3
+  findings, all only fixable via `--force`, left unfixed and documented); `scripts/load-test-
+  telemetry.ts` (smoke-tested live for 5 continuous minutes at the target 4 events/s, zero backlog
+  throughout — full 60-minute run not executed in this session, see Known issues);
+  `backend/README.md` (didn't exist before this phase)
+- Files: `src/services/retention.service.ts`, `src/workers/retention.worker.ts`, `src/worker.ts`,
+  `src/utils/queues.ts`, `src/config/env.ts`, `.env.example`, `src/services/audit.service.ts`,
+  `src/controllers/session.controller.ts`, `src/routes/session.routes.ts`,
+  `src/validators/session.schema.ts`, `src/middlewares/rate-limit.ts`, `scripts/load-test-
+  telemetry.ts`, `README.md`, `tests/integration/retention.test.ts` (new),
+  `tests/integration/session.test.ts` (+3 audit tests), `tests/integration/coding.test.ts`
+  (+1 assertion for `Retry-After`)
+- Schema/migrations: none
+- New env vars: `RETENTION_MEDIA_DAYS`, `RETENTION_OBSERVATIONS_DAYS`,
+  `RETENTION_EVIDENCE_LOG_FLOOR_DAYS`, `RETENTION_REPORTS_DAYS`, `RETENTION_CRON`
+- Tests: 177 passing (10 new: 7 retention, 3 audit); `npm run typecheck` and `npm run build` clean
+- Decisions: see Decisions log (media row kept vs. hard-deleted, event-log floor vs. manifest,
+  `upsertJobScheduler` over `repeat`, audit endpoint's narrower role gate, `Retry-After`, unfixed
+  audit findings, load-test measurement approach)
+- Issues left: the two Phase 10 self-check bugs (IntegrityRescore wall-clock decay; RenderReport
+  failure sticks the pipeline in PROCESSING) are still unfixed — user chose to do Phase 11 first and
+  come back to them; see Known issues for both plus the load-test/endedAt caveats above
+- Next: none queued in `Phases.md`. Candidates: fix the two known bugs; wire the frontend to this
+  API (currently 100% mock-data, unrelated to this phase); build a real CV/ASR/LLM provider (all
+  `Deferred`)
+
+### 2026-09-18 — Phase 10 post-processing pipeline and report
+- Phase: 10
+- Built: real 8-step BullMQ pipeline (`pipeline/flow.ts` + `pipeline/steps/*`, `step-runner.ts`) —
+  SealVerify (own independently-queued job, not a FlowProducer tree node — see Decisions log),
+  TranscriptFinalize (Q&A pairing, back-channel filtering), IntegrityRescore (authoritative offline
+  replay through the same pure `fusion.engine.ts` functions, adjudication-adjusted), CodeEvaluate,
+  MediaIndex (resolves the Phase 7/9 `mediaOffsetMs: null` TODO), AnswerGrading (zod `.strict()`
+  rubric), CompositeScore (Architecture §6.9 formula), RenderReport (`eta` → HTML, optional
+  `puppeteer` → PDF) + `deliverReport()` (summary-only email, `report.ready`, PROCESSING→COMPLETE);
+  `GET /sessions/:id/report`, `GET /sessions/:id/pipeline`, `POST /sessions/:id/report/recompute`,
+  `GET /reports/:id/html`, `GET /reports/:id/pdf`
+- Files: see "Phase 10 additions" above
+- Schema/migrations: none beyond what already existed for `PipelineRun`/`PipelineStepRun`/`Report`/
+  `QAPair`/`AnswerGrade`/`CodeEvaluation`
+- New env vars: `REPORT_PDF_ENABLED` (default `false`)
+- New deps: `eta`, `puppeteer` (both pre-approved, Rules.md §3)
+- Tests: 167 passing (`tests/integration/pipeline.test.ts`, new — happy path, forced-degraded via
+  SealVerify-only failure, integrity<70→composite null, summary email excludes transcript/flag text)
+- Decisions: see Decisions log (technical/communication sub-formula inventions, missing-input review-
+  required, SealVerify-as-independent-job, IntegrityRescore's calibration-window behaviour matching
+  live not ml/, `supersededByReview` definition, MediaIndex, recompute semantics, test conventions)
+- Issues left: two bugs found in this phase's own self-check, not fixed here — see Known issues
+  (IntegrityRescore decays to wall-clock time instead of session end; a RenderReport failure leaves
+  the pipeline stuck in PROCESSING forever instead of degrading). Also: no process auto-starts
+  `npm run worker` in this dev setup, so a session reaching PROCESSING needs it run manually (same
+  pre-existing gap `jd-parse` already had)
+- Next: Phase 11 — retention, hardening, docs
 
 ### 2026-09-18 — Phase 9 seal and evidence verification
 - Phase: 9

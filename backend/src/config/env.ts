@@ -55,6 +55,14 @@ const envSchema = z.object({
 
   /** PDF is optional (Architecture.md §1); HTML report rendering is never gated by this. */
   REPORT_PDF_ENABLED: z.coerce.boolean().default(false),
+
+  /** Retention windows, days (PRD FR-RET-1 / Phases.md §11). */
+  RETENTION_MEDIA_DAYS: z.coerce.number().int().min(1).default(90),
+  RETENTION_OBSERVATIONS_DAYS: z.coerce.number().int().min(1).default(180),
+  RETENTION_EVIDENCE_LOG_FLOOR_DAYS: z.coerce.number().int().min(1).default(30),
+  RETENTION_REPORTS_DAYS: z.coerce.number().int().min(1).default(1095),
+  /** BullMQ repeat pattern for the nightly retention job (cron syntax, worker process local time). */
+  RETENTION_CRON: z.string().default("0 3 * * *"),
 });
 
 const parsed = envSchema.safeParse(process.env);

@@ -179,6 +179,7 @@ describe("candidate tasks", () => {
       .set("Authorization", `Bearer ${candidateToken}`)
       .send({ language: "javascript", code: "solve()" });
     expect(second.status).toBe(429);
+    expect(second.headers["retry-after"]).toBeDefined(); // Design.md: 429s carry a Retry-After header
 
     expect(await prisma.codeExecution.count({ where: { sessionId, kind: "RUN" } })).toBe(1);
     expect(await prisma.codeSnapshot.count({ where: { sessionId, reason: "RUN" } })).toBe(1);

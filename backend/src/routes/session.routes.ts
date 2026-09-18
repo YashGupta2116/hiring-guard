@@ -6,6 +6,7 @@ import {
   cancelSession,
   createSession,
   endSession,
+  getAuditLog,
   getEvidenceVerification,
   getFlags,
   getLiveSnapshot,
@@ -23,6 +24,7 @@ import {
   updateSession,
 } from "../controllers/session.controller.js";
 import { requireUser } from "../middlewares/auth.js";
+import { requireRole } from "../middlewares/org-role.js";
 import { requireSessionAccess } from "../middlewares/session-access.js";
 import { validate } from "../middlewares/validate.js";
 import { patchConfigSchema } from "../validators/config.schema.js";
@@ -36,6 +38,7 @@ import {
 import {
   addInterviewerSchema,
   createSessionSchema,
+  listAuditLogSchema,
   listSessionsSchema,
   removeInterviewerSchema,
   sessionIdParamSchema,
@@ -96,4 +99,11 @@ sessionRouter.post(
   validate(sessionIdParamSchema),
   requireSessionAccess(),
   recomputeReport,
+);
+sessionRouter.get(
+  "/sessions/:id/audit",
+  validate(listAuditLogSchema),
+  requireRole("OWNER", "ADMIN"), // Design.md §4.11: audit is O,A only — narrower than the report/pipeline "U" rows
+  requireSessionAccess(),
+  getAuditLog,
 );

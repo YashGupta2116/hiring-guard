@@ -29,7 +29,8 @@ export function createRateLimiter(options: LimiterOptions): RateLimitRequestHand
             sendCommand: (command: string, ...args: string[]) => redis.call(command, ...args) as Promise<RedisReply>,
           }),
         }),
-    handler: (_req, _res, next, opts) => {
+    handler: (_req, res, next, opts) => {
+      res.set("Retry-After", String(Math.ceil(opts.windowMs / 1000)));
       next(new AppError("RATE_LIMITED", "Too many requests. Please try again later.", { retryAfterMs: opts.windowMs }));
     },
   });

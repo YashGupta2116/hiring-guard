@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import { getInput } from "../middlewares/validate.js";
+import * as auditService from "../services/audit.service.js";
 import * as codingService from "../services/coding.service.js";
 import * as configService from "../services/config.service.js";
 import * as evidenceService from "../services/evidence.service.js";
@@ -21,6 +22,7 @@ import {
 import {
   addInterviewerSchema,
   createSessionSchema,
+  listAuditLogSchema,
   listSessionsSchema,
   removeInterviewerSchema,
   sessionIdParamSchema,
@@ -127,6 +129,12 @@ export async function getPipelineStatus(req: Request, res: Response): Promise<vo
 export async function recomputeReport(req: Request, res: Response): Promise<void> {
   const { params } = getInput(req, sessionIdParamSchema);
   accepted(res, await reportService.recomputeReport(req.user!.orgId, params.id));
+}
+
+export async function getAuditLog(req: Request, res: Response): Promise<void> {
+  const { params, query } = getInput(req, listAuditLogSchema);
+  const result = await auditService.listForSession(req.user!.orgId, params.id, query);
+  list(res, result.items, { nextCursor: result.nextCursor, limit: query.limit });
 }
 
 export async function getEvidenceVerification(req: Request, res: Response): Promise<void> {

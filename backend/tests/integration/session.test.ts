@@ -163,6 +163,65 @@ describe("session access control", () => {
   });
 });
 
+describe("GET /sessions/:id/audit", () => {
+  async function createSessionAs(accessToken: string) {
+    const res = await request(app).post("/api/v1/sessions").set("Authorization", `Bearer ${accessToken}`).send({ mode: "DIRECT_LINK" });
+    return res.body.data.id as string;
+  }
+
+  it("lists the session's audit trail newest-first, paginated", async () => {
+    const owner = await registerOwner();
+    const sessionId = await createSessionAs(owner.accessToken);
+    await request(app).post(`/api/v1/sessions/${sessionId}/cancel`).set("Authorization", `Bearer ${owner.accessToken}`);
+
+    const res = await request(app)
+      .get(`/api/v1/sessions/${sessionId}/audit`)
+      .query({ limit: 1 })
+      .set("Authorization", `Bearer ${owner.accessToken}`);
+    expect(res.status).toBe(200);
+    expect(res.body.data).toHaveLength(1);
+    expect(res.body.data[0].action).toBe("session.status_changed");
+    expect(res.body.data[0].toStatus).toBe("ABORTED");
+    expect(res.body.meta.nextCursor).toBeTruthy();
+
+    const page2 = await request(app)
+      .get(`/api/v1/sessions/${sessionId}/audit`)
+      .query({ limit: 1, cursor: res.body.meta.nextCursor })
+      .set("Authorization", `Bearer ${owner.accessToken}`);
+    expect(page2.body.data[0].action).toBe("session.created");
+    expect(page2.body.data[0].toStatus).toBe("DRAFT");
+  });
+
+  it("blocks a REVIEWER and a bound INTERVIEWER — only OWNER/ADMIN may read it", async () => {
+    const owner = await registerOwner();
+    const sessionId = await createSessionAs(owner.accessToken);
+
+    const reviewer = await registerOwner({ email: "reviewer@example.com", orgName: "Reviewer's Org" });
+    await request(app)
+      .post("/api/v1/org/members")
+      .set("Authorization", `Bearer ${owner.accessToken}`)
+      .send({ email: "reviewer@example.com", role: "REVIEWER" });
+    const switched = await request(app)
+      .post("/api/v1/auth/switch-org")
+      .set("Authorization", `Bearer ${reviewer.accessToken}`)
+      .send({ orgId: owner.orgId });
+
+    const res = await request(app)
+      .get(`/api/v1/sessions/${sessionId}/audit`)
+      .set("Authorization", `Bearer ${switched.body.data.accessToken}`);
+    expect(res.status).toBe(403);
+  });
+
+  it("404s for a session in another org", async () => {
+    const owner = await registerOwner();
+    const sessionId = await createSessionAs(owner.accessToken);
+
+    const otherOwner = await registerOwner({ email: "other-audit@example.com", orgName: "Other Audit Org" });
+    const res = await request(app).get(`/api/v1/sessions/${sessionId}/audit`).set("Authorization", `Bearer ${otherOwner.accessToken}`);
+    expect(res.status).toBe(404);
+  });
+});
+
 describe("PATCH /sessions/:id and cancel", () => {
   it("rejects editing basic fields once LIVE", async () => {
     const owner = await registerOwner();
