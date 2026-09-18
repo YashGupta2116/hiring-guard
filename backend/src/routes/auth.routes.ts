@@ -1,10 +1,10 @@
 import { Router } from "express";
 import { isTest } from "../config/env.js";
-import { login, logout, me, refresh, register, switchOrg } from "../controllers/auth.controller.js";
+import { login, logout, me, refresh, register, switchOrg, updateMe } from "../controllers/auth.controller.js";
 import { requireUser } from "../middlewares/auth.js";
 import { createRateLimiter } from "../middlewares/rate-limit.js";
 import { validate } from "../middlewares/validate.js";
-import { loginSchema, registerSchema, switchOrgSchema } from "../validators/auth.schema.js";
+import { loginSchema, registerSchema, switchOrgSchema, updateProfileSchema } from "../validators/auth.schema.js";
 
 export const authRouter = Router();
 
@@ -19,4 +19,5 @@ authRouter.post("/auth/login", validate(loginSchema), login);
 authRouter.post("/auth/refresh", refresh);
 authRouter.post("/auth/logout", logout);
 authRouter.get("/auth/me", requireUser, me);
+authRouter.patch("/auth/me", requireUser, validate(updateProfileSchema), updateMe);
 authRouter.post("/auth/switch-org", requireUser, validate(switchOrgSchema), switchOrg);

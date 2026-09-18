@@ -64,6 +64,11 @@ export async function logout(): Promise<void> {
   }
 }
 
+/** Changes the signed-in user's display name (the email is the login identity and is fixed). */
+export async function updateProfile(name: string): Promise<void> {
+  await apiRequest<unknown>("/auth/me", { method: "PATCH", body: { name } });
+}
+
 /** Restores a session from the refresh cookie on page load. Resolves null when signed out. */
 export async function restoreSession(): Promise<AuthUser | null> {
   const token = await refreshAccessToken();

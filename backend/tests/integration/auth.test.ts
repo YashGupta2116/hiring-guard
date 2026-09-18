@@ -105,6 +105,29 @@ describe("GET /auth/me", () => {
   });
 });
 
+describe("PATCH /auth/me", () => {
+  it("updates the caller's own display name and leaves the email alone", async () => {
+    const register = await request(app).post("/api/v1/auth/register").send(registerPayload());
+    const accessToken = register.body.data.accessToken as string;
+
+    const res = await request(app).patch("/api/v1/auth/me").set("Authorization", `Bearer ${accessToken}`).send({ name: "  Asha R. Rao  ", email: "hijack@example.com" });
+    expect(res.status).toBe(200);
+    expect(res.body.data).toMatchObject({ name: "Asha R. Rao", email: "asha@example.com" });
+
+    const me = await request(app).get("/api/v1/auth/me").set("Authorization", `Bearer ${accessToken}`);
+    expect(me.body.data.user.name).toBe("Asha R. Rao");
+  });
+
+  it("rejects an empty name and an unauthenticated call", async () => {
+    const register = await request(app).post("/api/v1/auth/register").send(registerPayload());
+    const accessToken = register.body.data.accessToken as string;
+
+    const empty = await request(app).patch("/api/v1/auth/me").set("Authorization", `Bearer ${accessToken}`).send({ name: "   " });
+    expect(empty.status).toBe(400);
+    await request(app).patch("/api/v1/auth/me").send({ name: "X" }).expect(401);
+  });
+});
+
 describe("refresh token rotation and reuse detection", () => {
   it("rotates the refresh cookie on every /auth/refresh call", async () => {
     const register = await request(app).post("/api/v1/auth/register").send(registerPayload());
@@ -203,5 +226,41 @@ describe("role guard and org isolation", () => {
       .set("Authorization", `Bearer ${owner.accessToken}`);
     expect(res.status).toBe(409);
     expect(res.body.error.code).toBe("LAST_OWNER");
+  });
+
+  it("only an owner can grant, change or remove the owner role", async () => {
+    const owner = await registerAndLogin({ email: "boss@example.com" });
+    const bearer = (token: string) => ({ Authorization: `Bearer ${token}` });
+
+    // An admin in the owner's org.
+    const adminReg = await request(app).post("/api/v1/auth/register").send(registerPayload({ email: "admin@example.com", orgName: "Admin Solo Org" }));
+    await request(app).post("/api/v1/org/members").set(bearer(owner.accessToken)).send({ email: "admin@example.com", role: "ADMIN" }).expect(200);
+    const adminToken = (await request(app).post("/api/v1/auth/switch-org").set(bearer(adminReg.body.data.accessToken)).send({ orgId: owner.orgId })).body.data.accessToken as string;
+
+    // Cannot add an owner, and cannot promote themselves.
+    const otherReg = await request(app).post("/api/v1/auth/register").send(registerPayload({ email: "other@example.com", orgName: "Other Org" }));
+    expect(otherReg.status).toBe(201);
+    const addOwner = await request(app).post("/api/v1/org/members").set(bearer(adminToken)).send({ email: "other@example.com", role: "OWNER" });
+    expect(addOwner.status).toBe(403);
+
+    const adminMember = await prisma.orgMember.findFirstOrThrow({ where: { orgId: owner.orgId, user: { email: "admin@example.com" } } });
+    const selfPromote = await request(app).patch(`/api/v1/org/members/${adminMember.id}`).set(bearer(adminToken)).send({ role: "OWNER" });
+    expect(selfPromote.status).toBe(403);
+
+    // Cannot touch the existing owner.
+    const ownerMember = await prisma.orgMember.findFirstOrThrow({ where: { orgId: owner.orgId, user: { email: "boss@example.com" } } });
+    await request(app).patch(`/api/v1/org/members/${ownerMember.id}`).set(bearer(adminToken)).send({ role: "ADMIN" }).expect(403);
+    await request(app).delete(`/api/v1/org/members/${ownerMember.id}`).set(bearer(adminToken)).expect(403);
+
+    // The owner still can, and admins can manage non-owners.
+    await request(app).post("/api/v1/org/members").set(bearer(owner.accessToken)).send({ email: "other@example.com", role: "OWNER" }).expect(200);
+    await request(app).patch(`/api/v1/org/members/${adminMember.id}`).set(bearer(owner.accessToken)).send({ role: "REVIEWER" }).expect(200);
+  });
+
+  it("rejects adding someone who is already a member", async () => {
+    const owner = await registerAndLogin({ email: "dup-owner@example.com" });
+    const res = await request(app).post("/api/v1/org/members").set("Authorization", `Bearer ${owner.accessToken}`).send({ email: "dup-owner@example.com", role: "INTERVIEWER" });
+    expect(res.status).toBe(409);
+    expect(res.body.error.code).toBe("CONFLICT");
   });
 });

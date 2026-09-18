@@ -16,6 +16,8 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<void>;
   signUp: (input: { name: string; email: string; password: string; orgName: string }) => Promise<void>;
   signOut: () => Promise<void>;
+  /** Re-reads the signed-in user (after a name or organisation-name change). */
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -76,7 +78,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  const value = useMemo(() => ({ status, user, signIn, signUp, signOut }), [status, user, signIn, signUp, signOut]);
+  const refreshUser = useCallback(async () => {
+    setUser(await authApi.fetchMe());
+  }, []);
+
+  const value = useMemo(() => ({ status, user, signIn, signUp, signOut, refreshUser }), [status, user, signIn, signUp, signOut, refreshUser]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

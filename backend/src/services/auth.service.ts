@@ -172,6 +172,13 @@ export async function getMe(userId: string): Promise<{
   };
 }
 
+/** Updates the caller's own display name. The email is the login identity and is not editable here. */
+export async function updateProfile(userId: string, orgId: string, name: string): Promise<{ id: string; name: string; email: string }> {
+  const user = await prisma.user.update({ where: { id: userId }, data: { name } });
+  await log({ orgId, actorType: "USER", actorId: userId, action: "auth.profile_updated" });
+  return { id: user.id, name: user.name, email: user.email };
+}
+
 export async function switchOrg(userId: string, orgId: string): Promise<{ accessToken: string }> {
   const membership = await prisma.orgMember.findUnique({ where: { orgId_userId: { orgId, userId } } });
   if (!membership) {

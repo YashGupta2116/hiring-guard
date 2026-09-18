@@ -24,3 +24,9 @@ export const switchOrgSchema = {
     orgId: z.string().min(1),
   }),
 };
+
+export const updateProfileSchema = {
+  body: z.object({
+    name: z.string().trim().min(1).max(120),
+  }),
+};

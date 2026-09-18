@@ -20,16 +20,16 @@ export async function listMembers(req: Request, res: Response): Promise<void> {
 
 export async function addMember(req: Request, res: Response): Promise<void> {
   const { body } = getInput(req, addMemberSchema);
-  ok(res, await orgService.addMember(req.user!.orgId, body.email, body.role));
+  ok(res, await orgService.addMember(req.user!.orgId, req.user!.role, body.email, body.role));
 }
 
 export async function updateMember(req: Request, res: Response): Promise<void> {
   const { params, body } = getInput(req, updateMemberSchema);
-  ok(res, await orgService.updateMemberRole(req.user!.orgId, params.memberId, body.role));
+  ok(res, await orgService.updateMemberRole(req.user!.orgId, req.user!.role, params.memberId, body.role));
 }
 
 export async function removeMember(req: Request, res: Response): Promise<void> {
   const { params } = getInput(req, removeMemberSchema);
-  await orgService.removeMember(req.user!.orgId, params.memberId);
+  await orgService.removeMember(req.user!.orgId, req.user!.role, params.memberId);
   noContent(res);
 }
