@@ -278,9 +278,42 @@ class Engine:
         status: Literal["scoring", "degraded"] = "degraded" if self._degraded else "scoring"
         return self._build_result(score=self._score, band=band, status=status)
 
+    def snapshot(self, t_ms: int) -> SessionResult:
+        """A non-destructive read of engine state at `t_ms`.
+
+        Unlike `finalise()`, this never closes unscored windows, force-
+        closes the baseline, or writes `self._score`/`self._degraded` --
+        a session snapshotted any number of times finalises identically
+        to one that was never snapshotted at all (docs/Memory.md has the
+        determinism reasoning). Decays a *copy* of each channel rather
+        than relying on `decay_to()` being safe to call twice for the
+        same eventual timestamp: floating-point decay split across two
+        `math.exp()` calls is not guaranteed bit-identical to one taken
+        in a single step, and the determinism test wants byte-identical
+        JSON, not merely equal scores.
+        """
+        if t_ms < self._config.calibration_window_s * 1000:
+            return self._build_result(score=None, band="calibrating", status="calibrating")
+
+        channels = {channel: state.copy(self._config) for channel, state in self._channels.items()}
+        for state in channels.values():
+            state.decay_to(t_ms)
+        score, degraded = score_mod.safe_score(channels, self._config, self._score)
+        band = score_mod.to_band(score, self._config)
+        status: Literal["scoring", "degraded"] = (
+            "degraded" if self._degraded or degraded else "scoring"
+        )
+        return self._build_result(score, band, status, channel_states=channels)
+
     def _build_result(
-        self, score: float, band: score_mod.Band, status: Literal["scoring", "degraded"]
+        self,
+        score: float | None,
+        band: score_mod.Band,
+        status: Literal["calibrating", "scoring", "degraded"],
+        *,
+        channel_states: dict[Channel, ChannelState] | None = None,
     ) -> SessionResult:
+        states = channel_states if channel_states is not None else self._channels
         calibration: Literal["complete", "fallback"] = (
             "fallback" if self._baseline is not None and self._baseline.fallback else "complete"
         )
@@ -288,7 +321,7 @@ class Engine:
             score=score,
             status=status,
             band=band,
-            channels={channel: state.llr for channel, state in self._channels.items()},
+            channels={channel: state.llr for channel, state in states.items()},
             flags=list(self._flags),
             unscored=list(self._windows),
             calibration=calibration,

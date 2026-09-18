@@ -22,7 +22,7 @@ from vtml.types import Channel
 
 logger = logging.getLogger(__name__)
 
-Band = Literal["clear", "review", "suppressed"]
+Band = Literal["clear", "review", "suppressed", "calibrating"]
 
 
 def weighted_sum(channel_states: dict[Channel, ChannelState], config: EngineConfig) -> float:

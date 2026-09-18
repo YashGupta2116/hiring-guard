@@ -84,7 +84,7 @@ class UnscoredWindow(BaseModel):
 class SessionResult(BaseModel):
     score: float | None
     status: Literal["calibrating", "scoring", "degraded"]
-    band: Literal["clear", "review", "suppressed"]
+    band: Literal["clear", "review", "suppressed", "calibrating"]
     channels: dict[Channel, float]
     flags: list[Flag] = Field(default_factory=list)
     unscored: list[UnscoredWindow] = Field(default_factory=list)

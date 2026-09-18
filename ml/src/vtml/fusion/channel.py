@@ -53,3 +53,18 @@ class ChannelState:
     def _prune(self, now_ms: int) -> None:
         while self.recent and now_ms - self.recent[0].t_ms > self._ring_ms:
             self.recent.popleft()
+
+    def copy(self, config: EngineConfig) -> "ChannelState":
+        """A clone that `decay_to()` can mutate freely without touching
+        this instance -- Engine.snapshot()'s non-destructive read decays
+        a copy rather than the live state (docs/Memory.md). `config` must
+        be the same one this instance was built with; `_tau_s`/`_ring_ms`
+        are derived from it at construction and are not copied directly.
+        `EvidenceItem` is frozen, so copying `recent` into a new deque is
+        enough -- no item is ever mutated in place."""
+        clone = ChannelState(self.channel, config)
+        clone.llr = self.llr
+        clone.last_update = self.last_update
+        clone.recent = deque(self.recent)
+        clone.suppressed = self.suppressed
+        return clone
