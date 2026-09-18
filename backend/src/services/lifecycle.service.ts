@@ -1,25 +1,15 @@
 import { registry } from "../live/registry.js";
 import { SessionRuntime, type EndReason } from "../live/session-runtime.js";
-import { emitToCandidate, emitToInterviewers } from "../sockets/emitter.js";
-import { CANDIDATE_EVENTS, INTERVIEWER_EVENTS } from "../sockets/events.js";
+import { broadcastSessionState } from "../sockets/session-broadcast.js";
 import { AppError } from "../utils/app-error.js";
 import { prisma } from "../utils/prisma.js";
 import { redis } from "../utils/redis.js";
 import { listFlags } from "./flag.service.js";
+import { startRecordingIfConfigured } from "./media.service.js";
 import { listNotes } from "./note.service.js";
+import { sealSession } from "./seal.service.js";
 import { getSession } from "./session.service.js";
 import { transition } from "./session-state.service.js";
-
-function mapCandidateStatus(status: string): "WAITING" | "LIVE" | "ENDED" {
-  if (status === "LIVE") return "LIVE";
-  if (["ADMITTED", "ARMED", "CONFIGURED", "DRAFT"].includes(status)) return "WAITING";
-  return "ENDED";
-}
-
-async function broadcastSessionState(sessionId: string, status: string, startedAt: Date | null, endedAt: Date | null, endReason: string | null) {
-  await emitToInterviewers(sessionId, INTERVIEWER_EVENTS.SESSION_STATE, { status, startedAt, endedAt, endReason });
-  emitToCandidate(sessionId, CANDIDATE_EVENTS.SESSION_STATE, { status: mapCandidateStatus(status) });
-}
 
 const ALREADY_ENDED_STATUSES = new Set(["SEALING", "PROCESSING", "COMPLETE", "ABORTED", "EXPIRED"]);
 
@@ -52,6 +42,7 @@ export async function startSession(orgId: string, sessionId: string, actorId: st
   });
   registry.set(sessionId, runtime);
   await runtime.start();
+  await startRecordingIfConfigured(session);
 
   await transition(sessionId, ["ADMITTED"], "LIVE", { orgId, actorType: "USER", actorId });
   await broadcastSessionState(sessionId, "LIVE", startedAt, null, null);
@@ -60,12 +51,6 @@ export async function startSession(orgId: string, sessionId: string, actorId: st
 }
 
 export async function endSession(orgId: string, sessionId: string, reason: EndReason, actorId?: string) {
-  const runtime = registry.get(sessionId);
-  if (runtime) {
-    await runtime.destroy();
-    registry.delete(sessionId);
-  }
-
   const session = await prisma.interviewSession.findFirst({ where: { id: sessionId, orgId } });
   if (!session) {
     throw new AppError("NOT_FOUND", "Session not found.");
@@ -77,17 +62,7 @@ export async function endSession(orgId: string, sessionId: string, reason: EndRe
     throw new AppError("INVALID_STATE_TRANSITION", "Session must be LIVE to end.", { currentStatus: session.status });
   }
 
-  const sealing = await transition(sessionId, ["LIVE"], "SEALING", {
-    orgId,
-    actorType: actorId ? "USER" : "SYSTEM",
-    actorId,
-    extra: { endReason: reason },
-  });
-  await broadcastSessionState(sessionId, "SEALING", sealing.startedAt, sealing.endedAt, reason);
-
-  // Seal is a stub until Phase 9: go straight to PROCESSING instead of running the real seal sequence.
-  const processing = await transition(sessionId, ["SEALING"], "PROCESSING", { orgId, actorType: "SYSTEM" });
-  await broadcastSessionState(sessionId, "PROCESSING", processing.startedAt, processing.endedAt, reason);
+  await sealSession(orgId, sessionId, reason, actorId);
 
   return getSession(orgId, sessionId);
 }

@@ -6,6 +6,7 @@ import {
   cancelSession,
   createSession,
   endSession,
+  getEvidenceVerification,
   getFlags,
   getLiveSnapshot,
   getNotes,
@@ -79,3 +80,9 @@ sessionRouter.post(
   acceptSuggestion,
 );
 sessionRouter.get("/sessions/:id/code", validate(sessionIdParamSchema), requireSessionAccess(), getSessionCode);
+sessionRouter.get(
+  "/sessions/:id/evidence/verify",
+  validate(sessionIdParamSchema),
+  requireSessionAccess(),
+  getEvidenceVerification,
+);

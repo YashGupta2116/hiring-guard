@@ -131,7 +131,7 @@ describe("POST /sessions/:id/start guards", () => {
 });
 
 describe("full lifecycle: start -> LIVE -> end -> PROCESSING", () => {
-  it("starts, hydrates a live snapshot, and ends into PROCESSING (seal stubbed this phase)", async () => {
+  it("starts, hydrates a live snapshot, and ends into PROCESSING via the real seal sequence", async () => {
     const owner = await registerOwner();
     const { sessionId, candidateToken } = await admitSession(owner.accessToken);
     await request(app)

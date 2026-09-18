@@ -2,6 +2,7 @@ import type { Request, Response } from "express";
 import { getInput } from "../middlewares/validate.js";
 import * as codingService from "../services/coding.service.js";
 import * as configService from "../services/config.service.js";
+import * as evidenceService from "../services/evidence.service.js";
 import * as flagService from "../services/flag.service.js";
 import * as lifecycleService from "../services/lifecycle.service.js";
 import * as noteService from "../services/note.service.js";
@@ -110,4 +111,9 @@ export async function acceptSuggestion(req: Request, res: Response): Promise<voi
 export async function getSessionCode(req: Request, res: Response): Promise<void> {
   const { params } = getInput(req, sessionIdParamSchema);
   ok(res, await codingService.getSessionCode(req.user!.orgId, params.id));
+}
+
+export async function getEvidenceVerification(req: Request, res: Response): Promise<void> {
+  const { params } = getInput(req, sessionIdParamSchema);
+  ok(res, await evidenceService.verifySession(req.user!.orgId, params.id));
 }

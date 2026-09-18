@@ -79,3 +79,12 @@ export const AUTHORSHIP_BURST_MIN_CHARS = 15;
 
 /** `POST /candidate/tasks/:taskId/run` rate limit (Rules.md §9, FR-CODE-3). */
 export const CODE_RUN_RATE_LIMIT_MS = 3000;
+
+// ---- Phase 9: seal and evidence ----
+
+/** Seal step 2: how long to wait for in-flight writes to drain before tearing down the runtime. */
+export const SEAL_DRAIN_TIMEOUT_MS = isTest ? 50 : 5000;
+/** Seal step 4: how long to wait for the media provider to finalise a recording before marking it FAILED and continuing. */
+export const RECORDING_FINALIZE_TIMEOUT_MS = isTest ? 200 : 30_000;
+/** TTL for the `s:{sid}:seal` step-progress hash (Architecture.md §7.2). */
+export const SEAL_PROGRESS_TTL_SECONDS = 7 * 24 * 60 * 60;

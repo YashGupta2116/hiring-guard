@@ -3,6 +3,7 @@ import { env } from "./config/env.js";
 import { createApp } from "./app.js";
 import { createSocketServer } from "./sockets/index.js";
 import { startEventSubscriber } from "./sockets/event-subscriber.js";
+import { resumeStuckSeals } from "./services/seal.service.js";
 import { logger } from "./utils/logger.js";
 import { prisma } from "./utils/prisma.js";
 import { redis } from "./utils/redis.js";
@@ -17,6 +18,9 @@ startEventSubscriber();
 server.listen(env.PORT, () => {
   logger.info({ port: env.PORT, env: env.NODE_ENV }, `API listening on ${env.API_URL}`);
 });
+
+// A session left SEALING means the process died mid-seal; finish it instead of leaving it stuck.
+void resumeStuckSeals().catch((err: unknown) => logger.error({ err }, "seal resume on boot failed"));
 
 let shuttingDown = false;
 

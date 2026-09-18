@@ -32,6 +32,14 @@ export async function closeOpenUnscoredWindows(
   });
 }
 
+/** Closes every still-open window for a session regardless of channel/reason (seal step 6). */
+export async function closeAllOpenUnscoredWindows(sessionId: string, endTs: Date): Promise<void> {
+  await prisma.unscoredWindow.updateMany({
+    where: { sessionId, endTs: null },
+    data: { endTs },
+  });
+}
+
 /**
  * In-memory mirror of "is this channel currently frozen" for the fusion engine to consult on every
  * observation (Architecture.md §6.4 step 7: frozen = no decay, no new evidence, 0 score contribution).

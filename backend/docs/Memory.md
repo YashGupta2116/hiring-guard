@@ -8,10 +8,10 @@
 
 ## Current status
 
-- **Current phase:** Phase 8 — Coding round (✅ done). Session stops after each
+- **Current phase:** Phase 9 — Seal and evidence verification (✅ done). Session stops after each
   phase and waits for "next".
 - **Last updated:** 2026-09-18
-- **Next step:** Phase 9 — Seal and evidence verification. Wait for "next".
+- **Next step:** Phase 10 — Post-processing pipeline and report. Wait for "next".
 
 ## Phase tracker
 
@@ -26,7 +26,7 @@
 | 6 Telemetry & detectors | ✅ | build + 104 tests pass; ingest (clock correction, seq/dedup/gap→unscored), 5 pure detectors + calibration baseline, evidence hash chain, internal API (observations/transcript/heartbeat), producer-health→system.degraded |
 | 7 Fusion, flags, warden | ✅ | build + 139 tests pass; fusion.engine (decay/corroboration/floor/score, pure), flag-builder (threshold crossing + 15s merge), warden (tier/cooldown/cap, fixed templates), integrity.tick 2s + snapshots 10s, GET flags + POST adjudicate, notes (REST + socket), suggestions (manual refresh + accept), candidate-boundary socket test |
 | 8 Coding round | ✅ | build + 152 tests pass; `GET /candidate/tasks`, `editor.delta`/`editor.snapshot` sockets → `editor_deltas`/`code_snapshots`, `authorship.detector.ts` (paste/typed_ratio/burst reusing PASTE/RHYTHM channels), `docker.sandbox.ts` (real per-run container) + existing `mock.sandbox.ts`, run (rate-limited)/submit (hidden results, freezes task), interviewer `GET /sessions/:id/code` |
-| 9 Seal & evidence | ⬜ | |
+| 9 Seal & evidence | ✅ | build + 157 tests pass; real 9-step `seal.service.ts` (Redis `s:{sid}:seal` step counter, resumable), recording start (LIVE)/stop (seal step 4) via `MediaProvider`, `evidence.service.ts` gained `verifyChain`/`exportEvidenceLog`/`buildAndSignManifest`/`verifySession`, `GET /sessions/:id/evidence/verify`, boot-time `resumeStuckSeals()` |
 | 10 Pipeline & report | ⬜ | |
 | 11 Retention & hardening | ⬜ | |
 
@@ -69,24 +69,33 @@ backend/
 │   │   corroboration/merge tunables — never sent to clients
 │   ├── controllers/health, auth, org, candidate-directory, session, jd, coding-task, question-bank,
 │   │   link, join, candidate, internal, flag .controller.ts (candidate.controller.ts gained
-│   │   getTasks/runTask/submitTask in Phase 8; session.controller.ts gained getSessionCode)
+│   │   getTasks/runTask/submitTask in Phase 8; session.controller.ts gained getSessionCode in Phase 8
+│   │   and getEvidenceVerification in Phase 9)
 │   ├── routes/index.ts (mounts all routers), auth/org/candidate-directory/session/jd/coding-task/
 │   │   question-bank/link/join/candidate/internal/flag .routes.ts (each router's own middleware is
 │   │   mounted with an explicit path prefix, e.g. `router.use("/auth", authLimiter)` — NEVER
 │   │   `router.use(mw)` with no path, since a sub-router mounted at apiRouter's root ("/") would
 │   │   otherwise apply that middleware to every request; candidate.routes.ts's run-limiter is keyed by
-│   │   `sessionId:taskId`, not IP, via `createRateLimiter`'s `keyGenerator`)
+│   │   `sessionId:taskId`, not IP, via `createRateLimiter`'s `keyGenerator`; `GET /sessions/:id/
+│   │   evidence/verify` lives in session.routes.ts, same as `.../code` — no dedicated `evidence.routes.ts`
+│   │   file, matching how this repo actually places session-scoped endpoints vs. Architecture.md's
+│   │   aspirational tree)
 │   ├── services/health, auth, org, candidate-directory, audit, session, session-state, config, jd,
 │   │   coding-task, question-bank, link, join, media, candidate, evidence, internal, flag, note,
-│   │   suggestion, coding .service.ts (session-state.service.ts `transition()` is the ONLY place
+│   │   suggestion, coding, seal .service.ts (session-state.service.ts `transition()` is the ONLY place
 │   │   InterviewSession.status changes: CAS via updateMany + audit log in one transaction, then
 │   │   publishes events:{sid} "session.state"; evidence.service.ts `appendObservations()` is the ONLY
-│   │   place that assigns seq/prevHash/hash; internal.service.ts is the CV/ASR/producer side of the
+│   │   place that assigns seq/prevHash/hash, and Phase 9 added `verifyChain`/`exportEvidenceLog`/
+│   │   `buildAndSignManifest`/`verifySession`; internal.service.ts is the CV/ASR/producer side of the
 │   │   Phase 6 internal API; flag.service.ts does the org/role check itself for `/flags/:flagId/*`
 │   │   instead of a dedicated middleware, since the URL has no session id to key off; suggestion.service.ts
 │   │   only wires the manual `POST .../suggestions/refresh` trigger, see Known issues; coding.service.ts
 │   │   is Phase 8: candidate task list/run/submit (submit does a CAS `updateMany` on `submittedAt` to
-│   │   guard concurrent double-submit, then calls `runtime.freezeTask()`), interviewer getSessionCode)
+│   │   guard concurrent double-submit, then calls `runtime.freezeTask()`), interviewer getSessionCode;
+│   │   seal.service.ts is Phase 9: `sealSession()` — the real 9-step sequence, numbered and resumable via
+│   │   `s:{sid}:seal`'s `step` field; `resumeStuckSeals()` — called once at boot, re-runs `sealSession()`
+│   │   for any session still SEALING; media.service.ts gained `startRecordingIfConfigured()`, called from
+│   │   `lifecycle.service.startSession`)
 │   ├── middlewares/request-id, validate (+ getInput), not-found, error-handler, rate-limit, auth
 │   │   (requireUser), org-role (requireRole), session-access (requireSessionAccess — org membership +
 │   │   bound-interviewer-or-privileged-role check, sets req.sessionRecord), upload (jdUpload, multer
@@ -117,6 +126,9 @@ backend/
 │   ├── sockets/emitter.ts        emitToInterviewers (wraps in {frameSeq,sessionId,ts,data}, appends to
 │   │   Redis `s:{sid}:buf` capped at 2000, emits) + emitToCandidate (unbuffered, allow-list only) +
 │   │   replayFrom(sid, afterSeq)
+│   ├── sockets/session-broadcast.ts  Phase 9: `broadcastSessionState()` (+ its `mapCandidateStatus`
+│   │   helper), extracted out of `lifecycle.service.ts` so `seal.service.ts` can call it too without the
+│   │   two services importing each other
 │   ├── sockets/event-subscriber.ts  psubscribe("events:*") → forwards worker-published events
 │   │   (utils/events.ts publishSessionEvent, e.g. jd.parsed) to emitToInterviewers
 │   ├── sockets/events.ts         INTERVIEWER_EVENTS (+ SYSTEM_DEGRADED, TRANSCRIPT_PARTIAL/FINAL,
@@ -175,15 +187,18 @@ backend/
 │   │   `SCREEN_SHARE_STOPPED` still has none — a type with none just never shows a warning, the flag
 │   │   still exists); `acknowledgeWarning()` — `warn.ack` → ackLatencyMs → flag.update
 │   ├── services/lifecycle.service.ts  startSession (guards: ADMITTED, !needsReconsent, Redis
-│   │   mediaReady==="1"; creates+starts SessionRuntime, ADMITTED→LIVE), endSession (idempotent once past
-│   │   LIVE; destroys runtime; LIVE→SEALING→PROCESSING — seal is a stub until Phase 9), getLiveSnapshot
-│   │   (dashboard-reload hydrate: status, elapsedMs/remainingMs, mediaReady, integrity, flags, notes,
-│   │   lastFrameSeq — transcriptTail/suggestions/degraded from Design.md §4.10 still not included)
+│   │   mediaReady==="1"; creates+starts SessionRuntime, starts recording via
+│   │   `media.startRecordingIfConfigured`, ADMITTED→LIVE), endSession (idempotent once past LIVE;
+│   │   delegates the actual LIVE→SEALING→...→PROCESSING work to `seal.service.sealSession` as of Phase 9),
+│   │   getLiveSnapshot (dashboard-reload hydrate: status, elapsedMs/remainingMs, mediaReady, integrity,
+│   │   flags, notes, lastFrameSeq — transcriptTail/suggestions/degraded from Design.md §4.10 still not
+│   │   included)
 │   ├── services/flag.service.ts  listFlags (with latest warning + adjudication history per flag),
 │   │   adjudicateFlag (role/binding check done here, not middleware, since `/flags/:flagId` has no
 │   │   session id in the URL; nudges the live accumulator via `runtime.applyAdjudication`)
 │   ├── services/note.service.ts  listNotes, addNote (mediaOffsetMs always null — no recording anchor
-│   │   exists until Phase 9)
+│   │   wired up to notes yet, even though `Recording.egressStartedAt` now exists as of Phase 9; revisit if
+│   │   the dashboard wants notes anchored to media offsets)
 │   ├── services/suggestion.service.ts  refreshSuggestions (manual trigger only — see Known issues),
 │   │   acceptSuggestion
 │   ├── utils/queues.ts           BullMQ Queue instances (jdParseQueue, linkExpiryQueue) + QUEUE_NAMES
@@ -264,6 +279,19 @@ Removed: `bcryptjs`, `jsonwebtoken` (Rules: use `argon2`, `jose`).
 | 2026-09-18 | `docker.sandbox.ts` reads container output via `container.logs({stdout:true, stderr:true, follow:true})` and manually collects the stream, never the non-`follow` `logs()` overload | Discovered live: `docker-modem`'s non-stream response path (`lib/modem.js`) does `JSON.parse(body) \|\| buffer` on *every* non-stream API response, including logs — so when a run's stdout is itself valid JSON (our harness always prints one `json.dumps(results)` line), `logs()` silently hands back the *parsed array/objects* instead of a `Buffer`, and `.toString()` on that produces `"[object Object],[object Object]"` garbage instead of the real output. Forcing the `follow: true` / stream code path in docker-modem sidesteps the auto-parse entirely. Cost real debugging time; if any other dockerode non-stream call's output could ever look like JSON, apply the same fix |
 | 2026-09-18 | `docker.sandbox.ts` runs every test case for one `run`/`submit` from inside a single container (a generated harness script loops over `tests.json`), not one container per test case | Spec 7.9 says "one container per run" (singular) — read as one container per `POST .../run` or `.../submit` call, covering all of that call's test cases, not one container per test case, which would also be far slower for tasks with many tests |
 | 2026-09-18 | `docker.sandbox.ts` only registers runners for `python`/`python3`/`javascript`/`node`; any other `language` value returns `{status: "ERROR", ...}` from `execute()`, not a thrown exception | `CodingTask.languages`/the run/submit `language` field are free-text strings (no enum in the schema or validators), so arbitrary values are possible; supporting genuinely arbitrary languages generically isn't practical for this phase, and the mock sandbox (still the default via `SANDBOX_PROVIDER=mock`) is what the automated test suite exercises regardless |
+| 2026-09-18 | `lifecycle.service.startSession` now calls `media.startRecordingIfConfigured()` (starts egress + creates a `Recording` row when any of recordVideo/Audio/Screen is true) | No earlier phase ever started a recording, yet Phase 9's seal step 4 ("stop recording egress") only makes sense if one is already running. `Recording`/`MediaProvider.startRecording` already existed in the schema/interface purely for this. A session with all three record flags off never gets a `Recording` row, and seal's stop step is then a no-op |
+| 2026-09-18 | `seal.service.sealSession()`'s Redis progress counter (`s:{sid}:seal` hash field `step`) tracks steps 2–9 only; the CAS to SEALING (step 1) is inferred from the session's own `status` instead of a separate counter value | The DB row is already the source of truth for "did the CAS happen" — a second flag for it in Redis would just be another thing that could disagree with Postgres. Steps 2 (drain)/3 (destroy runtime + emit `session.ended`)/6's live-tick are skipped entirely when `registry.get(sessionId)` is empty (real crash-resume case, no in-memory runtime survives a restart); the DB-only steps (4 recording, 5 producers, 6 close-unscored-windows, 7 export, 8 sign, 9 transition) are what a resumed seal actually depends on |
+| 2026-09-18 | Seal step 5 ("detach producers") has no code of its own beyond an audit-log line | `internal.service.ts` already throws `INVALID_STATE_TRANSITION` for any producer call once `session.status !== "LIVE"` (Phase 6), so the CAS to SEALING at step 1 already rejects further producer ingest. Nothing else to detach |
+| 2026-09-18 | `verifyChain()` recomputes the hash chain straight from the live `Observation` table (genesis forward, `prevHash`/`hash` recomputed per row) — it never reads back the exported `events.ndjson.gz` | The DB rows are the actual evidence; the export is a human/legal-readable copy taken at seal time. Recomputing from the DB on every `GET .../evidence/verify` call is cheap (bounded by one session's observation count) and catches both a tampered row (its own recomputed hash won't match) and a tampered *chain link* (the row after a "cleanly" re-signed tamper still points at the pre-tamper hash) — see the function's own comment for the two-case walkthrough |
+| 2026-09-18 | `GET /sessions/:id/evidence/verify` checks `chain.chainHead === manifest.chainHead && chain.lastSeq === manifest.lastSeq` in addition to `chain.valid`, and separately checks the signature against the actual bytes of `manifest.json`/`manifest.sig` in storage (not a recomputation from the DB) | The head/lastSeq check catches a row being deleted or added *after* sealing even if every remaining row is internally self-consistent. Checking the signature against the real stored files (not a DB reconstruction of what the manifest "should" say) is what actually proves the on-disk evidence bundle hasn't been edited since signing — reconstructing and re-signing in memory would just test itself |
+| 2026-09-18 | `manifest.sig`'s storage key is derived from `manifest.manifestUri` by replacing `.json` with `.sig`, rather than adding a `sigUri` column to `EvidenceManifest` | Architecture.md's storage layout fixes `manifest.json`/`manifest.sig` as siblings with those exact names; deriving the second path avoids a schema change (CLAUDE.md: ask before touching `schema.prisma`) for a value that's always mechanically derivable from the first |
+| 2026-09-18 | The manifest only supports one active signing key at verify time (`manifest.signingKeyId !== getSigner().keyId` ⇒ `signatureValid: false`, no historical-key lookup) | No key-rotation store exists anywhere in this codebase (`EVIDENCE_SIGNING_KEY_ID` is a single env value); this phase doesn't add one either. Revisit if a real deployment needs to keep verifying sessions sealed under a since-rotated key |
+| 2026-09-18 | `detectorVersions`/`weightsVersion` in the manifest reuse the existing `DETECTOR_VERSION`/`WEIGHTS_VERSION` constants from `config/detection.ts` (`{ all: DETECTOR_VERSION }`) rather than a per-detector version map | Those constants already existed pre-Phase-9 as single global tags (not per-detector granularity) — Design.md's "detector versions, weights version" is satisfied by what's actually tracked; inventing per-detector versioning nobody asked for would be unused complexity |
+| 2026-09-18 | The evidence export (`exportEvidenceLog`) streams and gzips observations/flags/transcript/notes/executions via a k-way merge of five cursor-paginated (500-row batch) Prisma queries, ordered by each record's own timestamp | Phases.md explicitly says "stream, don't load all rows in memory"; keyset pagination across five differently-typed primary keys was more complexity than the actual row counts for one interview justify, so offset pagination in bounded batches was used instead — still never holds more than one batch per source in memory |
+| 2026-09-18 | `readable.pipe(gzip)` in `exportEvidenceLog` has an explicit `source.on("error", err => gzip.destroy(err))` | `.pipe()` doesn't forward the source's `'error'` event to the destination by default (a well-known Node gotcha) — without this, a failed mid-stream Prisma query would leave the gzip stream (and `storage.put`'s write) hanging instead of the whole export promise rejecting so seal step 7 can fail cleanly |
+| 2026-09-18 | If `verifyChain()` finds a broken chain during seal step 7 (before anything is signed), `sealSession()` throws and the session transitions `SEALING → ABORTED` instead of sealing anyway | Signing and shipping a manifest over evidence that's already inconsistent would defeat the entire point of the manifest; this should only ever happen from a bug or direct DB tampering between LIVE and seal, and the state table already allows `SEALING → ABORTED` on a fatal error |
+| 2026-09-18 | Pipeline flow enqueue (seal step 9's last clause) is not implemented — `PROCESSING` has no automatic follow-up | The BullMQ `FlowProducer` and every pipeline step are Phase 10 work (Phases.md/Architecture.md §6.8); a session just stays in `PROCESSING` until Phase 10 exists. Noted as a one-line comment in `seal.service.ts`, not a silent TODO |
+| 2026-09-18 | `tests/setup.ts` sets a fixed, hardcoded Ed25519 test keypair (`EVIDENCE_SIGNING_PRIVATE_KEY`/`_KEY_ID`) via `??=`, same pattern as the other test secrets already there | `getSigner()` throws without a key; `.env.test` deliberately doesn't set one (same reason the other secrets live in `tests/setup.ts` instead of a committed `.env.test`, per its own header comment). The key is test-only and not sensitive — no different from the other hardcoded test secrets already in that file |
 
 ---
 
@@ -354,6 +382,18 @@ Removed: `bcryptjs`, `jsonwebtoken` (Rules: use `argon2`, `jose`).
   `SessionRuntime`'s serialized `writeQueue` — unlike editor.delta/snapshot. This is fine because they
   don't touch the evidence hash chain or fusion state (the two things the queue actually serializes), and
   submit's freeze is guarded by its own CAS (`updateMany` on `submittedAt`), not the queue.
+- `sealSession()` has no lock against being invoked twice concurrently for the same session (e.g. an
+  interviewer's `POST /end` racing a boot-time `resumeStuckSeals()` in the unlikely case of a restart at
+  the exact same moment). Each individual step is either a DB-level CAS (`transition()`) or naturally
+  idempotent (upserts, "already READY/FAILED" checks), so a race would mostly just do some duplicate work,
+  not corrupt state — but it isn't guarded the way the fusion lease guards concurrent LIVE writers.
+- `EvidenceManifest` only supports a single active signing key at verify time — no historical-key store
+  exists if `EVIDENCE_SIGNING_KEY_ID` is ever rotated (see Decisions log). A session sealed under a
+  since-rotated key would fail `GET .../evidence/verify` with `signatureValid: false`, indistinguishable
+  from real tampering.
+- Recording finalize failure just marks `Recording.status = FAILED` and continues (per spec); nothing
+  surfaces that failure to the interviewer/report beyond the DB row itself — Phase 10's `MediaIndex` step
+  or the report's `degraded`/`lostSteps` fields would be the natural place to surface it later.
 
 ---
 
@@ -373,6 +413,55 @@ Removed: `bcryptjs`, `jsonwebtoken` (Rules: use `argon2`, `jose`).
 ```
 
 ## Task history
+
+### 2026-09-18 — Phase 9 seal and evidence verification
+- Phase: 9
+- Built: `services/seal.service.ts` — `sealSession()`, the real 9-step sequence from Architecture.md §6.7,
+  numbered and resumable via `s:{sid}:seal`'s `step` field (CAS LIVE→SEALING; drain the runtime's write
+  queue up to `SEAL_DRAIN_TIMEOUT_MS`; destroy the runtime, which stops timers/lease and emits the
+  candidate `session.ended` thank-you; stop/finalise the recording via the media provider, `FAILED` +
+  continue on timeout; producer detach is a no-op beyond an audit-log line since `internal.service.ts`
+  already rejects non-LIVE producer calls; final `IntegritySnapshot` + close every open `UnscoredWindow`;
+  verify the hash chain and abort to `ABORTED` if it's already broken, then stream the evidence export;
+  build/sign the manifest; CAS SEALING→PROCESSING) and `resumeStuckSeals()` (called once at boot, re-runs
+  `sealSession()` for any session still `SEALING`, naturally degrading to DB-only steps when no live
+  `SessionRuntime` survived the restart); `services/evidence.service.ts` gained `verifyChain()` (recomputes
+  the hash chain from the `Observation` table, two-case tamper detection — see its own comment),
+  `exportEvidenceLog()` (k-way merge of observations/flags/transcript/notes/executions, cursor-paginated
+  500 rows at a time, streamed+gzipped straight into storage, never held fully in memory),
+  `buildAndSignManifest()` (Ed25519-signs the canonical `manifest.json` bytes, writes `manifest.sig`
+  alongside, upserts `EvidenceManifest`), and `verifySession()` (the `GET .../evidence/verify` logic:
+  chain recomputed fresh from the DB + cross-checked against the manifest's stored `chainHead`/`lastSeq`,
+  signature checked against the actual stored `manifest.json`/`manifest.sig` bytes); `media.service.ts`
+  gained `startRecordingIfConfigured()`, called from `lifecycle.service.startSession` so there's actually
+  something for seal step 4 to stop; `sockets/session-broadcast.ts` (extracted `broadcastSessionState`
+  out of `lifecycle.service.ts` so `seal.service.ts` can reuse it without a circular import);
+  `live/fusion/unscored.ts` gained `closeAllOpenUnscoredWindows()`; `GET /sessions/:id/evidence/verify`
+- Files: `src/services/seal.service.ts`, `src/sockets/session-broadcast.ts`,
+  `tests/integration/seal.test.ts`, edits to `src/services/{evidence,lifecycle,media}.service.ts`,
+  `src/live/fusion/unscored.ts`, `src/controllers/session.controller.ts`, `src/routes/session.routes.ts`,
+  `src/config/constants.ts`, `src/index.ts`, `tests/setup.ts`, `.env.test.example`,
+  `tests/integration/lifecycle.test.ts` (stale "seal stubbed" comment fixed)
+- Schema/migrations: none — `Recording`/`EvidenceManifest` and every enum needed already existed
+- New env vars: none required in `.env`/`.env.example` (`EVIDENCE_SIGNING_PRIVATE_KEY`/`_KEY_ID` already
+  existed from Phase 0); `tests/setup.ts` gained hardcoded test defaults for both so `getSigner()` works
+  without running `keys:generate` first
+- Tests: 157 passing total (5 new in `tests/integration/seal.test.ts`: happy path — real seal produces a
+  `PROCESSING` session, a `READY` `Recording`, and a manifest that `GET .../evidence/verify` reports fully
+  valid; a directly-tampered `Observation` payload is caught (`chainValid: false`, exact `firstBrokenSeq`,
+  signature still valid); a directly-tampered `manifest.sig` is caught (`signatureValid: false`, chain
+  still valid); a session force-set to `SEALING` with `registry.delete()`'d runtime and a stale Redis step
+  is fully completed by `resumeStuckSeals()`; `evidence/verify` 404s before a session is sealed).
+  `npm run typecheck`, `npm run build` clean
+- Decisions: see Decisions log (recording start added in this phase, Redis step counter only covers
+  steps 2-9, chain verify reads the DB not the export file, manifest signature checked against stored
+  bytes not a DB reconstruction, `.sig` path derived not a new column, single active signing key only,
+  detector/weights versions reuse existing constants, streamed k-way-merge export, `.pipe()` error
+  forwarding fix, abort-on-broken-chain, pipeline enqueue deferred to Phase 10, hardcoded test signing key)
+- Issues left: see Known issues (no lock against concurrent `sealSession()` invocations for the same
+  session; no historical-key support if the signing key is ever rotated; recording finalize failure isn't
+  surfaced anywhere beyond the DB row)
+- Next: Phase 10 — post-processing pipeline and report. Wait for "next".
 
 ### 2026-09-18 — Phase 8 coding round
 - Phase: 8

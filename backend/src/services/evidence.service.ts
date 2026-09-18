@@ -1,5 +1,11 @@
+import { createGzip } from "node:zlib";
+import { Readable } from "node:stream";
+import { DETECTOR_VERSION, WEIGHTS_VERSION } from "../config/detection.js";
 import type { Observation, Prisma } from "../generated/prisma/client.js";
 import type { MonitoringChannel, ObservationSource } from "../generated/prisma/enums.js";
+import { getSigner, getStorage } from "../providers/index.js";
+import type { StoredObject } from "../providers/storage/storage.provider.js";
+import { AppError } from "../utils/app-error.js";
 import { canonicalJson, sha256Hex } from "../utils/hash.js";
 import { prisma } from "../utils/prisma.js";
 import { redis } from "../utils/redis.js";
@@ -76,4 +82,250 @@ export async function appendObservations(sessionId: string, entries: PendingObse
   const created = await prisma.observation.createManyAndReturn({ data: rows });
   await redis.hset(chainKey(sessionId), "lastSeq", lastSeq, "lastHash", lastHash);
   return created;
+}
+
+export type ChainVerification = {
+  valid: boolean;
+  lastSeq: number;
+  chainHead: string;
+  firstBrokenSeq: number | null;
+};
+
+/**
+ * Recomputes the hash chain from genesis over every stored `Observation` row (Architecture.md §7.4) and
+ * compares it against what's actually stored. A single-row tamper that also "fixes" that row's own hash
+ * still breaks the link on the *next* row, since that row's `prevHash` was recorded before the tamper —
+ * so `firstBrokenSeq` reports whichever row the mismatch first surfaces at. Used both by the seal
+ * sequence (step 7, sanity check before signing) and by `verifySession` (recomputed fresh from the
+ * live DB on every call, independent of the DB row's own `prevHash`/`hash` columns).
+ */
+export async function verifyChain(sessionId: string): Promise<ChainVerification> {
+  const observations = await prisma.observation.findMany({
+    where: { sessionId },
+    orderBy: { seq: "asc" },
+    select: { seq: true, source: true, channel: true, type: true, ts: true, payload: true, prevHash: true, hash: true },
+  });
+
+  let runningHash = genesis(sessionId);
+  let firstBrokenSeq: number | null = null;
+  let lastSeq = 0;
+
+  for (const obs of observations) {
+    const expectedHash = sha256Hex(
+      obs.prevHash +
+        canonicalJson({ sessionId, seq: obs.seq, source: obs.source, channel: obs.channel, type: obs.type, ts: obs.ts, payload: obs.payload }),
+    );
+    const linkOk = obs.prevHash === runningHash;
+    const contentOk = obs.hash === expectedHash;
+    if (firstBrokenSeq === null && (!linkOk || !contentOk)) {
+      firstBrokenSeq = obs.seq;
+    }
+    runningHash = obs.hash;
+    lastSeq = obs.seq;
+  }
+
+  return { valid: firstBrokenSeq === null, lastSeq, chainHead: runningHash, firstBrokenSeq };
+}
+
+function jsonReplacer(_key: string, value: unknown): unknown {
+  return typeof value === "bigint" ? value.toString() : value;
+}
+
+const EXPORT_BATCH_SIZE = 500;
+
+/** Cursor-paginates a Prisma query in fixed-size batches so the export never holds a whole table in memory. */
+async function* paginate<T>(fetchBatch: (skip: number, take: number) => Promise<T[]>): AsyncGenerator<T> {
+  let skip = 0;
+  for (;;) {
+    const batch = await fetchBatch(skip, EXPORT_BATCH_SIZE);
+    for (const item of batch) yield item;
+    if (batch.length < EXPORT_BATCH_SIZE) return;
+    skip += EXPORT_BATCH_SIZE;
+  }
+}
+
+type EvidenceSource = { record: string; gen: AsyncGenerator<Record<string, unknown>>; tsOf: (value: Record<string, unknown>) => number };
+
+/** K-way merge of the five evidence tables (Architecture.md §6.7 step 7), streamed in chronological order. */
+async function* mergedEvidenceStream(sessionId: string, sessionStartedAt: Date): AsyncGenerator<string> {
+  const sources: EvidenceSource[] = [
+    {
+      record: "observation",
+      gen: paginate((skip, take) => prisma.observation.findMany({ where: { sessionId }, orderBy: { seq: "asc" }, skip, take })),
+      tsOf: (v) => (v.ts as Date).getTime(),
+    },
+    {
+      record: "flag",
+      gen: paginate((skip, take) => prisma.flag.findMany({ where: { sessionId }, orderBy: { startTs: "asc" }, skip, take })),
+      tsOf: (v) => (v.startTs as Date).getTime(),
+    },
+    {
+      record: "transcript",
+      gen: paginate((skip, take) => prisma.transcriptSegment.findMany({ where: { sessionId }, orderBy: { startMs: "asc" }, skip, take })),
+      tsOf: (v) => sessionStartedAt.getTime() + (v.startMs as number),
+    },
+    {
+      record: "note",
+      gen: paginate((skip, take) => prisma.note.findMany({ where: { sessionId }, orderBy: { ts: "asc" }, skip, take })),
+      tsOf: (v) => (v.ts as Date).getTime(),
+    },
+    {
+      record: "execution",
+      gen: paginate((skip, take) => prisma.codeExecution.findMany({ where: { sessionId }, orderBy: { createdAt: "asc" }, skip, take })),
+      tsOf: (v) => (v.createdAt as Date).getTime(),
+    },
+  ];
+
+  const heads = await Promise.all(sources.map((s) => s.gen.next()));
+
+  while (heads.some((h) => !h.done)) {
+    let bestIdx = -1;
+    let bestTs = Number.POSITIVE_INFINITY;
+    for (let i = 0; i < heads.length; i++) {
+      const head = heads[i]!;
+      if (head.done) continue;
+      const ts = sources[i]!.tsOf(head.value);
+      if (ts < bestTs) {
+        bestTs = ts;
+        bestIdx = i;
+      }
+    }
+    const { record } = sources[bestIdx]!;
+    const value = heads[bestIdx]!.value as Record<string, unknown>;
+    yield `${JSON.stringify({ record, ...value }, jsonReplacer)}\n`;
+    heads[bestIdx] = await sources[bestIdx]!.gen.next();
+  }
+}
+
+function evidenceStorageKey(orgId: string, sessionId: string, fileName: string): string {
+  return `orgs/${orgId}/sessions/${sessionId}/evidence/${fileName}`;
+}
+
+/** Streams observations/flags/transcript/notes/executions to a gzipped ndjson file in storage (seal step 7). */
+export async function exportEvidenceLog(orgId: string, sessionId: string): Promise<StoredObject> {
+  const session = await prisma.interviewSession.findUniqueOrThrow({ where: { id: sessionId } });
+  const sessionStartedAt = session.startedAt ?? session.createdAt;
+
+  const source = Readable.from(mergedEvidenceStream(sessionId, sessionStartedAt));
+  const gzip = createGzip();
+  // .pipe() doesn't forward source errors to the destination by default; without this, a failed query
+  // mid-stream would leave the gzip stream (and storage.put's write) hanging instead of rejecting.
+  source.on("error", (err) => gzip.destroy(err));
+  source.pipe(gzip);
+
+  return getStorage().put(evidenceStorageKey(orgId, sessionId, "events.ndjson.gz"), gzip);
+}
+
+/** Builds, signs and persists `manifest.json` + `manifest.sig` + the `EvidenceManifest` row (seal step 8). */
+export async function buildAndSignManifest(orgId: string, sessionId: string, chain: ChainVerification): Promise<void> {
+  const eventsLogKey = evidenceStorageKey(orgId, sessionId, "events.ndjson.gz");
+  const eventsLogBuffer = await getStorage().getBuffer(eventsLogKey);
+  const artifactChecksums = { eventsLog: { sha256: sha256Hex(eventsLogBuffer), sizeBytes: eventsLogBuffer.length } };
+
+  const signer = getSigner();
+  const detectorVersions = { all: DETECTOR_VERSION };
+  const manifestContent = {
+    sessionId,
+    chainHead: chain.chainHead,
+    lastSeq: chain.lastSeq,
+    detectorVersions,
+    weightsVersion: WEIGHTS_VERSION,
+    artifactChecksums,
+    sealedAt: new Date().toISOString(),
+    signingKeyId: signer.keyId,
+    algorithm: "Ed25519",
+  };
+  const manifestBytes = Buffer.from(canonicalJson(manifestContent), "utf8");
+  const signature = signer.sign(manifestBytes);
+
+  const manifestKey = evidenceStorageKey(orgId, sessionId, "manifest.json");
+  const sigKey = evidenceStorageKey(orgId, sessionId, "manifest.sig");
+  await getStorage().put(manifestKey, manifestBytes);
+  await getStorage().put(sigKey, Buffer.from(signature.signatureBase64, "utf8"));
+
+  await prisma.evidenceManifest.upsert({
+    where: { sessionId },
+    create: {
+      sessionId,
+      chainHead: chain.chainHead,
+      lastSeq: chain.lastSeq,
+      eventLogUri: eventsLogKey,
+      manifestUri: manifestKey,
+      signature: signature.signatureBase64,
+      signingKeyId: signer.keyId,
+      detectorVersions,
+      weightsVersion: WEIGHTS_VERSION,
+      artifactChecksums,
+    },
+    update: {
+      chainHead: chain.chainHead,
+      lastSeq: chain.lastSeq,
+      eventLogUri: eventsLogKey,
+      manifestUri: manifestKey,
+      signature: signature.signatureBase64,
+      signingKeyId: signer.keyId,
+      detectorVersions,
+      weightsVersion: WEIGHTS_VERSION,
+      artifactChecksums,
+      sealedAt: new Date(),
+    },
+  });
+}
+
+export type EvidenceVerification = {
+  valid: boolean;
+  chainValid: boolean;
+  signatureValid: boolean;
+  lastSeq: number;
+  chainHead: string;
+  firstBrokenSeq: number | null;
+  verifiedAt: string;
+};
+
+/**
+ * `GET /sessions/:id/evidence/verify` (Design.md §4.11). Chain validity is recomputed straight from the
+ * `Observation` table (never from the exported file) and cross-checked against the `chainHead`/`lastSeq`
+ * the manifest recorded at seal time, so both a tampered row and a row added/removed after sealing are
+ * caught. Signature validity is checked against the actual `manifest.json`/`manifest.sig` bytes in
+ * storage, so an edit to either file after sealing is caught independently of the DB.
+ */
+export async function verifySession(orgId: string, sessionId: string): Promise<EvidenceVerification> {
+  const session = await prisma.interviewSession.findFirst({ where: { id: sessionId, orgId } });
+  if (!session) {
+    throw new AppError("NOT_FOUND", "Session not found.");
+  }
+
+  const manifest = await prisma.evidenceManifest.findUnique({ where: { sessionId } });
+  if (!manifest) {
+    throw new AppError("NOT_FOUND", "This session has not been sealed yet.");
+  }
+
+  const chain = await verifyChain(sessionId);
+  const chainMatchesManifest = chain.chainHead === manifest.chainHead && chain.lastSeq === manifest.lastSeq;
+  const chainValid = chain.valid && chainMatchesManifest;
+  const firstBrokenSeq = chain.firstBrokenSeq ?? (chainMatchesManifest ? null : Math.min(chain.lastSeq, manifest.lastSeq) + 1);
+
+  let signatureValid: boolean;
+  try {
+    const signer = getSigner();
+    const manifestBytes = await getStorage().getBuffer(manifest.manifestUri);
+    const sigKey = manifest.manifestUri.replace(/\.json$/, ".sig");
+    const sigBytes = await getStorage().getBuffer(sigKey);
+    signatureValid = manifest.signingKeyId === signer.keyId && signer.verify(manifestBytes, sigBytes.toString("utf8"));
+  } catch {
+    signatureValid = false;
+  }
+
+  const verifiedAt = new Date();
+  await prisma.evidenceManifest.update({ where: { sessionId }, data: { verifiedAt } });
+
+  return {
+    valid: chainValid && signatureValid,
+    chainValid,
+    signatureValid,
+    lastSeq: chain.lastSeq,
+    chainHead: chain.chainHead,
+    firstBrokenSeq,
+    verifiedAt: verifiedAt.toISOString(),
+  };
 }
