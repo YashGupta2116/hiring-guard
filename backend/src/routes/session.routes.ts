@@ -1,13 +1,18 @@
 import { Router } from "express";
 import {
+  acceptSuggestion,
   addInterviewer,
+  addNote,
   cancelSession,
   createSession,
   endSession,
+  getFlags,
   getLiveSnapshot,
+  getNotes,
   getSession,
   listSessions,
   patchConfig,
+  refreshSuggestions,
   removeInterviewer,
   startSession,
   updateSession,
@@ -16,6 +21,13 @@ import { requireUser } from "../middlewares/auth.js";
 import { requireSessionAccess } from "../middlewares/session-access.js";
 import { validate } from "../middlewares/validate.js";
 import { patchConfigSchema } from "../validators/config.schema.js";
+import {
+  acceptSuggestionSchema,
+  addNoteSchema,
+  listFlagsSchema,
+  listNotesSchema,
+  suggestionsRefreshSchema,
+} from "../validators/live.schema.js";
 import {
   addInterviewerSchema,
   createSessionSchema,
@@ -49,4 +61,19 @@ sessionRouter.delete(
   validate(removeInterviewerSchema),
   requireSessionAccess({ write: true }),
   removeInterviewer,
+);
+sessionRouter.get("/sessions/:id/flags", validate(listFlagsSchema), requireSessionAccess(), getFlags);
+sessionRouter.get("/sessions/:id/notes", validate(listNotesSchema), requireSessionAccess(), getNotes);
+sessionRouter.post("/sessions/:id/notes", validate(addNoteSchema), requireSessionAccess({ write: true }), addNote);
+sessionRouter.post(
+  "/sessions/:id/suggestions/refresh",
+  validate(suggestionsRefreshSchema),
+  requireSessionAccess({ write: true }),
+  refreshSuggestions,
+);
+sessionRouter.post(
+  "/sessions/:id/suggestions/:suggestionId/accept",
+  validate(acceptSuggestionSchema),
+  requireSessionAccess({ write: true }),
+  acceptSuggestion,
 );
