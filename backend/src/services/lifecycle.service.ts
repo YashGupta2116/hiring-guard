@@ -42,6 +42,7 @@ export async function startSession(orgId: string, sessionId: string, actorId: st
     sessionId,
     durationMinutes: session.durationMinutes,
     startedAt,
+    sensitivity: session.sensitivity,
     onEnd: async (reason) => {
       await endSession(orgId, sessionId, reason);
     },

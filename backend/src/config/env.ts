@@ -34,6 +34,7 @@ const envSchema = z.object({
   JWT_REFRESH_TTL_DAYS: z.coerce.number().int().min(1).default(30),
   JOIN_TOKEN_SECRET: z.string().min(32, "JOIN_TOKEN_SECRET must be at least 32 characters"),
   CANDIDATE_TOKEN_SECRET: z.string().min(32, "CANDIDATE_TOKEN_SECRET must be at least 32 characters"),
+  INTERNAL_SERVICE_TOKEN: z.string().min(32, "INTERNAL_SERVICE_TOKEN must be at least 32 characters"),
 
   STORAGE_PROVIDER: z.enum(["local"]).default("local"),
   STORAGE_LOCAL_DIR: z.string().default("./storage"),

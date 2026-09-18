@@ -6,7 +6,7 @@ import { verifyAccessToken, verifyCandidateToken } from "../utils/jwt.js";
 import { logger } from "../utils/logger.js";
 import { prisma } from "../utils/prisma.js";
 import { bindSocketServer, replayFrom } from "./emitter.js";
-import { sessionJoinSchema } from "./events.js";
+import { clockOffsetSchema, clockSyncSchema, sessionJoinSchema, telemetryBatchSchema } from "./events.js";
 
 const PRIVILEGED_ROLES = new Set(["OWNER", "ADMIN", "REVIEWER"]);
 
@@ -89,8 +89,30 @@ export function createSocketServer(httpServer: HttpServer): Server {
 
   candidateNsp.on("connection", (socket) => {
     const sessionId = socket.data.sessionId as string;
+    socket.data.clockOffsetMs = 0;
     void socket.join(`session:${sessionId}`);
     registry.get(sessionId)?.onCandidateConnected();
+
+    // Clock sync/offset and telemetry batches never disconnect the socket on a bad payload
+    // (Rules.md §6) — invalid payloads are just dropped.
+    socket.on("clock.sync", (raw: unknown, ack?: (res: unknown) => void) => {
+      const parsed = clockSyncSchema.safeParse(raw);
+      if (!parsed.success) return;
+      ack?.({ serverReceivedAt: Date.now(), serverSentAt: Date.now() });
+    });
+
+    socket.on("clock.offset", (raw: unknown) => {
+      const parsed = clockOffsetSchema.safeParse(raw);
+      if (!parsed.success) return;
+      socket.data.clockOffsetMs = parsed.data.offsetMs;
+    });
+
+    socket.on("tel.batch", (raw: unknown) => {
+      const parsed = telemetryBatchSchema.safeParse(raw);
+      if (!parsed.success) return;
+      const offsetMs = (socket.data.clockOffsetMs as number | undefined) ?? 0;
+      registry.get(sessionId)?.handleTelemetryBatch(parsed.data.connId, parsed.data.seq, parsed.data.events, offsetMs);
+    });
 
     socket.on("disconnect", () => {
       registry.get(sessionId)?.onCandidateDisconnected();

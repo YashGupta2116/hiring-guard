@@ -30,3 +30,21 @@ export const TIMER_TICK_MS = 1000;
 export const CANDIDATE_TIME_REMAINING_MS = 5000;
 export const CANDIDATE_ABANDON_GRACE_MS = 120_000;
 export const DASHBOARD_FRAME_BUFFER_SIZE = 2000;
+
+// ---- Phase 6: telemetry ingest ----
+
+/** Focus/visibility loss shorter than this is normal tab-switching noise (FR-DET-1). */
+export const FOCUS_IGNORE_MS = 800;
+/** Pointer leaving the window shorter than this is ignored. */
+export const POINTER_LEAVE_IGNORE_MS = 800;
+/** Clipboard paste into any surface at or above this length is "large". */
+export const PASTE_LARGE_CHARS = 40;
+/** Minimum calibration samples before the rhythm detector will compare against the baseline. */
+export const RHYTHM_BASELINE_MIN_SAMPLES = 5;
+/** Two-sample KS statistic above this is treated as a rhythm anomaly. */
+export const RHYTHM_KS_THRESHOLD = 0.5;
+
+/** A producer that hasn't sent a heartbeat within this window is considered degraded. */
+export const PRODUCER_HEARTBEAT_TIMEOUT_MS = 15_000;
+/** How often SessionRuntime checks producer heartbeats for staleness. */
+export const PRODUCER_HEALTH_CHECK_MS = 5000;

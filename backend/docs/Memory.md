@@ -8,10 +8,11 @@
 
 ## Current status
 
-- **Current phase:** Phase 5 — Realtime hub and lifecycle (✅ done). User asked to proceed through all
-  remaining phases without stopping for "next" each time — continuing straight through.
-- **Last updated:** 2026-09-17
-- **Next step:** Phase 6 — Telemetry ingest, evidence chain, detectors.
+- **Current phase:** Phase 6 — Telemetry ingest, evidence chain, detectors (✅ done). Per the user, this
+  session stops after each phase and waits for "next" — the earlier "proceed through all phases
+  continuously" instruction from a prior session does not apply here.
+- **Last updated:** 2026-09-18
+- **Next step:** Phase 7 — Fusion, flags, warden, dashboard loop. Wait for "next".
 
 ## Phase tracker
 
@@ -23,9 +24,7 @@
 | 3 Task & question bank | ✅ | build + 49 tests pass; coding-task CRUD (hiddenTests hidden from list/non-admin), question-bank CRUD, prisma/seed.ts |
 | 4 Arming & join | ✅ | build + 59 tests pass; join links (CONFIGURED→ARMED, BullMQ expiry→EXPIRED), join/preflight/policy/consent (ARMED→ADMITTED or ABORTED candidate_declined), candidate token + `/candidate/session`, `/candidate/media-ready` — verified live end-to-end |
 | 5 Realtime & lifecycle | ✅ | build + 72 tests pass; Socket.IO `/interviewer` + `/candidate` namespaces, frame-buffered dashboard emitter with replay, events:{sid} Redis subscriber, SessionRuntime (lease, 1s timer, candidate presence/abandon grace), start/end/live endpoints (ADMITTED→LIVE→SEALING→PROCESSING, seal stubbed) |
-| 6 Telemetry & detectors | ⬜ | |
-| 5 Realtime & lifecycle | ⬜ | |
-| 6 Telemetry & detectors | ⬜ | |
+| 6 Telemetry & detectors | ✅ | build + 104 tests pass; ingest (clock correction, seq/dedup/gap→unscored), 5 pure detectors + calibration baseline, evidence hash chain, internal API (observations/transcript/heartbeat), producer-health→system.degraded |
 | 7 Fusion, flags, warden | ⬜ | |
 | 8 Coding round | ⬜ | |
 | 9 Seal & evidence | ⬜ | |
@@ -46,33 +45,41 @@ backend/
 │   └── init-test-db.sql          creates veritrust_test in docker postgres
 ├── tests/
 │   ├── setup.ts
-│   ├── integration/app.test.ts, auth.test.ts, session.test.ts   health/404/JSON/helmet, auth flows,
-│   │   session CRUD + access control + state machine + config + JD upload/parse (worker called directly,
-│   │   not via a running BullMQ worker — see jd-parse test)
-│   └── unit/                     error handler + validate, hash utils, providers
+│   ├── integration/app, auth, session, coding-task, join, lifecycle, session-runtime, telemetry .test.ts
+│   │   (telemetry.test.ts is Phase 6: candidate tel.batch → chained observations, dup seq/gap handling,
+│   │   internal API observations/transcript/heartbeat, producer DEGRADED → system.degraded → recovery)
+│   └── unit/                     error handler + validate, hash utils, providers, timer, detectors,
+│       calibration, producer-health
 ├── src/
 │   ├── index.ts                  http server, graceful shutdown, fatal handlers
 │   ├── worker.ts                 BullMQ worker bootstrap (jd-parse); run with `npm run worker`
 │   ├── app.ts                    requestId → pino-http → helmet → cors → json → cookies → /api/v1 (apiLimiter) → 404 → errorHandler
 │   ├── config/env.ts             zod env; ONLY place that reads process.env
-│   ├── config/constants.ts       JD upload caps, pagination defaults (detection.ts tunables come in Phase 6)
+│   ├── config/constants.ts       JD upload caps, pagination defaults, Phase 6 telemetry/producer timings
+│   ├── config/detection.ts       SERVER-ONLY: LLR_TABLE (type×sensitivity), CHANNEL_WEIGHTS,
+│   │   CHANNEL_DECAY_SECONDS, CHANNEL_THRESHOLDS, FUSION_SIGMA, corroboration/merge tunables — never
+│   │   sent to clients; only `getLlr()` is used before Phase 7's fusion engine exists
 │   ├── controllers/health, auth, org, candidate-directory, session, jd, coding-task, question-bank,
-│   │   link, join, candidate .controller.ts
+│   │   link, join, candidate, internal .controller.ts
 │   ├── routes/index.ts (mounts all routers), auth/org/candidate-directory/session/jd/coding-task/
-│   │   question-bank/link/join/candidate .routes.ts (each router's own middleware is mounted with an
+│   │   question-bank/link/join/candidate/internal .routes.ts (each router's own middleware is mounted with an
 │   │   explicit path prefix, e.g. `router.use("/auth", authLimiter)` — NEVER `router.use(mw)` with no
 │   │   path, since a sub-router mounted at apiRouter's root ("/") would otherwise apply that middleware
 │   │   to every request)
 │   ├── services/health, auth, org, candidate-directory, audit, session, session-state, config, jd,
-│   │   coding-task, question-bank, link, join, media, candidate .service.ts (session-state.service.ts
-│   │   `transition()` is the ONLY place InterviewSession.status changes: CAS via updateMany + audit log
-│   │   in one transaction, then publishes events:{sid} "session.state")
+│   │   coding-task, question-bank, link, join, media, candidate, evidence, internal .service.ts
+│   │   (session-state.service.ts `transition()` is the ONLY place InterviewSession.status changes: CAS
+│   │   via updateMany + audit log in one transaction, then publishes events:{sid} "session.state";
+│   │   evidence.service.ts `appendObservations()` is the ONLY place that assigns seq/prevHash/hash;
+│   │   internal.service.ts is the CV/ASR/producer side of the Phase 6 internal API)
 │   ├── middlewares/request-id, validate (+ getInput), not-found, error-handler, rate-limit, auth
 │   │   (requireUser), org-role (requireRole), session-access (requireSessionAccess — org membership +
 │   │   bound-interviewer-or-privileged-role check, sets req.sessionRecord), upload (jdUpload, multer
 │   │   memory), join-token (requireJoinToken — signature + live DB state: revoked/consumed/expired
 │   │   checked fresh on every call, no exp claim on the JWT itself), candidate-token
-│   │   (requireCandidateToken — JWT has exp = duration + 2h, loads Consent by id)
+│   │   (requireCandidateToken — JWT has exp = duration + 2h, loads Consent by id), service-token
+│   │   (requireServiceToken — constant-time compare of INTERNAL_SERVICE_TOKEN, hashed first so unequal
+│   │   lengths don't short-circuit `timingSafeEqual`)
 │   ├── providers/index.ts        getStorage/getMail/getLlm/getMedia/getSandbox/getSigner (lazy singletons)
 │   │   storage(local) mail(smtp|log) llm(mock) media(mock) sandbox(mock) signer(ed25519)
 │   ├── workers/jd-parse.worker.ts  extracts text (pdf-parse v2 `new PDFParse({data}).getText()`, or
@@ -88,13 +95,28 @@ backend/
 │   │   replayFrom(sid, afterSeq)
 │   ├── sockets/event-subscriber.ts  psubscribe("events:*") → forwards worker-published events
 │   │   (utils/events.ts publishSessionEvent, e.g. jd.parsed) to emitToInterviewers
-│   ├── sockets/events.ts         INTERVIEWER_EVENTS / CANDIDATE_EVENTS name constants + session.join zod
+│   ├── sockets/events.ts         INTERVIEWER_EVENTS (+ SYSTEM_DEGRADED, TRANSCRIPT_PARTIAL/FINAL) /
+│   │   CANDIDATE_EVENTS name constants + session.join, clockSync, clockOffset, telemetryBatch zod schemas
 │   ├── live/session-runtime.ts   one per LIVE session: Redis fusion lease (SET NX/renew), 1s timer.tick,
-│   │   candidate presence + 120s abandon-grace timer → onEnd("candidate_abandon"), duration-limit timer
-│   │   → onEnd("duration_limit"). Detector/fusion ticks land in Phase 6-7
+│   │   candidate presence + 120s abandon-grace timer, duration-limit timer, AND (Phase 6) the single
+│   │   serialized writer for telemetry: `handleTelemetryBatch()` (candidate socket) and
+│   │   `appendExternalObservations()` (internal API) both go through one `writeQueue` promise chain so
+│   │   seq/hash assignment never races; `recordProducerHeartbeat()` drives producer-health checks;
+│   │   `flush()` lets a caller await everything queued so far (internal API awaits it before responding,
+│   │   tests use it instead of polling). Fusion/flags/warden ticks land in Phase 7
 │   ├── live/registry.ts          sid -> SessionRuntime in-memory map
 │   ├── live/timer.ts             computeTimerState(startedAt, durationMinutes, now) — pure, unit-tested;
 │   │   per-topic budget burn deferred to Phase 7 (no live topic tracking yet)
+│   ├── live/ingest.ts            TelemetryIngest — per-connection clock correction (offset passed in per
+│   │   call, since Design.md's `clock.offset` has no connId of its own) + Redis-backed seq dedup/gap
+│   │   detection (`s:{sid}:conn:{connId}:seq`, FR-TEL-1/2)
+│   ├── live/calibration.ts       Baseline — collects rhythm (keystroke variance) samples during the
+│   │   first 60s; RhythmDetector reads it once ready
+│   ├── live/detectors/           focus, paste, pointer, env, rhythm .detector.ts — pure classes, no I/O
+│   │   (Rules.md §5); ks-test.ts (two-sample KS statistic); types.ts (TelemetryEvent, DetectorObservation)
+│   ├── live/producer-health.ts   ProducerHealthMonitor — pure OK/DEGRADED/stale-heartbeat state machine;
+│   │   SessionRuntime does the I/O (system.degraded emit, unscored windows) from its transitions
+│   ├── live/unscored.ts          recordUnscoredWindow / closeOpenUnscoredWindows (UnscoredWindow rows)
 │   ├── services/lifecycle.service.ts  startSession (guards: ADMITTED, !needsReconsent, Redis
 │   │   mediaReady==="1"; creates+starts SessionRuntime, ADMITTED→LIVE), endSession (idempotent once past
 │   │   LIVE; destroys runtime; LIVE→SEALING→PROCESSING — seal is a stub until Phase 9), getLiveSnapshot
@@ -160,6 +182,10 @@ Removed: `bcryptjs`, `jsonwebtoken` (Rules: use `argon2`, `jose`).
 | 2026-09-17 | `express@5.2`'s `app.set("trust proxy", 1)` plus `req.ip` is used for the consent IP hash; sockets run on the same `http.Server` as Express (`createSocketServer(server)`), not a separate port | Matches Architecture.md's single-process design; no separate realtime service to deploy |
 | 2026-09-17 | `endSession` is idempotent for any status past LIVE (SEALING/PROCESSING/COMPLETE/ABORTED/EXPIRED) — returns the current session instead of throwing | A duration-limit timer and an interviewer's own `POST /end` could race; the second caller should see success, not `INVALID_STATE_TRANSITION` |
 | 2026-09-17 | Seal (`LIVE→SEALING→PROCESSING`) is a stub in `lifecycle.service.endSession`: both transitions fire back-to-back with no real seal sequence | Phases.md Phase 5 says exactly this ("seal is a stub in this phase that goes straight to PROCESSING"); the real 9-step seal lands in Phase 9 |
+| 2026-09-18 | `clock.offset`'s per-connection value (Design.md §5.4 has no `connId` on that event) is stored on the socket itself (`socket.data.clockOffsetMs`) and passed into `SessionRuntime.handleTelemetryBatch()` per call, rather than `TelemetryIngest` tracking it by the client's `connId` | Only `tel.batch` carries an explicit `connId` (so seq/dedup can survive a reconnect that keeps the same logical connection); `clock.offset` doesn't, so it's naturally a property of the current socket, not the durable connId |
+| 2026-09-18 | A telemetry sequence gap opens one `UnscoredWindow` (reason `SEQUENCE_GAP`) per client-observable channel (FOCUS/PASTE/RHYTHM/POINTER/ENVIRONMENT), immediately closed at the same instant, rather than tracking which specific channel(s) the missed batch would have covered | `UnscoredWindow.channel` is required and a gap is connection-level, not channel-level — the client doesn't say what was in the skipped batch. Point-in-time markers are enough for Phase 6's "never evidence of evasion" requirement (FR-TEL-2); revisit if Phase 7's fusion engine needs a duration instead of a marker |
+| 2026-09-18 | Internal API responses (`/internal/sessions/:id/*`) `await runtime.flush()` before returning 202, so the write has actually landed by the time the producer gets a response, but a write failure is only logged (via the write queue's `.catch`), not turned into a 500 for the caller | Matches the existing "mock providers never throw" / JD-worker-is-best-effort pattern rather than adding a second error-propagation path through the serialized write queue; revisit if a real CV/ASR producer needs a hard failure signal to retry |
+| 2026-09-18 | Media-track grace (camera 15s / screen 10s loss → clock freeze + unscored) and the "visible while screen muted" impossible-state check from Phases.md Phase 6 are **not implemented** | Both need server-side truth about media tracks, which only exists via a LiveKit webhook (`webhooks/livekit`, Architecture.md §8) that hasn't been built in any phase yet — the media provider is still the mock, and no webhook route exists. Candidate telemetry alone can't report screen-mute state. Revisit when LiveKit/webhook infrastructure is actually added (Phase 9 seal work is the next place that touches recording/media) |
 
 ---
 
@@ -196,12 +222,26 @@ Removed: `bcryptjs`, `jsonwebtoken` (Rules: use `argon2`, `jose`).
   only `{elapsedMs, remainingMs, frozen: false}`. There's no live topic-tracking mechanism until the
   suggestion engine (Phase 7) exists. `frozen` is hardcoded `false` since clock-freeze (media grace) isn't
   wired up until Phase 6.
-- `integrity.tick`, `flag.new/update`, `warn.issued`, `transcript.partial/final`, `qs.suggestions`,
-  `note.added`, `system.degraded`, `media.state` from Design.md §5.2 don't exist yet — those are Phase
-  6-8. `INTERVIEWER_EVENTS`/`CANDIDATE_EVENTS` in `sockets/events.ts` only list what's implemented so far;
-  add to those objects (not ad-hoc string literals) as each phase wires up its event.
-- Candidate-side `warn.show`, `task.frozen`, `media.required` aren't implemented (Phase 6-8). Only
+- `integrity.tick`, `flag.new/update`, `warn.issued`, `qs.suggestions`, `note.added`, `media.state` from
+  Design.md §5.2 don't exist yet — those are Phase 7-8. `system.degraded` and `transcript.partial/final`
+  now exist (Phase 6). `INTERVIEWER_EVENTS`/`CANDIDATE_EVENTS` in `sockets/events.ts` only list what's
+  implemented so far; add to those objects (not ad-hoc string literals) as each phase wires up its event.
+- Candidate-side `warn.show`, `task.frozen`, `media.required` aren't implemented (Phase 7-8). Only
   `session.state` (mapped WAITING/LIVE/ENDED) and `session.ended` exist on `/candidate` today.
+- `timer.tick`'s `frozen` field is still hardcoded `false` — media-grace clock freeze isn't implemented
+  (see the Phase 6 decision above on why: no LiveKit webhook exists yet).
+- Phase 6 known gaps (Phases.md lists these; not built — see Decisions log for why): media-track grace
+  (camera/screen loss → clock freeze + unscored) and the impossible-state (`data_integrity`) audit check.
+  Both need a media webhook that doesn't exist in this codebase yet.
+- `raf_gap` telemetry events are accepted and validated but not routed to any detector — no `type` in
+  `config/detection.ts` maps to it. It's schema-valid so it won't be dropped as invalid, it just produces
+  no observation. Revisit if a "rendering stall" signal becomes part of a channel's evidence.
+- `EnvDetector`'s `device_change` observation always uses a flat `strength: 0.5` (no natural intensity
+  scale for a single boolean add/remove event, unlike focus duration or pointer duration). Revisit if a
+  richer signal (e.g. how many devices, how often) becomes available.
+- The rhythm baseline (`live/calibration.ts` `Baseline`) is only fed during the first 60s and then frozen
+  for the rest of the session — it does not slowly adapt afterward. Matches Architecture.md §6.4 step 8
+  literally ("baselines during first 60s"); revisit if long sessions need drift correction.
 - `session-runtime.test.ts` uses `vi.useFakeTimers()` + `vi.advanceTimersByTimeAsync()` around real Redis
   I/O (lease set/renew) — this works because fake timers only intercept JS timer functions, not network
   I/O, but keep that in mind if a future test needs to fake `Date.now()` too (would need `shouldAdvanceTime`
@@ -225,6 +265,49 @@ Removed: `bcryptjs`, `jsonwebtoken` (Rules: use `argon2`, `jose`).
 ```
 
 ## Task history
+
+### 2026-09-18 — Phase 6 telemetry ingest, evidence chain, detectors
+- Phase: 6
+- Built: `config/detection.ts` (server-only LLR table by type×sensitivity, channel weights/decay/
+  thresholds, fusion sigma, corroboration/merge tunables — only `getLlr()` is consumed before Phase 7);
+  5 pure detectors under `live/detectors/` (focus — ignores blur/hidden under 800ms; paste — clipboard
+  paste ≥40 chars; pointer — leave ≥800ms; env — multi-screen/device-change/network; rhythm — two-sample
+  KS test of keystroke-interval variance vs the calibration baseline) + `ks-test.ts`; `live/calibration.ts`
+  `Baseline` (collects rhythm samples for the first 60s); `live/ingest.ts` `TelemetryIngest` (Redis-backed
+  per-connection seq dedup/gap detection, clock-offset correction); `services/evidence.service.ts`
+  `appendObservations()` (assigns seq/prevHash/hash per Architecture.md §7.4, batch-inserts, updates the
+  Redis chain head); `live/unscored.ts` (open/close `UnscoredWindow` rows); `live/producer-health.ts`
+  `ProducerHealthMonitor` (pure OK/DEGRADED/stale state machine); `SessionRuntime` extended to own all of
+  the above behind one serialized `writeQueue` (`handleTelemetryBatch`, `appendExternalObservations`,
+  `recordProducerHeartbeat`, `flush`); candidate socket gained `clock.sync`/`clock.offset`/`tel.batch`
+  handlers; internal API `POST /api/v1/internal/sessions/:id/{observations,transcript,heartbeat}`
+  (service-token authed) with `middlewares/service-token.ts`, `validators/internal.schema.ts`,
+  `services/internal.service.ts`, `controllers/internal.controller.ts`, `routes/internal.routes.ts`;
+  transcript ingest marks overlapping non-final segments `supersededAt` when a final segment lands, and
+  emits `transcript.partial`/`transcript.final`; producer DEGRADED (self-reported or stale heartbeat)
+  emits `system.degraded` and opens `DETECTOR_DOWN` unscored windows per channel, closed on recovery
+- Files: `src/config/detection.ts`, `src/live/{ingest,calibration,producer-health,unscored}.ts`,
+  `src/live/detectors/{types,ks-test,focus,paste,pointer,env,rhythm}.detector.ts` (detector files) and
+  `ks-test.ts`/`types.ts`, `src/services/{evidence,internal}.service.ts`,
+  `src/controllers/internal.controller.ts`, `src/routes/internal.routes.ts`,
+  `src/validators/internal.schema.ts`, `src/middlewares/service-token.ts`, edits to
+  `src/live/session-runtime.ts`, `src/sockets/{index,events}.ts`, `src/services/lifecycle.service.ts`,
+  `src/routes/index.ts`, `src/config/{env,constants}.ts`
+- Schema/migrations: none (Observation/UnscoredWindow/TranscriptSegment already existed from the initial schema)
+- New env vars: `INTERNAL_SERVICE_TOKEN` (required, ≥32 chars) — added to `.env`, `.env.example`,
+  `.env.test`, `.env.test.example`, `tests/setup.ts`
+- Tests: 104 passing total (32 new: `tests/unit/{detectors,calibration,producer-health}.test.ts`,
+  `tests/integration/telemetry.test.ts` — chained observations with a verified recomputed hash, LLR
+  assignment, duplicate-seq dedup, sequence-gap → 5 unscored windows, internal API auth rejection,
+  CV observations continuing the same chain, rejection when the session isn't LIVE, transcript
+  partial→final superseding, producer DEGRADED→system.degraded→unscored→recovery). `npm run typecheck`,
+  `npm run build` clean; `npm run dev` smoke-tested boot + `/ready` against real Postgres/Redis
+- Decisions: see Decisions log (clock-offset on socket not connId, gap → 5-channel point-in-time unscored
+  markers, internal API awaits the write queue before responding but doesn't propagate write failures,
+  media-track grace and the impossible-state check deferred — no LiveKit webhook exists in this codebase)
+- Issues left: see Known issues (raf_gap unrouted, device_change flat strength, baseline frozen after
+  calibration, media grace / impossible-state check deferred)
+- Next: Phase 7 — Fusion, flags, warden, dashboard loop. Wait for "next".
 
 ### 2026-09-17 — Phase 5 realtime hub and lifecycle
 - Phase: 5

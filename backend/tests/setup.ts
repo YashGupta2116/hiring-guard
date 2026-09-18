@@ -8,3 +8,4 @@ process.env.JOIN_TOKEN_SECRET ??= "test-join-secret-test-join-secret-test-join-s
 process.env.CANDIDATE_TOKEN_SECRET ??= "test-candidate-secret-test-candidate-secret";
 process.env.MAIL_PROVIDER ??= "log";
 process.env.STORAGE_LOCAL_DIR ??= "./.test-storage";
+process.env.INTERNAL_SERVICE_TOKEN ??= "test-internal-token-test-internal-token";
