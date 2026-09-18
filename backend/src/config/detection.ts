@@ -88,3 +88,7 @@ export const CORROBORATION_MAX_MULTIPLIER = 2.35;
 export const CORROBORATION_STEP = 0.45;
 
 export const FLAG_MERGE_WINDOW_MS = 15_000;
+
+/** Severity band = how far the accumulator sits above its channel's crossing threshold. */
+export const SEVERITY_BAND_MEDIUM_MULTIPLIER = 1.5;
+export const SEVERITY_BAND_HIGH_MULTIPLIER = 2.5;

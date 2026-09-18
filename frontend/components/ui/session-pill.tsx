@@ -64,6 +64,12 @@ export function SessionPill({
       customStyle = "border-border bg-card text-foreground";
       break;
 
+    case "SCHEDULED":
+      label = "Scheduled";
+      dot = <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />;
+      customStyle = "border-amber-500/30 bg-amber-100/70 dark:bg-amber-950/30 text-amber-800 dark:text-amber-300 font-semibold";
+      break;
+
     case "LIVE":
       label = "Live";
       dot = <span className="h-1.5 w-1.5 rounded-full bg-sage-500 animate-pulse" />;
@@ -90,7 +96,7 @@ export function SessionPill({
 
     case "COMPLETE":
     case "COMPLETED":
-      label = "Complete";
+      label = norm === "COMPLETED" ? "Completed" : "Complete";
       dot = <span className="h-1.5 w-1.5 rounded-full bg-sage-500" />;
       customStyle = "border-border bg-card text-foreground";
       break;

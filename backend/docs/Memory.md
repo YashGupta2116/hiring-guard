@@ -8,11 +8,10 @@
 
 ## Current status
 
-- **Current phase:** Phase 6 — Telemetry ingest, evidence chain, detectors (✅ done). Per the user, this
-  session stops after each phase and waits for "next" — the earlier "proceed through all phases
-  continuously" instruction from a prior session does not apply here.
+- **Current phase:** Phase 7 — Fusion, flags, warden, dashboard loop (✅ done). Session stops after each
+  phase and waits for "next".
 - **Last updated:** 2026-09-18
-- **Next step:** Phase 7 — Fusion, flags, warden, dashboard loop. Wait for "next".
+- **Next step:** Phase 8 — Coding round. Wait for "next".
 
 ## Phase tracker
 
@@ -25,7 +24,7 @@
 | 4 Arming & join | ✅ | build + 59 tests pass; join links (CONFIGURED→ARMED, BullMQ expiry→EXPIRED), join/preflight/policy/consent (ARMED→ADMITTED or ABORTED candidate_declined), candidate token + `/candidate/session`, `/candidate/media-ready` — verified live end-to-end |
 | 5 Realtime & lifecycle | ✅ | build + 72 tests pass; Socket.IO `/interviewer` + `/candidate` namespaces, frame-buffered dashboard emitter with replay, events:{sid} Redis subscriber, SessionRuntime (lease, 1s timer, candidate presence/abandon grace), start/end/live endpoints (ADMITTED→LIVE→SEALING→PROCESSING, seal stubbed) |
 | 6 Telemetry & detectors | ✅ | build + 104 tests pass; ingest (clock correction, seq/dedup/gap→unscored), 5 pure detectors + calibration baseline, evidence hash chain, internal API (observations/transcript/heartbeat), producer-health→system.degraded |
-| 7 Fusion, flags, warden | ⬜ | |
+| 7 Fusion, flags, warden | ✅ | build + 139 tests pass; fusion.engine (decay/corroboration/floor/score, pure), flag-builder (threshold crossing + 15s merge), warden (tier/cooldown/cap, fixed templates), integrity.tick 2s + snapshots 10s, GET flags + POST adjudicate, notes (REST + socket), suggestions (manual refresh + accept), candidate-boundary socket test |
 | 8 Coding round | ⬜ | |
 | 9 Seal & evidence | ⬜ | |
 | 10 Pipeline & report | ⬜ | |
@@ -45,11 +44,16 @@ backend/
 │   └── init-test-db.sql          creates veritrust_test in docker postgres
 ├── tests/
 │   ├── setup.ts
-│   ├── integration/app, auth, session, coding-task, join, lifecycle, session-runtime, telemetry .test.ts
-│   │   (telemetry.test.ts is Phase 6: candidate tel.batch → chained observations, dup seq/gap handling,
-│   │   internal API observations/transcript/heartbeat, producer DEGRADED → system.degraded → recovery)
+│   ├── integration/app, auth, session, coding-task, join, lifecycle, session-runtime, telemetry, live
+│   │   .test.ts (telemetry.test.ts is Phase 6: candidate tel.batch → chained observations, dup seq/gap
+│   │   handling, internal API observations/transcript/heartbeat, producer DEGRADED → system.degraded →
+│   │   recovery; live.test.ts is Phase 7: calibration gates flag creation, threshold crossing → flag →
+│   │   15s merge, warden tier progression/cooldown/cap/no-template-no-warning, warn.ack latency,
+│   │   adjudicate confirm/dismiss/downgrade incl. cross-org 404 and live score recovery on dismiss, notes
+│   │   REST + socket, suggestions refresh + accept, candidate-boundary scan of every `/candidate` emit
+│   │   across a scripted session with a real warning)
 │   └── unit/                     error handler + validate, hash utils, providers, timer, detectors,
-│       calibration, producer-health
+│       calibration, producer-health, fusion-engine
 ├── src/
 │   ├── index.ts                  http server, graceful shutdown, fatal handlers
 │   ├── worker.ts                 BullMQ worker bootstrap (jd-parse); run with `npm run worker`
@@ -57,21 +61,24 @@ backend/
 │   ├── config/env.ts             zod env; ONLY place that reads process.env
 │   ├── config/constants.ts       JD upload caps, pagination defaults, Phase 6 telemetry/producer timings
 │   ├── config/detection.ts       SERVER-ONLY: LLR_TABLE (type×sensitivity), CHANNEL_WEIGHTS,
-│   │   CHANNEL_DECAY_SECONDS, CHANNEL_THRESHOLDS, FUSION_SIGMA, corroboration/merge tunables — never
-│   │   sent to clients; only `getLlr()` is used before Phase 7's fusion engine exists
+│   │   CHANNEL_DECAY_SECONDS, CHANNEL_THRESHOLDS, FUSION_SIGMA, SEVERITY_BAND_*_MULTIPLIER,
+│   │   corroboration/merge tunables — never sent to clients
 │   ├── controllers/health, auth, org, candidate-directory, session, jd, coding-task, question-bank,
-│   │   link, join, candidate, internal .controller.ts
+│   │   link, join, candidate, internal, flag .controller.ts
 │   ├── routes/index.ts (mounts all routers), auth/org/candidate-directory/session/jd/coding-task/
-│   │   question-bank/link/join/candidate/internal .routes.ts (each router's own middleware is mounted with an
-│   │   explicit path prefix, e.g. `router.use("/auth", authLimiter)` — NEVER `router.use(mw)` with no
-│   │   path, since a sub-router mounted at apiRouter's root ("/") would otherwise apply that middleware
-│   │   to every request)
+│   │   question-bank/link/join/candidate/internal/flag .routes.ts (each router's own middleware is
+│   │   mounted with an explicit path prefix, e.g. `router.use("/auth", authLimiter)` — NEVER
+│   │   `router.use(mw)` with no path, since a sub-router mounted at apiRouter's root ("/") would
+│   │   otherwise apply that middleware to every request)
 │   ├── services/health, auth, org, candidate-directory, audit, session, session-state, config, jd,
-│   │   coding-task, question-bank, link, join, media, candidate, evidence, internal .service.ts
-│   │   (session-state.service.ts `transition()` is the ONLY place InterviewSession.status changes: CAS
-│   │   via updateMany + audit log in one transaction, then publishes events:{sid} "session.state";
-│   │   evidence.service.ts `appendObservations()` is the ONLY place that assigns seq/prevHash/hash;
-│   │   internal.service.ts is the CV/ASR/producer side of the Phase 6 internal API)
+│   │   coding-task, question-bank, link, join, media, candidate, evidence, internal, flag, note,
+│   │   suggestion .service.ts (session-state.service.ts `transition()` is the ONLY place
+│   │   InterviewSession.status changes: CAS via updateMany + audit log in one transaction, then
+│   │   publishes events:{sid} "session.state"; evidence.service.ts `appendObservations()` is the ONLY
+│   │   place that assigns seq/prevHash/hash; internal.service.ts is the CV/ASR/producer side of the
+│   │   Phase 6 internal API; flag.service.ts does the org/role check itself for `/flags/:flagId/*`
+│   │   instead of a dedicated middleware, since the URL has no session id to key off; suggestion.service.ts
+│   │   only wires the manual `POST .../suggestions/refresh` trigger, see Known issues)
 │   ├── middlewares/request-id, validate (+ getInput), not-found, error-handler, rate-limit, auth
 │   │   (requireUser), org-role (requireRole), session-access (requireSessionAccess — org membership +
 │   │   bound-interviewer-or-privileged-role check, sets req.sessionRecord), upload (jdUpload, multer
@@ -95,18 +102,26 @@ backend/
 │   │   replayFrom(sid, afterSeq)
 │   ├── sockets/event-subscriber.ts  psubscribe("events:*") → forwards worker-published events
 │   │   (utils/events.ts publishSessionEvent, e.g. jd.parsed) to emitToInterviewers
-│   ├── sockets/events.ts         INTERVIEWER_EVENTS (+ SYSTEM_DEGRADED, TRANSCRIPT_PARTIAL/FINAL) /
-│   │   CANDIDATE_EVENTS name constants + session.join, clockSync, clockOffset, telemetryBatch zod schemas
+│   ├── sockets/events.ts         INTERVIEWER_EVENTS (+ SYSTEM_DEGRADED, TRANSCRIPT_PARTIAL/FINAL,
+│   │   INTEGRITY_TICK, FLAG_NEW, FLAG_UPDATE, WARN_ISSUED, NOTE_ADDED, QS_SUGGESTIONS) / CANDIDATE_EVENTS
+│   │   (+ WARN_SHOW) name constants + session.join, clockSync, clockOffset, telemetryBatch, warnAck,
+│   │   noteAdd zod schemas
 │   ├── live/session-runtime.ts   one per LIVE session: Redis fusion lease (SET NX/renew), 1s timer.tick,
-│   │   candidate presence + 120s abandon-grace timer, duration-limit timer, AND (Phase 6) the single
-│   │   serialized writer for telemetry: `handleTelemetryBatch()` (candidate socket) and
-│   │   `appendExternalObservations()` (internal API) both go through one `writeQueue` promise chain so
-│   │   seq/hash assignment never races; `recordProducerHeartbeat()` drives producer-health checks;
-│   │   `flush()` lets a caller await everything queued so far (internal API awaits it before responding,
-│   │   tests use it instead of polling). Fusion/flags/warden ticks land in Phase 7
+│   │   candidate presence + 120s abandon-grace timer, duration-limit timer, the single serialized writer
+│   │   for telemetry (`handleTelemetryBatch()`, `appendExternalObservations()` both via one `writeQueue`
+│   │   promise chain so seq/hash/fusion assignment never races — `flush()` lets a caller await everything
+│   │   queued so far), `recordProducerHeartbeat()` drives producer-health checks, AND (Phase 7) owns the
+│   │   in-memory `FusionState` (NOT Redis-checkpointed — no mid-LIVE process resume exists at all yet, so
+│   │   this matches the existing gap rather than adding partial recovery for just one piece of state):
+│   │   every appended observation is fed through `fusion.engine.applyObservation` inline (no separate
+│   │   200ms tick — see Decisions log), non-calibrating crossings go to `flag-builder.processFlagCrossing`
+│   │   then `warden.evaluateWarden`; `snapshotIntegrity()` (decay-to-now, no I/O) backs both the 2s
+│   │   `integrity.tick` and the 10s persisted `IntegritySnapshot` row, and lets `flag.service` verify a
+│   │   dismiss actually raised the live score; `applyAdjudication()` nudges one channel's accumulator
+│   │   for CONFIRM/DISMISS/DOWNGRADE (approximate — Phase 10 IntegrityRescore is the authoritative one)
 │   ├── live/registry.ts          sid -> SessionRuntime in-memory map
 │   ├── live/timer.ts             computeTimerState(startedAt, durationMinutes, now) — pure, unit-tested;
-│   │   per-topic budget burn deferred to Phase 7 (no live topic tracking yet)
+│   │   per-topic budget burn still deferred (no live topic tracking yet)
 │   ├── live/ingest.ts            TelemetryIngest — per-connection clock correction (offset passed in per
 │   │   call, since Design.md's `clock.offset` has no connId of its own) + Redis-backed seq dedup/gap
 │   │   detection (`s:{sid}:conn:{connId}:seq`, FR-TEL-1/2)
@@ -115,12 +130,35 @@ backend/
 │   ├── live/detectors/           focus, paste, pointer, env, rhythm .detector.ts — pure classes, no I/O
 │   │   (Rules.md §5); ks-test.ts (two-sample KS statistic); types.ts (TelemetryEvent, DetectorObservation)
 │   ├── live/producer-health.ts   ProducerHealthMonitor — pure OK/DEGRADED/stale-heartbeat state machine;
-│   │   SessionRuntime does the I/O (system.degraded emit, unscored windows) from its transitions
-│   ├── live/unscored.ts          recordUnscoredWindow / closeOpenUnscoredWindows (UnscoredWindow rows)
+│   │   SessionRuntime does the I/O (system.degraded emit, unscored windows, channel freeze) from its
+│   │   transitions
+│   ├── live/fusion/fusion.engine.ts  pure: `applyObservation` (decay + corroboration boost + floor),
+│   │   `projectState`/`computeScoreFromAccumulators` (decay-to-now for display without mutating state),
+│   │   `computeIntegrity`, `severityBand`, `crossedThreshold`, `computeIntegrityDelta` (integrity
+│   │   before/after one observation, holding every other channel fixed — gives `Flag.scoreDelta`)
+│   ├── live/fusion/flag-builder.ts  `processFlagCrossing()` — merges a same-`type` repeat into any open
+│   │   flag from the last 15s regardless of re-crossing; otherwise only creates a new Flag on an actual
+│   │   upward threshold crossing; interviewer-only narrative templates (never candidate-facing wording)
+│   ├── live/fusion/unscored.ts   recordUnscoredWindow / closeOpenUnscoredWindows (UnscoredWindow rows,
+│   │   moved here from `live/unscored.ts` in Phase 7 to match Architecture.md's tree) +
+│   │   `FrozenChannelTracker` (pure in-memory: a channel can be frozen for >1 reason at once; stays
+│   │   frozen — no decay, no new evidence, 0 score contribution — until every reason clears)
+│   ├── live/warden.ts            `evaluateWarden()` — tier by occurrence count + severity, 45s per-type
+│   │   cooldown, cap 6 above-tier-1 warnings then downgrade to NOTICE, fixed candidate-facing templates
+│   │   (only for the 7 types Design.md §6 actually gives wording for — a type with none just never shows
+│   │   a warning, the flag still exists); `acknowledgeWarning()` — `warn.ack` → ackLatencyMs → flag.update
 │   ├── services/lifecycle.service.ts  startSession (guards: ADMITTED, !needsReconsent, Redis
 │   │   mediaReady==="1"; creates+starts SessionRuntime, ADMITTED→LIVE), endSession (idempotent once past
 │   │   LIVE; destroys runtime; LIVE→SEALING→PROCESSING — seal is a stub until Phase 9), getLiveSnapshot
-│   │   (dashboard-reload hydrate: status, elapsedMs/remainingMs, mediaReady, lastFrameSeq)
+│   │   (dashboard-reload hydrate: status, elapsedMs/remainingMs, mediaReady, integrity, flags, notes,
+│   │   lastFrameSeq — transcriptTail/suggestions/degraded from Design.md §4.10 still not included)
+│   ├── services/flag.service.ts  listFlags (with latest warning + adjudication history per flag),
+│   │   adjudicateFlag (role/binding check done here, not middleware, since `/flags/:flagId` has no
+│   │   session id in the URL; nudges the live accumulator via `runtime.applyAdjudication`)
+│   ├── services/note.service.ts  listNotes, addNote (mediaOffsetMs always null — no recording anchor
+│   │   exists until Phase 9)
+│   ├── services/suggestion.service.ts  refreshSuggestions (manual trigger only — see Known issues),
+│   │   acceptSuggestion
 │   ├── utils/queues.ts           BullMQ Queue instances (jdParseQueue, linkExpiryQueue) + QUEUE_NAMES
 │   ├── utils/events.ts           publishSessionEvent(sid, event, payload) → redis.publish("events:{sid}");
 │   │   now actually consumed by sockets/event-subscriber.ts and forwarded to the dashboard
@@ -186,6 +224,13 @@ Removed: `bcryptjs`, `jsonwebtoken` (Rules: use `argon2`, `jose`).
 | 2026-09-18 | A telemetry sequence gap opens one `UnscoredWindow` (reason `SEQUENCE_GAP`) per client-observable channel (FOCUS/PASTE/RHYTHM/POINTER/ENVIRONMENT), immediately closed at the same instant, rather than tracking which specific channel(s) the missed batch would have covered | `UnscoredWindow.channel` is required and a gap is connection-level, not channel-level — the client doesn't say what was in the skipped batch. Point-in-time markers are enough for Phase 6's "never evidence of evasion" requirement (FR-TEL-2); revisit if Phase 7's fusion engine needs a duration instead of a marker |
 | 2026-09-18 | Internal API responses (`/internal/sessions/:id/*`) `await runtime.flush()` before returning 202, so the write has actually landed by the time the producer gets a response, but a write failure is only logged (via the write queue's `.catch`), not turned into a 500 for the caller | Matches the existing "mock providers never throw" / JD-worker-is-best-effort pattern rather than adding a second error-propagation path through the serialized write queue; revisit if a real CV/ASR producer needs a hard failure signal to retry |
 | 2026-09-18 | Media-track grace (camera 15s / screen 10s loss → clock freeze + unscored) and the "visible while screen muted" impossible-state check from Phases.md Phase 6 are **not implemented** | Both need server-side truth about media tracks, which only exists via a LiveKit webhook (`webhooks/livekit`, Architecture.md §8) that hasn't been built in any phase yet — the media provider is still the mock, and no webhook route exists. Candidate telemetry alone can't report screen-mute state. Revisit when LiveKit/webhook infrastructure is actually added (Phase 9 seal work is the next place that touches recording/media) |
+| 2026-09-18 | `live/unscored.ts` (Phase 6) moved to `live/fusion/unscored.ts` and gained `FrozenChannelTracker` | Architecture.md's file tree puts `unscored.ts` under `live/fusion/` alongside `fusion.engine.ts`/`flag-builder.ts`; Phase 6 didn't have that folder yet, so it started one level up. Consolidated in Phase 7 rather than leaving two competing "unscored window" concepts |
+| 2026-09-18 | No dedicated 200ms "fusion tick" timer, and `FusionState` is **not** checkpointed to Redis (Architecture.md's `s:{sid}:fusion`) | Decay is purely a function of elapsed time since a channel's `lastTs`, so updating the accumulator inline, in the same serialized write as the evidence append, is mathematically identical to a separate tick draining a queue — it just skips reinventing a second queue. No Redis checkpoint because there is no mid-LIVE process-resume mechanism for `SessionRuntime` at all yet (nothing resumes a crashed runtime today); adding one just for fusion state would be a partial, misleading safety net. `snapshotIntegrity()`/`projectState()` still do the "decay to now" math for display (2s `integrity.tick`, 10s `IntegritySnapshot`) without mutating the stored state |
+| 2026-09-18 | Flag merge does not require re-crossing the threshold: any observation of the same `type` within 15s of an OPEN flag merges into it regardless of whether the accumulator dipped and re-crossed; a brand-new flag still requires an actual upward crossing | Architecture.md §6.4 step 6 says "same type within 15s of an open flag → extend/merge", with no mention of re-crossing — read literally, an accumulator that's already above threshold would otherwise never re-fire `crossedThreshold` (before is already ≥ threshold), so repeats would silently vanish instead of extending the flag |
+| 2026-09-18 | Adjudication (`DISMISS`/`DOWNGRADE`) nudges the live fusion accumulator by subtracting the sum of the flag's linked observations' raw LLR (× 1.0 for DISMISS, × 0.5 for DOWNGRADE) from that channel, ignoring decay/corroboration that applied since | It's a live-only, best-effort correction so the dashboard visibly recovers after a dismiss (Phase 7's "Done when" scenario); the exact, decay-aware recompute is Phase 10's `IntegrityRescore`, which replays fusion from scratch over all observations + adjudications — not worth building twice |
+| 2026-09-18 | `CALIBRATION_MS` and `WARDEN_COOLDOWN_MS` are shortened when `NODE_ENV=test` (200ms and 100ms vs 60s/45s in real life) | Same precedent as the `/auth` rate limiter's test-only limit: flag/warden integration tests would otherwise need a real 60s+45s wall-clock wait per test. Asked the user first since CLAUDE.md flags constants.ts changes; approved this exact pattern |
+| 2026-09-18 | `suggestion.service.refreshSuggestions` only wires the manual `POST .../suggestions/refresh` trigger, not the automatic "topic change" / "answer end" triggers Phases.md also lists | Both automatic triggers need live topic tracking and ASR turn-detection that don't exist in any phase yet (topic budgets are a known Phase 5/6 gap; transcript ingest has no turn/topic labelling). Wiring a trigger to infrastructure that isn't there would be a no-op; the manual endpoint is fully real (MockLlmProvider, 2.5s timeout → question-bank fallback) |
+| 2026-09-18 | `GET /sessions/:id/live` gained `integrity` and `flags`/`notes` fields but still doesn't include `transcriptTail`, `suggestions`, or `degraded` from Design.md §4.10's hydrate shape | Those three need more plumbing (transcript history query, latest suggestion batch, producer-health state exposed outside the runtime) than the phase's scope justified; the socket already pushes `transcript.partial/final`, `qs.suggestions`, and `system.degraded` live, so a dashboard that was already open doesn't miss anything — only a fresh reload mid-session would |
 
 ---
 
@@ -222,12 +267,13 @@ Removed: `bcryptjs`, `jsonwebtoken` (Rules: use `argon2`, `jose`).
   only `{elapsedMs, remainingMs, frozen: false}`. There's no live topic-tracking mechanism until the
   suggestion engine (Phase 7) exists. `frozen` is hardcoded `false` since clock-freeze (media grace) isn't
   wired up until Phase 6.
-- `integrity.tick`, `flag.new/update`, `warn.issued`, `qs.suggestions`, `note.added`, `media.state` from
-  Design.md §5.2 don't exist yet — those are Phase 7-8. `system.degraded` and `transcript.partial/final`
-  now exist (Phase 6). `INTERVIEWER_EVENTS`/`CANDIDATE_EVENTS` in `sockets/events.ts` only list what's
-  implemented so far; add to those objects (not ad-hoc string literals) as each phase wires up its event.
-- Candidate-side `warn.show`, `task.frozen`, `media.required` aren't implemented (Phase 7-8). Only
-  `session.state` (mapped WAITING/LIVE/ENDED) and `session.ended` exist on `/candidate` today.
+- `media.state` from Design.md §5.2 still doesn't exist — needs the same LiveKit webhook infra as media
+  grace (see above). Everything else in that table now exists as of Phase 7: `integrity.tick`,
+  `flag.new/update`, `warn.issued`, `qs.suggestions`, `note.added`, `system.degraded`,
+  `transcript.partial/final`. `INTERVIEWER_EVENTS`/`CANDIDATE_EVENTS` in `sockets/events.ts` only list
+  what's implemented so far; keep adding to those objects (not ad-hoc string literals) as later phases add events.
+- Candidate-side `task.frozen`, `media.required` aren't implemented yet (Phase 8-9). `warn.show` now
+  exists (Phase 7); `session.state`, `session.ended` existed since Phase 5.
 - `timer.tick`'s `frozen` field is still hardcoded `false` — media-grace clock freeze isn't implemented
   (see the Phase 6 decision above on why: no LiveKit webhook exists yet).
 - Phase 6 known gaps (Phases.md lists these; not built — see Decisions log for why): media-track grace
@@ -246,6 +292,20 @@ Removed: `bcryptjs`, `jsonwebtoken` (Rules: use `argon2`, `jose`).
   I/O (lease set/renew) — this works because fake timers only intercept JS timer functions, not network
   I/O, but keep that in mind if a future test needs to fake `Date.now()` too (would need `shouldAdvanceTime`
   or explicit `Date` mocking to avoid skewing `computeTimerState`).
+- Warden only has candidate-facing templates for 7 of Design.md §6's 9 types: `SCREEN_SHARE_STOPPED` (no
+  detector — needs the same media webhook as everything else media-grace related) and `TYPING_BURST` (a
+  Phase 8 authorship-detector concept, not the Phase 6 rhythm/KS-test anomaly) have no template, so those
+  types can never produce a `warn.show` even if something eventually flags them. Add the row to
+  `live/warden.ts`'s `WARNING_MESSAGES` once the detector exists — never invent wording ahead of that.
+- `sockets/index.ts`'s `note.add` handler picks the first room starting with `session:` out of
+  `socket.rooms` — correct today because an interviewer socket only ever joins one session room via
+  `session.join`, but would misbehave if that ever changes to support multiple concurrent sessions per socket.
+- `suggestion.service.refreshSuggestions` and `GET /sessions/:id/live` gaps: see Decisions log (manual
+  trigger only; hydrate missing transcriptTail/suggestions/degraded).
+- Phase 7's fusion state lives only in `SessionRuntime` memory, not Redis (see Decisions log) — a process
+  crash/restart mid-LIVE loses the live accumulator (all raw observations are still safely in Postgres, so
+  Phase 10's `IntegrityRescore` is unaffected; only the *live* dashboard score would reset to 100 until new
+  evidence arrives). No worse than every other mid-LIVE state SessionRuntime already can't resume.
 
 ---
 
@@ -265,6 +325,53 @@ Removed: `bcryptjs`, `jsonwebtoken` (Rules: use `argon2`, `jose`).
 ```
 
 ## Task history
+
+### 2026-09-18 — Phase 7 fusion, flags, warden, dashboard loop
+- Phase: 7
+- Built: `live/fusion/fusion.engine.ts` (pure: per-channel decay+corroboration-boost+floor in
+  `applyObservation`, `projectState`/`computeScoreFromAccumulators` for decay-to-now display without
+  mutating state, `computeIntegrity`, `severityBand`, `crossedThreshold`, `computeIntegrityDelta` for
+  `Flag.scoreDelta`); `live/fusion/flag-builder.ts` (`processFlagCrossing` — merges a same-type repeat
+  into any open flag from the last 15s regardless of re-crossing, otherwise only creates a new Flag on an
+  actual upward crossing; interviewer-only narrative templates); `live/fusion/unscored.ts` (moved from
+  `live/unscored.ts`, added `FrozenChannelTracker`); `live/warden.ts` (tier by occurrence+severity, 45s
+  per-type cooldown, cap 6 above-tier-1 then downgrade to NOTICE, fixed templates for 7 Design.md §6
+  types, `acknowledgeWarning` for `warn.ack` → ackLatencyMs → flag.update); `SessionRuntime` extended to
+  own the in-memory `FusionState`, feed every appended observation through fusion+flag-builder+warden
+  inline (no separate 200ms tick, no Redis checkpoint — see Decisions log), 2s `integrity.tick` + 10s
+  persisted `IntegritySnapshot` via `snapshotIntegrity()`, `applyAdjudication()` for the live-score nudge;
+  `services/flag.service.ts` (listFlags with latest warning + adjudication history, adjudicateFlag doing
+  its own org/role check); `services/note.service.ts`; `services/suggestion.service.ts` (MockLlmProvider
+  with a 2.5s timeout → question-bank fallback, manual refresh trigger only); REST: `GET
+  /sessions/:id/flags`, `POST /flags/:flagId/adjudicate`, `GET/POST /sessions/:id/notes`, `POST
+  /sessions/:id/suggestions/refresh`, `POST /sessions/:id/suggestions/:suggestionId/accept`; sockets:
+  candidate `warn.ack`, interviewer `note.add`; `getLiveSnapshot` gained `integrity`/`flags`/`notes`
+- Files: `src/live/fusion/{fusion.engine,flag-builder,unscored}.ts`, `src/live/warden.ts`,
+  `src/services/{flag,note,suggestion}.service.ts`, `src/controllers/flag.controller.ts`,
+  `src/routes/flag.routes.ts`, `src/validators/live.schema.ts`, edits to `src/live/session-runtime.ts`,
+  `src/config/{constants,detection}.ts`, `src/sockets/{index,events}.ts`,
+  `src/controllers/session.controller.ts`, `src/routes/{session,index}.routes.ts`,
+  `src/services/lifecycle.service.ts`
+- Schema/migrations: none (Flag/FlagObservation/FlagAdjudication/Warning/Note/QuestionSuggestion/
+  IntegritySnapshot already existed from the initial schema)
+- New env vars: none
+- Tests: 139 passing total (35 new: `tests/unit/fusion-engine.test.ts` — decay math with fixed timelines,
+  corroboration boost + cap, floor, computeIntegrity/severityBand/crossedThreshold,
+  computeIntegrityDelta; `tests/integration/live.test.ts` — calibration gates flag creation, threshold
+  crossing → flag → 15s merge, warden tier progression (needed shrinking `WARDEN_COOLDOWN_MS` in test
+  env, see Decisions log) + severity-first-occurrence + cooldown-suppression + no-template-silent-noop +
+  above-tier-1 cap, warn.ack latency, adjudicate confirm/dismiss/downgrade incl. cross-org 404, dismiss
+  measurably raising `snapshotIntegrity()` (the full "crossing → flag → dismiss → recovers" loop), notes
+  REST + socket, suggestions refresh + accept, candidate-boundary scan of every `/candidate` emit across a
+  scripted session including a real `warn.show`). `npm run typecheck`, `npm run build` clean; `npm run
+  dev` smoke-tested boot + `/ready` against real Postgres/Redis
+- Decisions: see Decisions log (unscored.ts relocated under live/fusion/, no 200ms tick or Redis
+  checkpoint for fusion state, merge doesn't require re-crossing, adjudication nudge is approximate,
+  CALIBRATION_MS/WARDEN_COOLDOWN_MS shortened in test env — asked the user first per CLAUDE.md, suggestion
+  triggers are manual-only, live snapshot hydrate still partial)
+- Issues left: see Known issues (2 of 9 warning types have no template yet, note.add's single-room
+  assumption, no automatic suggestion triggers, fusion state not crash-resumable)
+- Next: Phase 8 — Coding round. Wait for "next".
 
 ### 2026-09-18 — Phase 6 telemetry ingest, evidence chain, detectors
 - Phase: 6

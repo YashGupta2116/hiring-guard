@@ -2,11 +2,13 @@ import type { Server as HttpServer } from "node:http";
 import { Server } from "socket.io";
 import { env } from "../config/env.js";
 import { registry } from "../live/registry.js";
+import { acknowledgeWarning } from "../live/warden.js";
+import * as noteService from "../services/note.service.js";
 import { verifyAccessToken, verifyCandidateToken } from "../utils/jwt.js";
 import { logger } from "../utils/logger.js";
 import { prisma } from "../utils/prisma.js";
 import { bindSocketServer, replayFrom } from "./emitter.js";
-import { clockOffsetSchema, clockSyncSchema, sessionJoinSchema, telemetryBatchSchema } from "./events.js";
+import { clockOffsetSchema, clockSyncSchema, noteAddSchema, sessionJoinSchema, telemetryBatchSchema, warnAckSchema } from "./events.js";
 
 const PRIVILEGED_ROLES = new Set(["OWNER", "ADMIN", "REVIEWER"]);
 
@@ -65,6 +67,28 @@ export function createSocketServer(httpServer: HttpServer): Server {
         ack?.({ ok: false, error: { code: "INTERNAL", message: "Something went wrong." } });
       });
     });
+
+    socket.on("note.add", (raw: unknown, ack?: (res: unknown) => void) => {
+      void (async () => {
+        const parsed = noteAddSchema.safeParse(raw);
+        if (!parsed.success) {
+          ack?.({ ok: false, error: { code: "VALIDATION_FAILED", message: "Invalid note.add payload." } });
+          return;
+        }
+        for (const room of socket.rooms) {
+          if (!room.startsWith("session:")) continue;
+          const sessionId = room.slice("session:".length);
+          const user = socket.data.user as { sub: string };
+          const note = await noteService.addNote(sessionId, user.sub, parsed.data.body);
+          ack?.({ ok: true, note });
+          return;
+        }
+        ack?.({ ok: false, error: { code: "FORBIDDEN", message: "Join a session first." } });
+      })().catch((err: unknown) => {
+        logger.error({ err }, "note.add failed");
+        ack?.({ ok: false, error: { code: "INTERNAL", message: "Something went wrong." } });
+      });
+    });
   });
 
   const candidateNsp = io.of("/candidate");
@@ -112,6 +136,14 @@ export function createSocketServer(httpServer: HttpServer): Server {
       if (!parsed.success) return;
       const offsetMs = (socket.data.clockOffsetMs as number | undefined) ?? 0;
       registry.get(sessionId)?.handleTelemetryBatch(parsed.data.connId, parsed.data.seq, parsed.data.events, offsetMs);
+    });
+
+    socket.on("warn.ack", (raw: unknown) => {
+      const parsed = warnAckSchema.safeParse(raw);
+      if (!parsed.success) return;
+      void acknowledgeWarning(sessionId, parsed.data.warningId, parsed.data.ackedAt).catch((err: unknown) => {
+        logger.error({ err, sessionId }, "warn.ack failed");
+      });
     });
 
     socket.on("disconnect", () => {

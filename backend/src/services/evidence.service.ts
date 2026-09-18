@@ -1,4 +1,4 @@
-import type { Prisma } from "../generated/prisma/client.js";
+import type { Observation, Prisma } from "../generated/prisma/client.js";
 import type { MonitoringChannel, ObservationSource } from "../generated/prisma/enums.js";
 import { canonicalJson, sha256Hex } from "../utils/hash.js";
 import { prisma } from "../utils/prisma.js";
@@ -33,12 +33,13 @@ async function loadChainHead(sessionId: string): Promise<{ lastSeq: number; last
 
 /**
  * Assigns seq + prevHash + hash to each pending observation, in order, and batch-inserts them
- * (Architecture.md §7.4). Must be called from a single serialized writer per session (SessionRuntime's
- * write queue) — this function does not itself lock, matching the "single writer holding the lease"
- * design instead of adding a second lock here.
+ * (Architecture.md §7.4), returning the inserted rows (with their generated ids) so the fusion engine
+ * can link flags to the exact observations that caused them. Must be called from a single serialized
+ * writer per session (SessionRuntime's write queue) — this function does not itself lock, matching the
+ * "single writer holding the lease" design instead of adding a second lock here.
  */
-export async function appendObservations(sessionId: string, entries: PendingObservation[]): Promise<void> {
-  if (entries.length === 0) return;
+export async function appendObservations(sessionId: string, entries: PendingObservation[]): Promise<Observation[]> {
+  if (entries.length === 0) return [];
 
   let { lastSeq, lastHash } = await loadChainHead(sessionId);
   const rows = entries.map((entry) => {
@@ -72,6 +73,7 @@ export async function appendObservations(sessionId: string, entries: PendingObse
     };
   });
 
-  await prisma.observation.createMany({ data: rows });
+  const created = await prisma.observation.createManyAndReturn({ data: rows });
   await redis.hset(chainKey(sessionId), "lastSeq", lastSeq, "lastHash", lastHash);
+  return created;
 }

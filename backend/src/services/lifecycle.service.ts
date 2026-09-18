@@ -5,6 +5,8 @@ import { CANDIDATE_EVENTS, INTERVIEWER_EVENTS } from "../sockets/events.js";
 import { AppError } from "../utils/app-error.js";
 import { prisma } from "../utils/prisma.js";
 import { redis } from "../utils/redis.js";
+import { listFlags } from "./flag.service.js";
+import { listNotes } from "./note.service.js";
 import { getSession } from "./session.service.js";
 import { transition } from "./session-state.service.js";
 
@@ -43,6 +45,7 @@ export async function startSession(orgId: string, sessionId: string, actorId: st
     durationMinutes: session.durationMinutes,
     startedAt,
     sensitivity: session.sensitivity,
+    channels: session.channels,
     onEnd: async (reason) => {
       await endSession(orgId, sessionId, reason);
     },
@@ -102,6 +105,8 @@ export async function getLiveSnapshot(orgId: string, sessionId: string) {
   const elapsedMs = session.startedAt ? Date.now() - session.startedAt.getTime() : 0;
   const remainingMs = session.startedAt ? Math.max(0, session.durationMinutes * 60_000 - elapsedMs) : session.durationMinutes * 60_000;
 
+  const [flags, notes] = await Promise.all([listFlags(orgId, sessionId, {}), listNotes(sessionId)]);
+
   return {
     status: session.status,
     startedAt: session.startedAt,
@@ -109,6 +114,9 @@ export async function getLiveSnapshot(orgId: string, sessionId: string) {
     elapsedMs,
     remainingMs,
     mediaReady: mediaReady === "1",
+    integrity: runtime ? { score: runtime.snapshotIntegrity(), calibrating: Date.now() < runtime.calibrationEndsAt.getTime() } : null,
+    flags,
+    notes,
     lastFrameSeq: lastFrameSeqRaw ? Number(lastFrameSeqRaw) : 0,
   };
 }
