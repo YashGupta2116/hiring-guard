@@ -502,6 +502,18 @@ Removed: `bcryptjs`, `jsonwebtoken` (Rules: use `argon2`, `jose`).
   never selected by any purge query and will never be retention-swept. Not currently possible for a
   normal session (every terminal state sets `endedAt` — see `timestampFieldsFor()` in
   `session-state.service.ts`), but worth checking if a future status ever skips it.
+- **2026-09-19, found, not fixed (for the teammate).** The calibration boundary comes from arrival
+  time, not observation time. `session-runtime.ts:198` (`applyFusionAndFlags`) and `:263`
+  (`processTelemetryBatch`) each compute `calibrating` once per batch as `this.isCalibrating(Date.now())`.
+  An observation stamped inside the window but processed after it counts as post-window. At `:263` a
+  `keystroke_stats` event in that position skips the rhythm baseline and reaches the rhythm detector.
+  Replaying stored observations after the window has closed treats every one as post-window, so the
+  result depends on when the code runs. `IntegrityRescore` (`integrity-rescore.step.ts:111`) and the ML
+  engine (`ml/src/vtml/fusion/engine.py:161`) both read each observation's own timestamp, so live and
+  rescore can disagree about an observation near the boundary today. Today the effect is limited to
+  flag gating. If the accumulation change in the 2026-09-19 entry ships, this boundary decides whether
+  evidence counts at all, so fix both together: compare `row.ts.getTime()` with
+  `this.calibrationEndsAt.getTime()` per row at `:198`, and test each event's `correctedTs` at `:263`.
 
 ---
 
@@ -521,6 +533,133 @@ Removed: `bcryptjs`, `jsonwebtoken` (Rules: use `argon2`, `jose`).
 ```
 
 ## Task history
+
+### 2026-09-19: getLlr unknown-type fix; calibration window diagnosed, not changed
+- Phase: 11 follow-up (two defects from the backend handoff; no new phase work)
+- Built: `getLlr()` in `src/config/detection.ts` returns `null` for a detector `type` with no `LLR_TABLE`
+  row. It returned `0`. Known types return the same numbers as before, and no table row, weight,
+  threshold or band changed. The log-once warning and the per-type counter stay.
+- Files: `src/config/detection.ts`, `tests/unit/detection-contract.test.ts`; docs:
+  `backend/docs/Memory.md`, `docs/cross-component-architecture.md`
+- Schema/migrations: none
+- New env vars: none
+- Tests: unit suite 9 files, 68 tests, all passing before and after the change; `npm run typecheck`
+  clean before and after. The 17 integration files did not run: this machine has no Postgres, Redis or
+  Docker. Run them where the stack lives before recording.
+- Decisions: `null`, not a throw and not an `UnscoredWindow` (below); the calibration change waits
+  (below). Both go in the Decisions log if they stand.
+- Issues left: the calibration window still accumulates evidence, and its boundary still uses arrival
+  time (Known issues, 2026-09-19).
+- Next: run the integration suite on a machine with Postgres and Redis; decide the calibration change
+  after submission.
+
+**Why `null` for an unknown type**
+- `Observation.llr` is `Float?` (`prisma/schema.prisma:566`) and `PendingObservation.llr` is
+  `number | null` (`evidence.service.ts:19`). The three callers pass the value straight into the row,
+  so none changed: `session-runtime.ts:288`, `session-runtime.ts:349`, `internal.service.ts:44`.
+- Live fusion skips a null row (`session-runtime.ts:201`) and so does `IntegrityRescore`
+  (`integrity-rescore.step.ts:98`). The row stays in the hash chain, because `llr` is not hashed
+  (`evidence.service.ts:53-64`), and it exports with `llr: null`.
+- A throw is unsafe on the CV path. `internal.schema.ts:15` accepts any non-empty `type`, and
+  `internal.service.ts:38-46` builds every entry of a request in one `map`. One unknown type would
+  fail the whole request with a 500 (`error-handler.ts:73-74`) and drop the valid observations beside
+  it, and a producer that retries would resend the same batch. At `session-runtime.ts:288` a throw
+  would drop every observation in a telemetry batch after `acceptBatch` had accepted it. At `:349` the
+  loss would be permanent, because the editor sequence number is already recorded (`:324`).
+- An `UnscoredWindow` needs an async database write from a synchronous lookup. `SIGNAL_LOSS` also
+  records lost input, so it would mislabel a vocabulary mismatch in the report.
+- Limit: the null row, one log line per type and `getUnknownDetectorTypeCounts()` are the only traces.
+  No code in `src/` reads the counter and the dashboard shows nothing. A caller-side `UnscoredWindow`
+  write is the upgrade if that is not enough.
+- This supersedes the 2026-09-18 Decisions-log entry on `getLlr` (about line 357), which says the
+  return value did not change. It returned `0`, so the observation still scored as clean.
+
+**Calibration window: diagnosis, nothing applied**
+- Today: `applyFusionAndFlags` (`session-runtime.ts:197-228`) calls `applyObservation` at `:205` for
+  every non-frozen row, then skips flags and the warden with `if (calibrating) continue;` at `:208`.
+  Evidence from the first 60 s (200 ms under `NODE_ENV=test`, `constants.ts:31`) adds to the channel
+  accumulators, sets the corroboration timestamp and moves the score. It decays with a τ of 180-300 s
+  (`CHANNEL_DECAY_SECONDS`), so it keeps counting after the window closes.
+- This was deliberate: Known issues (Phase 10), the 2026-09-18 IntegrityRescore decision and
+  `REMAINING_WORK.md` section 4 all record it. The backend spec asks only for no flags and no warnings
+  (`PRD.md` FR-LIVE-2, `Architecture.md` line 389, `Rules.md` line 179). Two other places promise
+  more: the live dashboard tells the interviewer "nothing is scored" during the window
+  (`frontend/components/live-interview/candidate-panel.tsx:119`), and the ML lab treats the window as
+  a hard boundary for evidence.
+- ML reference, `ml/src/vtml/fusion/engine.py:150-169`: an observation inside the window feeds the
+  baseline builder and returns. It never reaches `state.add()`, so it adds no LLR and cannot
+  corroborate a later observation. The window test reads the observation's own `t_ms`.
+- Boundary sites in the backend: `session-runtime.ts:103` (`calibrationEndsAt`), `:128-130`
+  (`isCalibrating`), used at `:179` (tick flag), `:198` (flag gate) and `:263` (baseline routing);
+  `lifecycle.service.ts:102` (snapshot flag); offline at `integrity-rescore.step.ts:59` and `:111`.
+- Accumulation (`:205-206`) and gating (`:208`) are adjacent statements, so they separate. No
+  constant, weight, threshold or band moves.
+
+Proposed diff, a sketch and not a patch. Two sites, so live and the authoritative rescore keep agreeing
+(the 2026-09-18 IntegrityRescore decision requires it):
+
+```diff
+--- a/backend/src/live/session-runtime.ts  (applyFusionAndFlags)
+       if (!this.enabledChannels.has(row.channel) || this.frozenChannels.isFrozen(row.channel) || row.llr === null) continue;
++      if (calibrating) continue; // observe-only: no LLR, no corroboration state
+
+       const prevState = this.fusionState;
+       const tsMs = row.ts.getTime();
+       const result = applyObservation(prevState, row.channel, row.llr, tsMs);
+       this.fusionState = result.state;
+
+-      if (calibrating) continue;
+-
+       const { scoreDelta } = computeIntegrityDelta(...);
+```
+
+```diff
+--- a/backend/src/pipeline/steps/integrity-rescore.step.ts  (replay loop, after the null/frozen skip)
++    if (obs.ts.getTime() < calibrationEndsMs) continue; // observe-only, matches live
++
+     const fraction = keepFraction.get(obs.id) ?? 1;
+     ...
+     observationsApplied++;
+
+-    if (tsMs < calibrationEndsMs) continue; // calibration: accumulate (matches live), never flag
+```
+
+Two comments change with it: the `applyFusionAndFlags` doc comment (`session-runtime.ts:196`) and the
+"Calibration-window observations still accumulate" paragraph in the rescore docstring
+(`integrity-rescore.step.ts:43-45`).
+
+Effect:
+- Inside the window the score reads 100 and every channel contribution reads 0 (`emitIntegrityTick`,
+  `lifecycle.service.ts:102`).
+- After the window, no in-window evidence decays into the score, so an honest session scores higher
+  for its first minutes. The ML lab measured the leak at 1.17 points on `honest_seed7` (94.28 without
+  it, 93.11 with it) and 0.42 on `staged_seed7` (2.35 against 1.93), `ml/docs/Memory.md:143`. Those
+  runs use the ML score function, so the size on the backend is unmeasured.
+
+Tests, from reading them; none ran here:
+- No test asserts that in-window evidence accumulates.
+- `live.test.ts:153-165` ("creates no flag during calibration even when the accumulator would cross")
+  still passes, and its title goes stale because nothing accumulates.
+- The flag tests I read in `live.test.ts` call `waitPastCalibration()` before sending telemetry
+  (lines 171, 203, 377); line 458 also calls it and I did not read past it. `coding.test.ts:282` waits
+  250 ms.
+- If the rescore change lands, `pipeline.test.ts` is timing-sensitive. `:123-125` inserts an
+  observation at `ts: new Date()` right after `/start`, inside the 200 ms test window. `:216-218`
+  inserts an `llr: 5` observation whose `ts` may land inside or outside it, and `:223` asserts
+  integrity under 70. Run `pipeline.test.ts` and `live.test.ts` before merging.
+
+Frontend, read only; no edit needed:
+- `use-live-room.ts:96` and `:160` read `score`, `calibrating` and `channels` from the snapshot and
+  from `integrity.tick`.
+- `live-sidebar.tsx:146-177` draws one bar per channel from `contribution`, even while calibrating.
+  Bars that move in the first minute today stay empty.
+- `candidate-panel.tsx:119` says "nothing is scored". That sentence becomes true.
+- In that state the gauge shows "Calibrating..." (`integrity-gauge.tsx:130-132`). I did not check
+  whether it also prints the number.
+
+Why it waits: it changes live scoring, the integration tests that cover it cannot run on this machine
+today, and the docs record the current behaviour as a decision that needs sign-off. It ships after
+submission.
 
 ### 2026-09-18 — Containerized deployment
 - Phase: 11 (post-completion follow-up; no new phase work)

@@ -44,15 +44,13 @@ const warnedUnknownTypes = new Set<string>();
 const unknownTypeCounts = new Map<string, number>();
 
 /**
- * An unrecognised `type` here means an observation crossed a channel weight and a corroboration
- * window and then contributed exactly zero to the score — never a thrown error, never a dropped
- * row, just silence. That is indistinguishable from a clean signal on the dashboard, which is the
- * worst failure mode for an integrity product. Most likely cause today: a CV/ASR producer (or a
- * future ml/ integration, see docs/cross-component-architecture.md) emitting a `type` string this
- * table doesn't have a row for — the two components' detector vocabularies are not the same, see
- * `contracts/detector-registry.json`.
+ * Returns null for a `type` with no LLR_TABLE row: unscorable, not clean. Callers store it as
+ * `Observation.llr = null`, which live fusion and the offline rescore both skip, so the observation
+ * stays in the evidence chain and adds nothing to the score. Known limit: only the row, the log and
+ * `getUnknownDetectorTypeCounts()` show it, nothing on the dashboard does. Not thrown: the CV path
+ * builds a whole request's observations in one pass, so one unknown type would reject all of them.
  */
-export function getLlr(type: string, sensitivity: Sensitivity): number {
+export function getLlr(type: string, sensitivity: Sensitivity): number | null {
   const row = LLR_TABLE[type];
   if (row === undefined) {
     unknownTypeCounts.set(type, (unknownTypeCounts.get(type) ?? 0) + 1);
@@ -60,11 +58,11 @@ export function getLlr(type: string, sensitivity: Sensitivity): number {
       warnedUnknownTypes.add(type);
       logger.warn(
         { detectorType: type, sensitivity },
-        "getLlr: unrecognised detector type, scoring as LLR=0 (observation accepted, contributes nothing). " +
+        "getLlr: unrecognised detector type, returning null (observation stored, excluded from scoring). " +
           "Check contracts/detector-registry.json — the sender's vocabulary may not match LLR_TABLE.",
       );
     }
-    return 0;
+    return null;
   }
   return row[sensitivity];
 }

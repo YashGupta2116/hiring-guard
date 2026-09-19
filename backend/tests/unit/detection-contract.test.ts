@@ -52,10 +52,10 @@ describe("detector-registry.json contract", () => {
 });
 
 describe("getLlr on an unrecognised type", () => {
-  it("returns 0 instead of throwing, but counts the miss instead of staying silent", () => {
+  it("returns null (unscored), not 0 and not a throw, and counts the miss", () => {
     const type = `__test_unknown_type_${Date.now()}`;
     expect(getUnknownDetectorTypeCounts().get(type)).toBeUndefined();
-    expect(getLlr(type, "STANDARD")).toBe(0);
+    expect(getLlr(type, "STANDARD")).toBeNull();
     expect(getUnknownDetectorTypeCounts().get(type)).toBe(1);
     getLlr(type, "STANDARD");
     expect(getUnknownDetectorTypeCounts().get(type)).toBe(2);

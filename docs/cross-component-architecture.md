@@ -18,6 +18,7 @@ that happen to solve the same problem differently:
 | Channels | 11 (`MonitoringChannel`, `prisma/schema.prisma`) | 6 (`Channel`, `vtml/types.py`) |
 | Detector vocabulary | 12 type strings, `snake_case` (`config/detection.ts`) | 16 type strings, `dotted.case` (`detectors/schema.py`) |
 | Flag trigger | channel accumulator crosses a threshold | a single observation's boosted LLR crosses 0.8 |
+| Calibration window (first 60 s) | Evidence accumulates; only flags and warnings are gated (`session-runtime.ts:205-208`) | Observe-only: in-window observations feed the baseline and add no LLR (`fusion/engine.py:150-169`) |
 | Score function | `200 / (1 + exp(S/σ))`, no LLR clamp | `100 / (1 + exp(1.6·(S−2.2)))`, LLR clamped to `[-1.0, 4.0]` |
 | Duration scaling, personalised baselines, KS-test rhythm anomaly | Not implemented | Implemented (`baseline.py`, `config.py`) |
 
@@ -83,13 +84,14 @@ start consuming, not evidence that Python should run live.
   renamed. Both sides have a test (`backend/tests/unit/detection-contract.test.ts`,
   `ml/tests/test_contract.py`) that fails if that file drifts from the real source it documents, so
   future drift is caught instead of silent.
-- `backend/src/config/detection.ts::getLlr()` used to return `0` for any `type` string it didn't
-  recognise, with no log, no metric, nothing — silently scoring an unknown observation as clean. That
-  path is exactly what a first `ml/`-shaped integration (or any CV/ASR producer using the wrong
-  vocabulary) would hit today: every observation would score 0.0, indistinguishable on the dashboard
-  from a genuinely clean signal, on a product whose entire premise is not doing that. It now logs
-  once per unknown type and counts every occurrence (`getUnknownDetectorTypeCounts()`), without
-  changing the return value or any existing caller's behaviour.
+- `backend/src/config/detection.ts::getLlr()` used to return `0` for any `type` string it did not
+  recognise. That is the path a first `ml/`-shaped integration, or any CV/ASR producer using the wrong
+  vocabulary, would have hit: every observation scored 0.0 and looked like a clean signal on the
+  dashboard. The 2026-09-18 change made it log once per unknown type and count every occurrence
+  (`getUnknownDetectorTypeCounts()`). That did not fix it. The return value stayed `0`, so the score did
+  not change and nothing downstream could tell. Since 2026-09-19 it returns `null`: the backend stores
+  the observation with `llr = null`, and live fusion and `IntegrityRescore` skip it. The dashboard still
+  shows nothing, and no code reads the counter. Detail: `backend/docs/Memory.md`, 2026-09-19 entry.
 
 ## What this explicitly does not do
 
@@ -112,3 +114,20 @@ break the backend's current test expectations, and require re-pinning `ml/`'s lo
 baseline (`ml/tests/test_regression_baseline.py`) if the shared contract becomes normative for values,
 not just vocabulary. Both components' own rules require asking before that kind of change — see the
 "What this explicitly does not do" section above. Revisit after the current submission.
+
+### Calibration window (diagnosed 2026-09-19, deferred until after submission)
+
+The backend lets evidence from the first 60 s accumulate and gates only flags and warnings. The ML
+lab discards it: in-window observations feed the baseline and add no LLR. The backend's own
+requirement (`backend/docs/PRD.md`, FR-LIVE-2) asks only for no flags and no warnings, and
+`backend/docs/Memory.md` (Known issues, Phase 10) and `backend/docs/REMAINING_WORK.md` (section 4)
+record the divergence as intentional. Two facts now favour matching the lab. The live dashboard tells
+the interviewer "nothing is scored" during the window, and the ML lab measured the leak at 1.17 points
+on its honest fixture (`ml/docs/Memory.md`). The ML score function differs from the backend's, so the
+size on the backend is unmeasured.
+
+The change is one hoisted guard in `session-runtime.ts` and one in `integrity-rescore.step.ts`, with no
+constant moved. The sketch, the tests it touches and the frontend reads are in `backend/docs/Memory.md`
+(2026-09-19 entry). It changes live scoring and needs the integration suite, so it waits for a machine
+with Postgres and Redis. A separate defect makes the window boundary depend on batch arrival time
+(`backend/docs/Memory.md`, Known issues, 2026-09-19); fix both in the same change.
