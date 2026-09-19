@@ -1,5 +1,5 @@
 /**
- * Thin fetch wrapper for the VeriTrust backend (`/api/v1`).
+ * Thin fetch wrapper for the HiringGuard backend (`/api/v1`).
  *
  * - The access token lives in memory only; the refresh token is an httpOnly cookie (`vt_rt`)
  *   the browser sends automatically because every call uses `credentials: "include"`.
@@ -50,7 +50,7 @@ async function send(path: string, init: RequestInit): Promise<RawResponse> {
   try {
     res = await fetch(`${API_BASE_URL}${path}`, { ...init, credentials: "include" });
   } catch {
-    throw new ApiError(0, "NETWORK", "Cannot reach the VeriTrust server. Check that the backend is running.");
+    throw new ApiError(0, "NETWORK", "Cannot reach the HiringGuard server. Check that the backend is running.");
   }
   const text = res.status === 204 ? "" : await res.text();
   let body: unknown = null;
@@ -149,7 +149,7 @@ export async function apiRequestBlob(path: string): Promise<Blob> {
         headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
       });
     } catch {
-      throw new ApiError(0, "NETWORK", "Cannot reach the VeriTrust server. Check that the backend is running.");
+      throw new ApiError(0, "NETWORK", "Cannot reach the HiringGuard server. Check that the backend is running.");
     }
   };
 

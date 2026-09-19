@@ -11,7 +11,7 @@ const fraunces = Fraunces({ subsets: ["latin"], variable: "--font-serif" });
 const jetbrainsMono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-mono" });
 
 export const metadata: Metadata = {
-  title: "VeriTrust — Interview Integrity Platform",
+  title: "HiringGuard — Interview Integrity Platform",
   description:
     "A warm paper report on a desk, not a security console. Multimodal behavioral intelligence for trustworthy technical interviews.",
   icons: {
@@ -34,7 +34,7 @@ export default function RootLayout({
         <ThemeProvider
           attribute="class"
           defaultTheme="dark"
-          enableSystem
+          enableSystem={false}
           disableTransitionOnChange
         >
           <AuthProvider>

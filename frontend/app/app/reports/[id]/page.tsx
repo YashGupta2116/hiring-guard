@@ -358,7 +358,7 @@ export default function ReportDetailPage() {
                 <AlertTriangle className="h-3.5 w-3.5 text-amber-500" /> No overall score, so a person should review this report
               </p>
               <p className="text-muted-foreground leading-relaxed">
-                {reasons.length > 0 ? `An overall score needs all three inputs, but ${reasons.join("; ")}.` : "An overall score could not be produced."} VeriTrust never guesses a number when an input is missing.
+                {reasons.length > 0 ? `An overall score needs all three inputs, but ${reasons.join("; ")}.` : "An overall score could not be produced."} HiringGuard never guesses a number when an input is missing.
               </p>
             </div>
           )}

@@ -4,7 +4,7 @@
 
 @layer base {
   :root {
-    /* VeriTrust Design System - v1.0 */
+    /* HiringGuard Design System - v1.0 */
     /* Light Mode: "A warm paper report on a desk, not a security console" */
     /* Sand 50 background (warm paper tint), Sand 950 text (warm charcoal, no pure black) */
     --background: 43 27% 95%; /* #F6F4EE */
@@ -47,34 +47,35 @@
 
   .dark {
     /* Dark Mode: Warm charcoal desk, Sand 100 text (parchment, no pure white) */
-    --background: 34 29% 8%;  /* #181510 - Sand 950 */
-    --foreground: 40 21% 91%; /* #EDE8DE - Sand 100 */
+    /* Dark brown theme: espresso background, chocolate cards, caramel accents */
+    --background: 22 34% 8%;  /* #1B120D espresso */
+    --foreground: 34 30% 90%; /* #EDE3D6 cream */
 
-    --card: 34 20% 13%;       /* #27221A - Sand 900 */
-    --card-foreground: 40 21% 91%;
+    --card: 22 28% 12%;       /* #271A14 */
+    --card-foreground: 34 30% 90%;
 
-    --popover: 34 20% 13%;
-    --popover-foreground: 40 21% 91%;
+    --popover: 22 28% 12%;
+    --popover-foreground: 34 30% 90%;
 
-    --primary: 40 21% 91%;    /* #EDE8DE - Sand 100 */
-    --primary-foreground: 34 29% 8%;
+    --primary: 30 45% 62%;    /* #CFA16F caramel */
+    --primary-foreground: 22 34% 8%;
 
-    --secondary: 36 18% 22%;  /* #423B2E - Sand 800 */
-    --secondary-foreground: 40 21% 91%;
+    --secondary: 22 24% 19%;  /* #3D2C23 */
+    --secondary-foreground: 34 30% 90%;
 
-    --muted: 36 18% 22%;
-    --muted-foreground: 38 20% 65%; /* #B8AC94 - Sand 400 */
+    --muted: 22 24% 19%;
+    --muted-foreground: 30 22% 66%; /* #B9A08C */
 
-    --accent: 36 18% 22%;
-    --accent-foreground: 40 21% 91%;
+    --accent: 22 24% 19%;
+    --accent-foreground: 34 30% 90%;
 
     /* Terracotta 400 for dark mode contrast */
     --destructive: 8 59% 60%; /* #D46E5B */
     --destructive-foreground: 34 29% 8%;
 
-    --border: 36 18% 22%;     /* #423B2E - Sand 800 hairline */
-    --input: 36 18% 22%;
-    --ring: 27 35% 55%;       /* Clay 400 */
+    --border: 22 22% 22%;     /* #46332A hairline */
+    --input: 22 22% 22%;
+    --ring: 30 45% 62%;       /* caramel */
   }
 }
 

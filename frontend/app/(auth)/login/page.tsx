@@ -36,7 +36,7 @@ function LoginForm() {
     setIsLoading(true);
     try {
       await signIn(email.trim(), password);
-      toast({ title: "Signed in", description: "Welcome back to VeriTrust.", type: "success" });
+      toast({ title: "Signed in", description: "Welcome back to HiringGuard.", type: "success" });
       router.replace(destination);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Sign in failed. Please try again.");
@@ -48,10 +48,10 @@ function LoginForm() {
   return (
     <AuthShell
       title="Welcome back"
-      subtitle="Sign in to your VeriTrust workspace."
+      subtitle="Sign in to your HiringGuard workspace."
       footer={
         <>
-          New to VeriTrust?{" "}
+          New to HiringGuard?{" "}
           <Link href="/signup" className="font-medium text-foreground hover:underline">
             Create a workspace
           </Link>

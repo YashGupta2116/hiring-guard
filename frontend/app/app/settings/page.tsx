@@ -90,7 +90,7 @@ function ProfileTab() {
             <p className="text-muted-foreground text-xs truncate">{currentUser.email}</p>
             <div className="mt-1.5">
               <Badge variant="outline" size="sm" className="text-[10px]">
-                {roleLabel(currentUser.backendRole)} in {currentUser.orgName}
+                {roleLabel(currentUser.backendRole)}
               </Badge>
             </div>
           </div>
@@ -259,7 +259,7 @@ function AddMemberDialog({ open, onOpenChange, roles, onAdded }: { open: boolean
       <DialogHeader>
         <DialogTitle>Add a team member</DialogTitle>
         <DialogDescription>
-          Enter the email of someone who already has a VeriTrust account. Invitations by email aren&apos;t available, so they need to sign up first.
+          Enter the email of someone who already has a HiringGuard account. Invitations by email aren&apos;t available, so they need to sign up first.
         </DialogDescription>
       </DialogHeader>
       <form onSubmit={handleSubmit} className="space-y-4">

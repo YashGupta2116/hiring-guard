@@ -47,7 +47,7 @@ export default function SignupPage() {
   return (
     <AuthShell
       title="Create your workspace"
-      subtitle="Set up VeriTrust for your hiring team. You will be the organisation owner."
+      subtitle="Set up HiringGuard for your hiring team. You will be the organisation owner."
       footer={
         <>
           Already registered?{" "}

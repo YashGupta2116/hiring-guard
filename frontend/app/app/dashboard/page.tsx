@@ -225,7 +225,7 @@ export default function DashboardPage() {
         </div>
         <h1 className="text-2xl md:text-3xl font-bold tracking-tight text-stone-900 dark:text-stone-100 mt-0.5">Dashboard</h1>
         <p className="text-xs md:text-sm text-stone-500 dark:text-stone-400 mt-1">
-          Overview of {currentUser.orgName}: interview pipeline, live sessions and the latest reports.
+          Overview: interview pipeline, live sessions and the latest reports.
         </p>
       </div>
 

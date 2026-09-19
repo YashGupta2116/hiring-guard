@@ -50,7 +50,7 @@ const envSchema = z.object({
   SMTP_PORT: z.coerce.number().int().default(1025),
   SMTP_USER: z.string().optional(),
   SMTP_PASS: z.string().optional(),
-  MAIL_FROM: z.string().default("VeriTrust <no-reply@veritrust.local>"),
+  MAIL_FROM: z.string().default("HiringGuard <no-reply@hiringguard.local>"),
 
   LLM_PROVIDER: z.enum(["mock"]).default("mock"),
   MEDIA_PROVIDER: z.enum(["mock"]).default("mock"),

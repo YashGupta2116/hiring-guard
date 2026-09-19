@@ -179,7 +179,7 @@ export default function DesignSystemPage() {
         <div className="flex items-center justify-between border-b border-border/80 pb-4">
           <div className="flex items-center gap-2">
             <span className="font-serif text-base font-semibold text-foreground tracking-tight">
-              VeriTrust
+              HiringGuard
             </span>
             <span className="text-xs text-muted-foreground font-mono">
               Design System · v1.0

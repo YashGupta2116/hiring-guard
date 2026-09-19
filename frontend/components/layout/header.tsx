@@ -1,5 +1,6 @@
 "use client";
 
+import { Logo } from "@/components/ui/logo";
 import React, { useState, useSyncExternalStore } from "react";
 import { useTheme } from "next-themes";
 import Link from "next/link";
@@ -10,7 +11,6 @@ import {
   Bell,
   Plus,
   Menu,
-  Shield,
   UserCheck,
   ChevronDown,
   LogOut,
@@ -92,17 +92,7 @@ export function Header({ collapsed, setCollapsed }: HeaderProps) {
           </button>
 
           <div className="flex items-center gap-2.5">
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-stone-900 text-white dark:bg-stone-100 dark:text-stone-900 shadow-sm">
-              <Shield className="h-5 w-5" strokeWidth={1.8} />
-            </div>
-            <div className="flex flex-col">
-              <span className="font-serif font-bold text-stone-900 dark:text-stone-100 text-base leading-none tracking-tight">
-                VeriTrust
-              </span>
-              <span className="text-[11px] text-stone-400 dark:text-stone-500 font-sans mt-0.5 leading-none">
-                {currentUser.orgName}
-              </span>
-            </div>
+            <Logo size="md" />
           </div>
         </div>
 

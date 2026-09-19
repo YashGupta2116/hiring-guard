@@ -466,7 +466,7 @@ export function CandidateRoom({ candidateToken, onInvalid, onFinished }: Candida
           </div>
           <div>
             <h1 className="text-xs sm:text-sm font-semibold text-foreground">{info?.title ?? "Technical Interview"}</h1>
-            <p className="text-[10px] text-muted-foreground">VeriTrust candidate environment</p>
+            <p className="text-[10px] text-muted-foreground">HiringGuard candidate environment</p>
           </div>
         </div>
 
@@ -612,7 +612,7 @@ export function CandidateRoom({ candidateToken, onInvalid, onFinished }: Candida
       </div>
 
       <footer className="flex items-center justify-between px-5 py-2 border-t border-border bg-card">
-        <div className="text-xs text-muted-foreground">VeriTrust Candidate Assessment Environment</div>
+        <div className="text-xs text-muted-foreground">HiringGuard Candidate Assessment Environment</div>
         <div className="flex items-center gap-1.5">
           <button
             onClick={() => {

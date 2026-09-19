@@ -1,15 +1,12 @@
 import * as React from "react";
-import { Shield } from "lucide-react";
+import { Logo } from "@/components/ui/logo";
 
 /** Neutral, trustworthy frame for the candidate-facing join steps (no app navigation, no scores). */
 export function JoinShell({ children, wide = false }: { children: React.ReactNode; wide?: boolean }) {
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
       <header className="flex items-center gap-2.5 px-4 sm:px-6 py-3 border-b border-border bg-card">
-        <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-foreground text-background">
-          <Shield className="h-4 w-4" />
-        </div>
-        <span className="font-serif text-base font-semibold tracking-tight">VeriTrust</span>
+        <Logo size="md" />
         <span className="text-xs text-muted-foreground">Interview</span>
       </header>
 

@@ -23,7 +23,7 @@ export function CodeEditorPanel({
   const [language, setLanguage] = useState(initialLanguage);
   const [code, setCode] = useState(
     initialCode ||
-      `// VeriTrust Coding Sandbox
+      `// HiringGuard Coding Sandbox
 // Problem: Ring-Buffer Telemetry Pipeline with O(1) Updates
 
 export interface TelemetryPacket {

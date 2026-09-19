@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useId, useState } from "react";
-import { CheckCircle2, Eye, EyeOff, Lock, ScanEye, Shield, Video } from "lucide-react";
+import { Logo } from "@/components/ui/logo";
+import { CheckCircle2, Eye, EyeOff, Lock, ScanEye, Video } from "lucide-react";
 
 const FEATURES = [
   { icon: ScanEye, title: "Multimodal telemetry", body: "Correlated signals instead of isolated flags." },
@@ -18,10 +19,7 @@ export function AuthShell({ title, subtitle, children, footer }: { title: string
         <div className="pointer-events-none absolute -bottom-40 -right-40 h-96 w-96 rounded-full bg-sage-500/10 blur-3xl" />
 
         <div className="relative z-10 flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sand-900 border border-sand-800 text-sand-100">
-            <Shield className="h-5 w-5" />
-          </div>
-          <span className="text-lg font-serif font-semibold tracking-tight text-sand-50">VeriTrust</span>
+          <Logo size="lg" onDark />
         </div>
 
         <div className="relative z-10 max-w-lg space-y-8">
@@ -31,7 +29,7 @@ export function AuthShell({ title, subtitle, children, footer }: { title: string
               Decision intelligence for technical interviews
             </div>
             <h1 className="text-4xl font-serif font-semibold tracking-tight text-sand-50 leading-[1.15]">Don&apos;t just watch the candidate. Understand the signal.</h1>
-            <p className="text-sm text-sand-300 leading-relaxed">Human judgment stays in charge. VeriTrust turns behavioral telemetry, coding dynamics and video observation into evidence you can explain.</p>
+            <p className="text-sm text-sand-300 leading-relaxed">Human judgment stays in charge. HiringGuard turns behavioral telemetry, coding dynamics and video observation into evidence you can explain.</p>
           </div>
 
           <ul className="space-y-4 border-t border-sand-800/80 pt-6">
@@ -57,10 +55,7 @@ export function AuthShell({ title, subtitle, children, footer }: { title: string
       <main className="flex-1 flex flex-col items-center justify-center px-5 py-10 sm:px-10">
         <div className="w-full max-w-[420px] space-y-8">
           <div className="lg:hidden flex items-center gap-2.5">
-            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-foreground text-background">
-              <Shield className="h-4 w-4" />
-            </div>
-            <span className="text-lg font-serif font-semibold tracking-tight">VeriTrust</span>
+            <Logo size="md" />
           </div>
 
           <div className="space-y-1.5">
