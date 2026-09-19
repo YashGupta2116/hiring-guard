@@ -16,7 +16,7 @@ export function Logo({ size = "md", onDark = false, className }: { size?: keyof 
       <span className={cn("flex shrink-0 items-center justify-center bg-clay-600 text-clay-50 shadow-sm", s.tile, onDark && "bg-clay-400 text-sand-950")}>
         <ShieldCheck className={s.icon} strokeWidth={2.2} />
       </span>
-      <span className={cn("font-serif font-bold leading-none tracking-tight", s.text, onDark ? "text-clay-300" : "text-clay-700 dark:text-clay-300")}>HiringGuard</span>
+      <span className={cn("font-serif font-bold leading-none tracking-tight", s.text, onDark ? "text-clay-300" : "text-clay-700 dark:text-clay-300")}>Hiring Guard</span>
     </span>
   );
 }
