@@ -18,6 +18,8 @@ Seven phases were planned. Two are cut. Each remaining one is independently test
 
 Also landed outside the phase plan: `Engine.snapshot(t_ms)`, a non-destructive mid-session read. The demo's opening beat and the F4 timeline both need the score sampled without ending the session.
 
+Also landed outside the phase plan, after Phase 6 (2026-09-18): a prior-sensitivity sweep and a calibration-window ablation, answering whether the hand-set priors' exact values matter and what the calibration-window fix was actually worth. `evaluate/priors_sweep.py`, `evaluate/calibration_ablation.py`, figure F5, and `docs/reports/prior-sensitivity-18sep.md`. See `docs/Memory.md` for the numbers.
+
 What the Phase 3 cut costs: the claim that the numbers came from recorded behaviour. State that in the video rather than letting a judge notice it. The calibration pipeline is designed and specified, it just has no recordings to fit on yet, and that is a more honest position than a quiet gap.
 
 ---
@@ -75,6 +77,10 @@ What the Phase 3 cut costs: the claim that the numbers came from recorded behavi
 3. `baseline.py`: `BaselineBuilder` collecting gaze home region (convex hull of gaze points), head pose median, keystroke interval distribution, baseline glance rate. `finalise()` returns the baseline or population defaults with `fallback` set.
 4. Wire personalised thresholds: gaze offscreen yaw threshold shifts with the baseline neutral pose; rhythm anomaly runs a two-sample KS test against the baseline distribution.
 5. `detectors/offline_video.py`: MediaPipe Python over an mp4, emitting the same `Observation` shapes as the browser will.
+
+Also landed this phase but never named in the task list above: `wire.py`, mapping engine channels and
+detector types to the backend's `MonitoringChannel` enum at the serialisation boundary (`Memory.md`
+already credits it under this phase's "Done" line; this file didn't). Tested in `tests/test_wire.py`.
 
 **Exit criteria**
 - A 60 s synthetic stream produces a complete baseline; a 20 s stream produces `fallback`

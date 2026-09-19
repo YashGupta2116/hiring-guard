@@ -13,5 +13,6 @@ fixtures/raw/*.webm
 reports/*.png
 reports/*.svg
 reports/*.md
+reports/*.csv
 .DS_Store
-
+/graphify-out/

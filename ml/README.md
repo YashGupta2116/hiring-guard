@@ -49,6 +49,15 @@ python -m vtml.evaluate
 
 Replays `honest_seed7` and `staged_seed7` through the engine, on `priors.py` since no fitted weights exist yet, and writes `reports/eval-phase1-priors.md` plus four figures. The report opens by stating what two synthetic fixtures can and cannot support: no fitted detector, no recorded session, and no precision, recall or population median. When `fixtures/demo_session.jsonl` exists, the same command also writes `reports/demo_timeline.png`/`.svg` (the F4 timeline over the demo fixture, with its dismissed flag drawn at reduced opacity and struck through) and `reports/demo-walkthrough.md`, the one-page narration script for the demo video. `reports/` is gitignored in full and rebuilds from tracked fixtures and code alone.
 
+## Prior-sensitivity sweep and calibration ablation
+
+```bash
+python -m vtml.evaluate.priors_sweep        # writes reports/f5_prior_sensitivity_sweep.{csv,png,svg}
+python -m vtml.evaluate.calibration_ablation # prints the pre-/post-fix score comparison
+```
+
+Out-of-phase fairness checks against `honest_seed7`/`staged_seed7`: whether the verdict survives a 0.25x-4x sweep of each channel's hand-set prior, and what the calibration-window fix actually changed. See `docs/reports/prior-sensitivity-18sep.md`.
+
 ## Detector types
 
 Every detector type string, its channel, its backend wire mapping, and its hand-set prior live in one place: `src/vtml/detectors/schema.py`. Nothing else in `src/vtml/` hardcodes one as a literal -- `tests/test_registry.py` asserts that.

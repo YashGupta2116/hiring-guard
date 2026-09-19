@@ -53,11 +53,24 @@ class Weights:
 
 
 class Engine:
-    def __init__(self, config: EngineConfig, weights: Weights | None, *, seed: int = 0) -> None:
+    def __init__(
+        self,
+        config: EngineConfig,
+        weights: Weights | None,
+        *,
+        seed: int = 0,
+        priors: dict[str, float] | None = None,
+    ) -> None:
         if weights is None:
             raise ValueError("Engine requires weights; refuses to score with priors silently")
         self._config = config
         self._weights = weights
+        # Defaults to the module-level PRIORS reference, unchanged for every
+        # existing caller. `priors` exists only for an evaluation harness
+        # sweeping one channel's prior at a time (evaluate/priors_sweep.py):
+        # each instance gets its own dict, copied defensively, so nothing is
+        # ever shared or mutated across Engine instances -- no monkeypatch.
+        self._priors: dict[str, float] = dict(priors) if priors is not None else PRIORS
         self._channels: dict[Channel, ChannelState] = {
             channel: ChannelState(channel, config) for channel in Channel
         }
@@ -129,7 +142,7 @@ class Engine:
         for other in self._channels.values():
             other.decay_to(obs.t_ms)
 
-        prior = PRIORS.get(obs.type)
+        prior = self._priors.get(obs.type)
         if prior is None:
             self._bump("unknown_detector")
             return False

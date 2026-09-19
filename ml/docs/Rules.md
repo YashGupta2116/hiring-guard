@@ -124,12 +124,12 @@ These are shared with the product gauge and owned by `Design.md` section 1. They
 
 ### The locked baseline
 
-`tests/test_regression_baseline.py` pins the honest synthetic session (seed 7) at score 93.11, band `clear`, zero flags, empty `diagnostics`, and these exact per-channel contributions:
+`tests/test_regression_baseline.py` pins the honest synthetic session (seed 7) at score 94.28386762280083, band `clear`, zero flags, empty `diagnostics`, and these exact per-channel contributions:
 
 | Channel | Contribution |
 |---|---|
-| gaze | 0.21648255031641855 |
-| focus | 0.32380731655958755 |
+| gaze | 0.1582772816645856 |
+| focus | 0.26348787968391063 |
 | scene, input, network, audio | 0.0 |
 
 Every later phase is measured against this. Do not edit the file, relax its tolerances, or mark it skipped. If it fails, either the change is wrong or the change is deliberate; stop and explain which before continuing.

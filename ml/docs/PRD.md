@@ -17,7 +17,7 @@ It is not a classifier that outputs "cheating" or "not cheating". It is an evide
 - a list of flags, each carrying its own evidence, severity, and the exact number of points it cost the score
 - a list of unscored windows, meaning intervals where a signal was unavailable and no judgement was made
 
-Everything downstream of this component (dashboard, report, warnings) renders what the engine produced. Nothing downstream recomputes it.
+Everything downstream of this component (dashboard, report, warnings) renders what the engine produced. Nothing outside this component recomputes it. The one recomputation that does happen, adjudication (F9), is the engine itself replaying its own stored evidence with terms removed, not a second system re-deriving the score.
 
 ## 2. Why it exists
 

@@ -25,6 +25,7 @@ from matplotlib.ticker import FuncFormatter
 
 from vtml.config import EngineConfig
 from vtml.evaluate.metrics import FixtureRun, SensitivityRun
+from vtml.evaluate.priors_sweep import MULTIPLIERS, SWEPT_CHANNELS, StabilityResult, SweepPoint
 from vtml.fusion import corroborate
 from vtml.fusion.engine import Engine, Weights
 from vtml.types import Channel, Flag, Observation, Severity
@@ -137,6 +138,14 @@ def figure_score_distribution(honest: FixtureRun, staged: FixtureRun) -> Figure:
     return fig
 
 
+def _hatch_panel_background(ax: Axes) -> None:
+    """Design.md section 2 rule 2's "not computable" panel treatment,
+    shared by F2 (unfitted detector) and F5 (unexercised channel)."""
+    ax.set_facecolor(TOKENS["sand/400"])
+    ax.patch.set_hatch("///")
+    ax.patch.set_edgecolor(TOKENS["sand/500"])
+
+
 def figure_reliability_grid(detector_types: list[str], *, ncols: int = 4) -> Figure:
     """F2: not computable this phase -- no detector has a fitted curve
     and there are no labelled positives to bin. Every panel is hatched
@@ -154,9 +163,7 @@ def figure_reliability_grid(detector_types: list[str], *, ncols: int = 4) -> Fig
         if i >= n:
             ax.axis("off")
             continue
-        ax.set_facecolor(TOKENS["sand/400"])
-        ax.patch.set_hatch("///")
-        ax.patch.set_edgecolor(TOKENS["sand/500"])
+        _hatch_panel_background(ax)
         ax.set_xticks([])
         ax.set_yticks([])
         ax.set_xlabel(labels[i], fontsize=7, rotation=20, ha="right")
@@ -198,6 +205,89 @@ def figure_sensitivity_sweep(sensitivity: list[SensitivityRun]) -> Figure:
     ax.set_ylim(0, 100)
     ax.legend()
     return fig
+
+
+def figure_prior_sensitivity_sweep(
+    points: list[SweepPoint], stability: list[StabilityResult]
+) -> Figure:
+    """F5: small multiples, one panel per scored channel, x axis the
+    prior multiplier on a log scale, y axis the final score, band
+    boundaries shaded behind both series so the reader sees the verdict
+    (Design.md section 2 rule 2's "unmistakable" standard, applied here
+    to a sweep instead of a timeline). Honest is a filled `sage/400`
+    line, staged a hollow-marker `terra/400` line, distinguished by
+    marker fill as F1 already does, not colour alone (Design.md section
+    2 rule 4).
+
+    A channel neither fixture ever exercises (`StabilityResult.exercised`
+    is False -- audio, disabled in v1, PRD.md section 5) gets the same
+    hatched `sand/400` "not computable" treatment F2 already uses for an
+    unfitted detector: a flat line here is a no-op, not a stability
+    result, and drawing it identically to a real pass would be the
+    figure making a claim the sweep does not support.
+    """
+    # run_sweep() emits points ordered by (channel, multiplier), so
+    # by_channel[channel] is already ascending in multiplier -- no re-sort.
+    by_channel = {c: [p for p in points if p.channel == c] for c in SWEPT_CHANNELS}
+    stability_by_channel = {r.channel: r for r in stability}
+
+    ncols = len(SWEPT_CHANNELS)
+    fig, axes = plt.subplots(1, ncols, figsize=(11.5, 3.2), squeeze=False, sharey=True)
+
+    for i, channel in enumerate(SWEPT_CHANNELS):
+        ax = axes[0][i]
+        rows = by_channel[channel]
+        result = stability_by_channel[channel]
+
+        for _band, lo, hi in _BAND_RANGES:
+            ax.axhspan(lo, hi, color=_BAND_COLOR[_band], alpha=0.12, lw=0)
+
+        if not result.exercised:
+            _hatch_panel_background(ax)
+            ax.text(
+                0.5, 0.5, "no observations\nin either fixture",
+                transform=ax.transAxes, ha="center", va="center",
+                color=TOKENS["sand/600"], fontsize=8,
+            )
+        else:
+            ax.plot(
+                [p.multiplier for p in rows], [p.honest_score for p in rows],
+                color=TOKENS["sage/400"], marker="o", markersize=5,
+                markerfacecolor=TOKENS["sage/400"], markeredgecolor=TOKENS["sage/400"],
+                label="honest",
+            )
+            ax.plot(
+                [p.multiplier for p in rows], [p.staged_score for p in rows],
+                color=TOKENS["terra/400"], marker="o", markersize=5, fillstyle="none",
+                markeredgewidth=1.4, label="staged",
+            )
+
+        ax.set_xscale("log", base=2)
+        ax.set_xticks([MULTIPLIERS[0], 1.0, MULTIPLIERS[-1]])
+        ax.set_xticklabels(["0.25x", "1x", "4x"])
+        ax.set_ylim(0, 100)
+        ax.set_xlabel(channel.value, fontsize=9)
+        if i == 0:
+            ax.set_ylabel("Integrity score")
+            ax.legend(loc="lower left", fontsize=8)
+
+    fig.tight_layout()
+    return fig
+
+
+def save_f5(
+    reports_dir: Path, points: list[SweepPoint], stability: list[StabilityResult]
+) -> Path:
+    """Written by `python -m vtml.evaluate.priors_sweep`, not by the
+    standard `python -m vtml.evaluate` run -- the sweep is 45 engine
+    replays and is not part of the every-run report."""
+    reports_dir.mkdir(parents=True, exist_ok=True)
+    fig = figure_prior_sensitivity_sweep(points, stability)
+    png_path = reports_dir / "f5_prior_sensitivity_sweep.png"
+    fig.savefig(png_path)
+    fig.savefig(reports_dir / "f5_prior_sensitivity_sweep.svg")
+    plt.close(fig)
+    return png_path
 
 
 @dataclass(frozen=True)
