@@ -18,6 +18,7 @@ const NARRATIVE_TEMPLATES: Record<string, (payload: Record<string, unknown>) => 
   network_anomaly: () => "A network connectivity anomaly was detected.",
   face_absent: () => "The candidate's face was not visible to the camera.",
   multiple_faces: () => "More than one face was visible on camera.",
+  foreign_object: (p) => `A ${(p.object as string) ?? "foreign object"} was visible on camera.`,
   gaze_away: () => "The candidate appeared to look away from the screen frequently.",
   second_voice: () => "A second voice was detected.",
 };

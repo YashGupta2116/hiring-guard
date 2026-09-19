@@ -163,3 +163,26 @@ export async function getSessionCode(orgId: string, sessionId: string) {
     runner: getSandbox().name,
   }));
 }
+
+/** Lets an interviewer hand the candidate another coding task while the interview is live. */
+export async function assignLiveTask(orgId: string, sessionId: string, taskId: string) {
+  const session = await prisma.interviewSession.findFirst({ where: { id: sessionId, orgId }, select: { status: true } });
+  if (!session) {
+    throw new AppError("NOT_FOUND", "Session not found.");
+  }
+  if (session.status !== "LIVE") {
+    throw new AppError("INVALID_STATE_TRANSITION", "Tasks can only be assigned while the interview is live.", { currentStatus: session.status });
+  }
+  const task = await prisma.codingTask.findFirst({ where: { id: taskId, orgId } });
+  if (!task) {
+    throw new AppError("NOT_FOUND", "Coding task not found.");
+  }
+  const existing = await prisma.sessionCodingTask.findUnique({ where: { sessionId_taskId: { sessionId, taskId } } });
+  if (existing) {
+    return { sessionTaskId: existing.id, alreadyAssigned: true };
+  }
+  const last = await prisma.sessionCodingTask.findFirst({ where: { sessionId }, orderBy: { position: "desc" }, select: { position: true } });
+  const created = await prisma.sessionCodingTask.create({ data: { sessionId, taskId, position: (last?.position ?? -1) + 1 } });
+  emitToCandidate(sessionId, CANDIDATE_EVENTS.TASK_ASSIGNED, { taskId: created.id });
+  return { sessionTaskId: created.id, alreadyAssigned: false };
+}

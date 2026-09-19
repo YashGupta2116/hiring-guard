@@ -89,6 +89,14 @@ export class MockLlmProvider implements LlmProvider {
 
   async suggestQuestions(input: SuggestInput): Promise<SuggestedQuestion[]> {
     const topics = input.parsedJd?.topics.map((topic) => topic.name) ?? [];
+    if (topics.length === 0) {
+      // No job description to draw topics from, so fall back to broadly useful interview questions.
+      return [
+        { rank: 1, topic: "Experience", text: "Walk me through a recent project you are proud of and your specific contribution to it.", rationale: "Establishes hands-on experience and ownership." },
+        { rank: 2, topic: "Problem solving", text: "Tell me about a hard technical problem you debugged. How did you find the root cause?", rationale: "Checks debugging depth and reasoning under uncertainty." },
+        { rank: 3, topic: "Trade-offs", text: "Describe a decision where you had to trade off speed against quality. What did you choose and why?", rationale: "Probes judgment and communication of trade-offs." },
+      ];
+    }
     const uncovered = topics.filter((topic) => !input.coveredTopics.includes(topic));
     const focus = input.currentTopic ?? uncovered[0] ?? topics[0] ?? "General";
     const next = uncovered.find((topic) => topic !== focus) ?? focus;

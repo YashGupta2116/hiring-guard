@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Clock, HelpCircle, Loader2, Mic, MicOff, MonitorUp, Shield, UserRound, Video, VideoOff, WifiOff } from "lucide-react";
+import { Clock, HelpCircle, Loader2, Maximize, Mic, MicOff, MonitorUp, Shield, UserRound, Video, VideoOff, WifiOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { CandidateWarning } from "@/components/ui/candidate-warning";
@@ -27,6 +27,10 @@ import {
 } from "@/lib/candidate/media";
 import { connectCandidateSocket, syncClock, type CandidateServerEvents, type CandidateSocket } from "@/lib/candidate/socket";
 import { EditorSync, TelemetryReporter } from "@/lib/candidate/telemetry";
+import { CandidateRtc } from "@/lib/candidate/rtc";
+import { CvProducer } from "@/lib/candidate/cv";
+import { isTestMode } from "@/lib/candidate/test-mode";
+import { enterFullscreen, isFullscreen, startLockdown, type ViolationKind } from "@/lib/candidate/lockdown";
 import { cn } from "@/lib/utils";
 
 type Phase = "loading" | "waiting" | "live" | "ended";
@@ -79,7 +83,19 @@ export function CandidateRoom({ candidateToken, onInvalid, onFinished }: Candida
   const [telemetry, setTelemetry] = useState<TelemetryReporter | null>(null);
   const [editorSync, setEditorSync] = useState<EditorSync | null>(null);
 
+  const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
+  const [newTaskNotice, setNewTaskNotice] = useState(false);
+  const [cvLocal, setCvLocal] = useState<{ state: string; faces: number; away: boolean; object?: string } | null>(null);
+  const [fullscreen, setFullscreen] = useState(false);
+  const [testMode] = useState(() => isTestMode());
+  const [blockedNotice, setBlockedNotice] = useState(false);
+  const armedRef = useRef(false);
+  const violationSent = useRef(false);
+  const socketRefLatest = useRef<CandidateSocket | null>(null);
+
   const selfVideoRef = useRef<HTMLVideoElement>(null);
+  const remoteVideoRef = useRef<HTMLVideoElement>(null);
+  const rtcRef = useRef<CandidateRtc | null>(null);
   const snapshotGetters = useRef(new Map<string, () => { language: string; content: string }>());
   const activeTaskRef = useRef<string | null>(null);
 
@@ -134,6 +150,16 @@ export function CandidateRoom({ candidateToken, onInvalid, onFinished }: Candida
     s.on("task.frozen", (e: CandidateServerEvents["task.frozen"]) => {
       setTasks((prev) => prev?.map((t) => (t.taskId === e.taskId ? { ...t, frozen: true } : t)) ?? prev);
     });
+    s.on("task.assigned", () => {
+      // The interviewer handed over another task: reload the list and bring the new one into view.
+      getCandidateTasks(candidateToken)
+        .then((res) => {
+          setTasks(res);
+          setActiveTaskId((current) => current ?? res[0]?.taskId ?? null);
+          setNewTaskNotice(true);
+        })
+        .catch(() => undefined);
+    });
     s.on("session.ended", (e: CandidateServerEvents["session.ended"]) => {
       setEndedMessage(e.message);
       setPhase("ended");
@@ -187,6 +213,76 @@ export function CandidateRoom({ candidateToken, onInvalid, onFinished }: Candida
     const video = selfVideoRef.current;
     if (video && phase !== "ended") video.srcObject = getCameraStream();
   }, [phase, media.camera]);
+
+  // ---- Full screen & lockdown ---------------------------------------------------------------
+  useEffect(() => {
+    socketRefLatest.current = socket;
+  }, [socket]);
+
+  useEffect(() => {
+    const sync = () => setFullscreen(isFullscreen());
+    sync();
+    document.addEventListener("fullscreenchange", sync);
+    return () => document.removeEventListener("fullscreenchange", sync);
+  }, []);
+
+  useEffect(() => {
+    armedRef.current = !testMode && phase === "live" && mediaOk && fullscreen;
+  }, [testMode, phase, mediaOk, fullscreen]);
+
+  const inRoom = phase !== "loading" && phase !== "ended";
+  useEffect(() => {
+    if (!inRoom) return;
+    let noticeTimer: ReturnType<typeof setTimeout> | undefined;
+    const stop = startLockdown({
+      isArmed: () => armedRef.current,
+      onViolation: (kind: ViolationKind) => {
+        if (violationSent.current) return;
+        violationSent.current = true;
+        socketRefLatest.current?.emit("session.violation", { kind });
+        setEndedMessage("Your interview was ended because you left the full-screen interview window. The interviewer has been notified.");
+        setPhase("ended");
+      },
+      onBlocked: () => {
+        setBlockedNotice(true);
+        clearTimeout(noticeTimer);
+        noticeTimer = setTimeout(() => setBlockedNotice(false), 2500);
+      },
+    });
+    return () => {
+      stop();
+      clearTimeout(noticeTimer);
+    };
+  }, [inRoom]);
+
+  // Video call with the interviewer: send our camera/mic/screen, show theirs.
+  useEffect(() => {
+    if (!socket || phase === "ended" || phase === "loading") return;
+    const rtc = new CandidateRtc(socket, setRemoteStream);
+    rtcRef.current = rtc;
+    rtc.start();
+    return () => {
+      rtc.stop();
+      rtcRef.current = null;
+    };
+  }, [socket, phase === "ended" || phase === "loading"]);
+
+  useEffect(() => {
+    const video = remoteVideoRef.current;
+    if (video && video.srcObject !== remoteStream) {
+      video.srcObject = remoteStream;
+      void video.play().catch(() => undefined);
+    }
+  }, [remoteStream, phase, mediaOk]);
+
+  // Camera analysis (face presence, face count, gaze) runs in the browser while the interview is live.
+  useEffect(() => {
+    if (phase !== "live" || !socket || !media.camera) return;
+    const cv = new CvProducer(socket);
+    cv.onStatus = setCvLocal;
+    cv.start();
+    return () => cv.stop();
+  }, [phase, socket, media.camera]);
 
   // ---- Coding tasks & live signals ----------------------------------------------------------
   useEffect(() => {
@@ -256,6 +352,7 @@ export function CandidateRoom({ candidateToken, onInvalid, onFinished }: Candida
     setMedia(trackState());
     setMediaReported(false);
     setResharing(false);
+    rtcRef.current?.refresh();
   };
 
   // ---- Render -------------------------------------------------------------------------------
@@ -299,8 +396,27 @@ export function CandidateRoom({ candidateToken, onInvalid, onFinished }: Candida
     );
   }
 
+  const fullscreenGate = !testMode && !fullscreen && (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/95 backdrop-blur-sm p-6">
+      <div className="max-w-md w-full rounded-xl border border-border bg-card p-6 text-center space-y-4 shadow-lg">
+        <div className="mx-auto flex h-11 w-11 items-center justify-center rounded-lg bg-secondary text-foreground">
+          <Maximize className="h-5 w-5" />
+        </div>
+        <h2 className="text-lg font-semibold text-foreground">Enter full screen to continue</h2>
+        <p className="text-sm text-muted-foreground leading-relaxed">
+          This interview must run in full screen. Copy and paste are disabled. Once the interview starts, leaving full screen, switching tabs or switching to another window ends the interview immediately.
+        </p>
+        <Button onClick={() => void enterFullscreen()} className="w-full">
+          Enter full screen
+        </Button>
+      </div>
+    </div>
+  );
+
   if (phase === "waiting") {
     return (
+      <>
+      {fullscreenGate}
       <JoinShell>
         <JoinCard
           title="You're checked in"
@@ -322,6 +438,7 @@ export function CandidateRoom({ candidateToken, onInvalid, onFinished }: Candida
           )}
         </JoinCard>
       </JoinShell>
+      </>
     );
   }
 
@@ -331,6 +448,17 @@ export function CandidateRoom({ candidateToken, onInvalid, onFinished }: Candida
 
   return (
     <div className="min-h-screen flex flex-col bg-background text-foreground">
+      {fullscreenGate}
+      {testMode && (
+        <div className="fixed bottom-3 left-3 z-40 rounded-md border border-amber-500/40 bg-amber-500/15 px-2.5 py-1 text-[11px] font-medium text-amber-800 dark:text-amber-300">
+          Test mode: full screen and switch-away rules are off
+        </div>
+      )}
+      {blockedNotice && (
+        <div role="status" className="fixed top-3 left-1/2 z-40 -translate-x-1/2 rounded-md bg-foreground px-3 py-1.5 text-xs font-medium text-background shadow-lg">
+          Copy and paste are disabled during this interview.
+        </div>
+      )}
       <header className="flex items-center justify-between px-4 sm:px-6 py-2.5 border-b border-border bg-card">
         <div className="flex items-center gap-2.5">
           <div className="flex h-7 w-7 items-center justify-center rounded-md bg-foreground text-background">
@@ -363,19 +491,38 @@ export function CandidateRoom({ candidateToken, onInvalid, onFinished }: Candida
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-2.5 p-2.5 overflow-hidden">
         <div className="lg:col-span-4 flex flex-col gap-2.5 h-full overflow-hidden">
           <div className="grid grid-cols-2 gap-2 h-32 shrink-0">
-            <div className="relative rounded-lg border border-border bg-secondary/40 overflow-hidden flex flex-col items-center justify-center gap-1 text-muted-foreground">
-              <UserRound className="h-6 w-6" />
-              <span className="text-[10px] px-2 text-center">Interviewer video is not available in this environment</span>
+            <div className="relative rounded-lg border border-border bg-slate-950 overflow-hidden flex flex-col items-center justify-center gap-1 text-muted-foreground">
+              <video ref={remoteVideoRef} autoPlay playsInline className={cn("w-full h-full object-cover", !remoteStream && "hidden")} aria-label="Interviewer video" />
+              {!remoteStream && (
+                <>
+                  <UserRound className="h-6 w-6" />
+                  <span className="text-[10px] px-2 text-center">Connecting to your interviewer&apos;s video…</span>
+                </>
+              )}
+              {remoteStream && <div className="absolute bottom-1 left-1 bg-black/70 px-1.5 py-0.5 rounded text-[9px] text-white">Interviewer</div>}
             </div>
 
             <div className="relative rounded-lg border border-border bg-slate-950 overflow-hidden flex items-center justify-center">
               <video ref={selfVideoRef} autoPlay muted playsInline className={cn("w-full h-full object-cover", !camOn && "hidden")} aria-label="Your camera" />
               {!camOn && <VideoOff className="h-5 w-5 text-slate-500" />}
               <div className="absolute bottom-1 left-1 bg-black/70 px-1.5 py-0.5 rounded text-[9px] text-white">You</div>
+              {cvLocal?.state === "ok" && (
+                <div className={cn("absolute top-1 left-1 rounded px-1.5 py-0.5 text-[9px] text-white", cvLocal.faces === 1 && !cvLocal.away && !cvLocal.object ? "bg-emerald-600/90" : "bg-red-600/90")}>
+                  {cvLocal.object ? `Remove ${cvLocal.object}` : cvLocal.faces === 0 ? "No face" : cvLocal.faces > 1 ? `${cvLocal.faces} faces` : cvLocal.away ? "Look at screen" : "Face OK"}
+                </div>
+              )}
             </div>
           </div>
 
           <div className="flex-1 rounded-lg border border-border bg-card p-3.5 overflow-y-auto space-y-2.5 text-xs">
+            {newTaskNotice && (
+              <div role="status" className="flex items-center justify-between gap-2 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1.5 text-[11px] text-emerald-700 dark:text-emerald-400">
+                <span>Your interviewer assigned a coding task.</span>
+                <button onClick={() => setNewTaskNotice(false)} className="font-semibold underline">
+                  Dismiss
+                </button>
+              </div>
+            )}
             {tasksError ? (
               <p className="text-red-600 dark:text-red-400">{tasksError}</p>
             ) : tasks === null ? (

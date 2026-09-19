@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useState } from "react";
-import { Link2, Copy, Check, ExternalLink, ShieldCheck, Clock } from "lucide-react";
+import { Link2, Copy, Check, ExternalLink, ShieldCheck, Clock, PanelRight } from "lucide-react";
+import { openCandidateTestWindow } from "@/lib/candidate/test-mode";
 import { Button } from "../ui/button";
 import { StatusBadge } from "../ui/status-badge";
 import { useToast } from "../ui/toast";
@@ -74,6 +75,13 @@ export function InterviewLinkCard({ reference, url, expiresAt, isActive = true, 
             <ExternalLink className="h-3 w-3" />
             Open Link
           </Button>
+
+          {process.env.NODE_ENV !== "production" && (
+            <Button size="sm" variant="outline" onClick={() => url && openCandidateTestWindow(url)} disabled={!url} className="h-7 gap-1.5 text-xs" title="Development only: opens the candidate view in a half-screen window with the full-screen rules off, so you can test both sides on one device.">
+              <PanelRight className="h-3.5 w-3.5" />
+              Test window
+            </Button>
+          )}
         </div>
       </div>
 

@@ -24,6 +24,7 @@ export const LLR_TABLE: Record<string, BySensitivity> = {
   face_absent: { LOW: 0.9, STANDARD: 1.4, HIGH: 2.0 },
   multiple_faces: { LOW: 1.1, STANDARD: 1.7, HIGH: 2.3 },
   gaze_away: { LOW: 0.7, STANDARD: 1.1, HIGH: 1.6 },
+  foreign_object: { LOW: 1.0, STANDARD: 1.6, HIGH: 2.2 },
   second_voice: { LOW: 1.0, STANDARD: 1.5, HIGH: 2.1 },
   // Phase 8: authorship detector (editor.delta), reusing the PASTE/RHYTHM channels — no dedicated channel exists.
   typed_ratio_low: { LOW: 0.9, STANDARD: 1.4, HIGH: 2.0 },

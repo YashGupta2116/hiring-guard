@@ -3,6 +3,7 @@ import {
   acceptSuggestion,
   addInterviewer,
   addNote,
+  assignTask,
   cancelSession,
   createSession,
   endSession,
@@ -16,6 +17,7 @@ import {
   getSession,
   getSessionCode,
   listSessions,
+  openRoom,
   patchConfig,
   recomputeReport,
   refreshSuggestions,
@@ -31,6 +33,7 @@ import { patchConfigSchema } from "../validators/config.schema.js";
 import {
   acceptSuggestionSchema,
   addNoteSchema,
+  assignTaskSchema,
   listFlagsSchema,
   listNotesSchema,
   suggestionsRefreshSchema,
@@ -56,6 +59,7 @@ sessionRouter.get("/sessions/:id", validate(sessionIdParamSchema), requireSessio
 sessionRouter.patch("/sessions/:id", validate(updateSessionSchema), requireSessionAccess({ write: true }), updateSession);
 sessionRouter.post("/sessions/:id/cancel", validate(sessionIdParamSchema), requireSessionAccess({ write: true }), cancelSession);
 sessionRouter.patch("/sessions/:id/config", validate(patchConfigSchema), requireSessionAccess({ write: true }), patchConfig);
+sessionRouter.post("/sessions/:id/open-room", validate(sessionIdParamSchema), requireSessionAccess({ write: true }), openRoom);
 sessionRouter.post("/sessions/:id/start", validate(sessionIdParamSchema), requireSessionAccess({ write: true }), startSession);
 sessionRouter.post("/sessions/:id/end", validate(sessionIdParamSchema), requireSessionAccess({ write: true }), endSession);
 sessionRouter.get("/sessions/:id/live", validate(sessionIdParamSchema), requireSessionAccess(), getLiveSnapshot);
@@ -86,6 +90,7 @@ sessionRouter.post(
   requireSessionAccess({ write: true }),
   acceptSuggestion,
 );
+sessionRouter.post("/sessions/:id/tasks", validate(assignTaskSchema), requireSessionAccess({ write: true }), assignTask);
 sessionRouter.get("/sessions/:id/code", validate(sessionIdParamSchema), requireSessionAccess(), getSessionCode);
 sessionRouter.get(
   "/sessions/:id/evidence/verify",

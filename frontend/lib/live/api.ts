@@ -39,6 +39,7 @@ export type LiveSnapshot = {
   integrity: { score: number; calibrating: boolean } | null;
   flags: LiveFlag[];
   notes: LiveNote[];
+  warningCount?: number;
   lastFrameSeq: number;
 };
 
@@ -90,3 +91,8 @@ export const acceptSuggestion = (id: string, suggestionId: string) =>
   apiRequest<unknown>(`${s(id)}/suggestions/${encodeURIComponent(suggestionId)}/accept`, { method: "POST" });
 
 export const getSessionCode = (id: string) => apiRequest<SessionCodeTask[]>(`${s(id)}/code`);
+
+export const assignLiveTask = (id: string, taskId: string) =>
+  apiRequest<{ sessionTaskId: string; alreadyAssigned: boolean }>(`${s(id)}/tasks`, { method: "POST", body: { taskId } });
+
+export const openSessionRoom = (id: string) => apiRequest<{ open: boolean }>(`${s(id)}/open-room`, { method: "POST" });

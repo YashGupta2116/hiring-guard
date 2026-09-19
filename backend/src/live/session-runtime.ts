@@ -43,7 +43,7 @@ import { ProducerHealthMonitor } from "./producer-health.js";
 import { computeTimerState } from "./timer.js";
 import { evaluateWarden } from "./warden.js";
 
-export type EndReason = "interviewer" | "duration_limit" | "candidate_abandon" | "fatal";
+export type EndReason = "interviewer" | "duration_limit" | "candidate_abandon" | "candidate_violation" | "fatal";
 
 export type SessionRuntimeOptions = {
   sessionId: string;
@@ -428,7 +428,7 @@ export class SessionRuntime {
   }
 
   /** Called once the session has actually left LIVE. Idempotent. */
-  async destroy(): Promise<void> {
+  async destroy(message = "Thank you for completing your interview."): Promise<void> {
     this.ended = true;
     if (this.leaseInterval) clearInterval(this.leaseInterval);
     if (this.timerInterval) clearInterval(this.timerInterval);
@@ -437,7 +437,7 @@ export class SessionRuntime {
     if (this.producerHealthInterval) clearInterval(this.producerHealthInterval);
     if (this.integrityTickInterval) clearInterval(this.integrityTickInterval);
     if (this.integritySnapshotInterval) clearInterval(this.integritySnapshotInterval);
-    emitToCandidate(this.opts.sessionId, CANDIDATE_EVENTS.SESSION_ENDED, { message: "Thank you for completing your interview." });
+    emitToCandidate(this.opts.sessionId, CANDIDATE_EVENTS.SESSION_ENDED, { message });
     await redis.del(this.leaseKey());
   }
 }

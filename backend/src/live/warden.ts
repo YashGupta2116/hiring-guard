@@ -17,6 +17,7 @@ const WARNING_MESSAGES: Record<string, string> = {
   second_voice: "Multiple voices detected. Please ensure you are alone for the rest of the interview.",
   face_absent: "Your face is not visible to the camera. Please stay in view.",
   multiple_faces: "More than one person is visible. Please ensure you are alone.",
+  foreign_object: "An object such as a phone or book is visible on camera. Please remove it from view.",
   gaze_away: "You appear to be looking away from the screen frequently. Please keep your attention on the interview.",
   device_change: "A new audio or video device was connected. Please use only the devices you started with.",
   typing_burst: "Very fast text entry was detected in the editor. Please type your solution yourself.",

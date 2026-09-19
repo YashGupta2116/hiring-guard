@@ -25,7 +25,47 @@ export const CANDIDATE_EVENTS = {
   SESSION_ENDED: "session.ended",
   WARN_SHOW: "warn.show",
   TASK_FROZEN: "task.frozen",
+  TASK_ASSIGNED: "task.assigned",
 } as const;
+
+/** WebRTC signalling relayed between the interviewer and candidate sockets; it never carries scores or flags. */
+export const rtcSignalSchema = z.object({
+  to: z.string().min(1).max(100).optional(),
+  type: z.enum(["ready", "offer", "answer", "candidate", "bye"]),
+  sdp: z.string().max(100_000).optional(),
+  candidate: z.unknown().optional(),
+  streams: z.object({ camera: z.string().max(200).optional(), screen: z.string().max(200).optional() }).optional(),
+});
+
+/** Camera-derived observations produced in the candidate's browser (face presence, face count, gaze). */
+export const cvBatchSchema = z.object({
+  items: z
+    .array(
+      z.object({
+        type: z.enum(["face_absent", "multiple_faces", "gaze_away", "foreign_object"]),
+        ts: z.number().int().min(0),
+        strength: z.number().min(0).max(1),
+        payload: z.record(z.string(), z.unknown()).default({}),
+      }),
+    )
+    .min(1)
+    .max(20),
+});
+
+/** Live camera-analysis state, shown to the interviewer as an indicator. Not scored and not stored. */
+export const cvStatusSchema = z.object({
+  state: z.enum(["loading", "ok", "unavailable"]),
+  faces: z.number().int().min(0).max(10),
+  away: z.boolean(),
+  object: z.string().max(40).optional(),
+});
+
+/** The candidate's browser reports leaving the required full-screen / focused state; the interview is cancelled. */
+export const violationSchema = z.object({
+  kind: z.enum(["left_fullscreen", "tab_hidden", "window_blur"]),
+});
+
+export const cvHeartbeatSchema = z.object({ status: z.enum(["OK", "DEGRADED"]) });
 
 export const sessionJoinSchema = z.object({
   sessionId: z.string().min(1),

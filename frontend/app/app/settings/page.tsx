@@ -41,10 +41,10 @@ const TABS: { id: TabId; label: string; icon: typeof User }[] = [
   { id: "detection", label: "Detection & Data", icon: Shield },
 ];
 
-const card = "rounded-lg border border-border bg-card p-5 space-y-4 animate-fade-in-up";
+const card = "rounded-xl border border-border bg-card p-6 space-y-5 animate-fade-in-up shadow-xs";
 const input =
-  "w-full rounded-md border border-input bg-background/60 px-3 py-1.5 text-xs text-foreground focus:border-foreground/40 focus:outline-none transition-colors disabled:opacity-60 disabled:cursor-not-allowed";
-const readonlyInput = "w-full rounded-md border border-input bg-secondary/40 px-3 py-1.5 text-xs text-muted-foreground cursor-not-allowed";
+  "w-full rounded-lg border border-input bg-background px-3 py-2 text-sm text-foreground focus:border-foreground/40 focus:outline-none focus:ring-2 focus:ring-foreground/10 transition-colors disabled:opacity-60 disabled:cursor-not-allowed";
+const readonlyInput = "w-full rounded-lg border border-input bg-secondary/40 px-3 py-2 text-sm text-muted-foreground cursor-not-allowed";
 
 function messageOf(err: unknown, fallback: string): string {
   return err instanceof ApiError ? err.message : fallback;
@@ -83,12 +83,12 @@ function ProfileTab() {
     <div className={card}>
       <SectionHeader title="User Profile & Identity" description="Your account information" />
       <form onSubmit={handleSave} className="space-y-4 text-xs pt-1 border-t border-border/60">
-        <div className="flex items-center gap-3.5 pb-2">
+        <div className="flex items-center gap-4 rounded-lg bg-secondary/40 p-4">
           <CandidateAvatar src={currentUser.avatar} name={currentUser.name} size="lg" />
-          <div>
-            <h4 className="font-semibold text-foreground text-xs">{currentUser.name}</h4>
-            <p className="text-muted-foreground text-[11px]">{currentUser.email}</p>
-            <div className="mt-1">
+          <div className="min-w-0">
+            <h4 className="font-semibold text-foreground text-base truncate">{currentUser.name}</h4>
+            <p className="text-muted-foreground text-xs truncate">{currentUser.email}</p>
+            <div className="mt-1.5">
               <Badge variant="outline" size="sm" className="text-[10px]">
                 {roleLabel(currentUser.backendRole)} in {currentUser.orgName}
               </Badge>
@@ -98,11 +98,11 @@ function ProfileTab() {
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-1">
-            <label htmlFor="profile-name" className="font-medium text-foreground text-xs">Display Name</label>
+            <label htmlFor="profile-name" className="font-medium text-foreground text-sm">Display Name</label>
             <input id="profile-name" type="text" maxLength={120} value={name} onChange={(e) => setName(e.target.value)} className={input} />
           </div>
           <div className="space-y-1">
-            <label htmlFor="profile-email" className="font-medium text-foreground text-xs">Email Address</label>
+            <label htmlFor="profile-email" className="font-medium text-foreground text-sm">Email Address</label>
             <input id="profile-email" type="email" disabled value={currentUser.email} className={readonlyInput} />
             <p className="text-[11px] text-muted-foreground">Your email is your login and can&apos;t be changed here.</p>
           </div>
@@ -193,11 +193,11 @@ function OrganizationTab() {
       <form onSubmit={handleSave} className="pt-1 border-t border-border/60 text-xs space-y-3.5">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div className="space-y-1">
-            <label htmlFor="org-name" className="font-medium text-foreground text-xs">Workspace Name</label>
+            <label htmlFor="org-name" className="font-medium text-foreground text-sm">Workspace Name</label>
             <input id="org-name" type="text" maxLength={120} value={value} onChange={(e) => setName(e.target.value)} disabled={!canManageSettings} className={input} />
           </div>
           <div className="space-y-1">
-            <label htmlFor="org-slug" className="font-medium text-foreground text-xs">Workspace ID</label>
+            <label htmlFor="org-slug" className="font-medium text-foreground text-sm">Workspace ID</label>
             <input id="org-slug" type="text" value={org.slug} disabled className={`${readonlyInput} font-mono`} />
             <p className="text-[11px] text-muted-foreground">Fixed when the workspace was created.</p>
           </div>
@@ -453,7 +453,7 @@ function DetectionTab() {
   return (
     <div className={card}>
       <SectionHeader title="Detection & Data" description="How integrity monitoring and data retention are governed" />
-      <div className="pt-1 border-t border-border/60 text-xs space-y-4 max-w-3xl">
+      <div className="pt-1 border-t border-border/60 text-sm space-y-4 max-w-3xl">
         <div className="flex items-start gap-2 rounded-md bg-secondary/50 p-3 text-muted-foreground">
           <Info className="h-4 w-4 shrink-0 mt-0.5" />
           <p className="leading-relaxed">These policies are set by the server, not per organization, so there is nothing to save on this tab. Nothing here is editable, and no values are shown that the server doesn&apos;t actually use.</p>
@@ -493,41 +493,46 @@ export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<TabId>("profile");
 
   return (
-    <div className="space-y-5 animate-fade-in-up pb-12">
-      <div className="flex items-center gap-1.5 text-xs text-neutral-400">
-        <Home className="h-3.5 w-3.5 text-neutral-400" />
-        <span className="text-neutral-300 dark:text-neutral-700">›</span>
-        <Link href="/app/dashboard" className="text-neutral-500 hover:text-neutral-700 dark:hover:text-neutral-300 transition-colors">
+    <div className="space-y-6 animate-fade-in-up pb-12 max-w-6xl">
+      <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+        <Home className="h-3.5 w-3.5" />
+        <span>›</span>
+        <Link href="/app/dashboard" className="hover:text-foreground transition-colors">
           Dashboard
         </Link>
-        <span className="text-neutral-300 dark:text-neutral-700">›</span>
-        <span className="text-neutral-600 dark:text-neutral-400">Settings</span>
+        <span>›</span>
+        <span className="text-foreground">Settings</span>
       </div>
 
       <div>
-        <h1 className="text-2xl font-bold tracking-tight text-neutral-900 dark:text-white">Settings</h1>
-        <p className="text-xs text-neutral-500 mt-1">Your profile, the workspace, and who has access to it.</p>
+        <h1 className="text-2xl font-bold tracking-tight text-foreground">Settings</h1>
+        <p className="text-sm text-muted-foreground mt-1">Your profile, the workspace, and who has access to it.</p>
       </div>
 
-      <div className="flex flex-wrap items-center gap-1 border-b border-border pb-1 text-xs">
-        {TABS.map(({ id, label, icon: Icon }) => (
-          <button
-            key={id}
-            onClick={() => setActiveTab(id)}
-            className={cn(
-              "flex items-center gap-1.5 px-3 py-1.5 rounded-md font-medium transition-colors",
-              activeTab === id ? "bg-secondary text-foreground font-semibold" : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground",
-            )}
-          >
-            <Icon className="h-3.5 w-3.5" /> {label}
-          </button>
-        ))}
-      </div>
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-[210px_minmax(0,1fr)]">
+        <nav aria-label="Settings sections" className="flex md:flex-col gap-1 overflow-x-auto md:overflow-visible pb-1 md:pb-0 md:sticky md:top-4 md:self-start">
+          {TABS.map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              onClick={() => setActiveTab(id)}
+              aria-current={activeTab === id ? "page" : undefined}
+              className={cn(
+                "flex shrink-0 items-center gap-2.5 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium transition-colors text-left",
+                activeTab === id ? "bg-secondary text-foreground font-semibold" : "text-muted-foreground hover:bg-secondary/60 hover:text-foreground",
+              )}
+            >
+              <Icon className="h-4 w-4" /> {label}
+            </button>
+          ))}
+        </nav>
 
-      {activeTab === "profile" && <ProfileTab />}
-      {activeTab === "organization" && <OrganizationTab />}
-      {activeTab === "team" && <TeamTab />}
-      {activeTab === "detection" && <DetectionTab />}
+        <div className="min-w-0">
+          {activeTab === "profile" && <ProfileTab />}
+          {activeTab === "organization" && <OrganizationTab />}
+          {activeTab === "team" && <TeamTab />}
+          {activeTab === "detection" && <DetectionTab />}
+        </div>
+      </div>
     </div>
   );
 }

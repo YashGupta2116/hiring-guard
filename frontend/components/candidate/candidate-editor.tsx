@@ -207,6 +207,10 @@ export function CandidateEditor({ task, candidateToken, telemetry, editorSync, l
             automaticLayout: true,
             tabSize: 2,
             wordWrap: "on",
+            contextmenu: false,
+            dragAndDrop: false,
+            dropIntoEditor: { enabled: false },
+            copyWithSyntaxHighlighting: false,
             fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
           }}
         />

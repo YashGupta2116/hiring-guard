@@ -10,6 +10,7 @@ import { useCurrentUser } from "@/lib/auth/auth-context";
 import { ApiError } from "@/lib/api/client";
 import { candidateAvatarUrl, candidateDisplayName, listCandidates, type DirectoryCandidate } from "@/lib/api/candidates";
 import { AddCandidateModal } from "@/components/candidates/add-candidate-modal";
+import { CodingTaskModal } from "@/components/questions/coding-task-modal";
 import { difficultyLabel, listCodingTasks, type CodingTaskSummary } from "@/lib/api/coding-tasks";
 import { listMembers, memberAvatarUrl, type OrgMember } from "@/lib/api/org";
 import {
@@ -224,6 +225,9 @@ function defaultSlot(): { date: string; time: string } {
   return { date: localDateKey(d), time: formatClock(d) };
 }
 
+/** Interview types that involve a coding test and therefore offer the coding round picker. */
+const CODING_TYPES: InterviewTypeCode[] = ["TECHNICAL", "CODING", "MIXED"];
+
 export function ScheduleModal({ open, onOpenChange, defaultCandidateId, defaultTaskId, onCreated }: ScheduleModalProps) {
   const router = useRouter();
   const currentUser = useCurrentUser();
@@ -256,6 +260,7 @@ export function ScheduleModal({ open, onOpenChange, defaultCandidateId, defaultT
 
   const [isSaving, setIsSaving] = useState(false);
   const [addCandidateOpen, setAddCandidateOpen] = useState(false);
+  const [createTaskOpen, setCreateTaskOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<Progress>(EMPTY_PROGRESS);
 
@@ -282,6 +287,19 @@ export function ScheduleModal({ open, onOpenChange, defaultCandidateId, defaultT
       cancelled = true;
     };
   }, [open]);
+
+  const showCodingRound = CODING_TYPES.includes(interviewType);
+
+  // Picking a coding-related type preselects the first task so the round isn't silently skipped;
+  // a type without a coding test clears any pick.
+  useEffect(() => {
+    if (!showCodingRound) {
+      setTaskId("");
+      return;
+    }
+    if (tasks.length === 0) return;
+    setTaskId((current) => (current && tasks.some((t) => t.id === current) ? current : (tasks[0]?.id ?? "")));
+  }, [showCodingRound, tasks]);
 
   const jobRole = roleOverride ?? candidates.find((c) => c.id === candidateId)?.appliedRole ?? "";
 
@@ -358,7 +376,7 @@ export function ScheduleModal({ open, onOpenChange, defaultCandidateId, defaultT
           recordAudio: recordingEnabled,
           recordScreen: recordingEnabled,
           channels: channelsFor(monitoring),
-          taskIds: taskId ? [taskId] : [],
+          taskIds: showCodingRound && taskId ? [taskId] : [],
         });
         current = { ...current, configured: true };
         setProgress(current);
@@ -593,29 +611,39 @@ export function ScheduleModal({ open, onOpenChange, defaultCandidateId, defaultT
                 </div>
               </div>
 
-              {/* Coding round */}
-              <div className="rounded-xl border border-border bg-card/60 p-4 space-y-3">
-                <span className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
-                  <Code className="h-4 w-4" /> Coding Round
-                </span>
-                <div className="relative">
-                  <select
-                    aria-label="Coding task"
-                    value={taskId}
-                    onChange={(e) => setTaskId(e.target.value)}
-                    className="w-full appearance-none rounded-lg border border-input bg-background pl-3 pr-9 py-2.5 text-sm text-foreground focus:border-foreground/40 focus:outline-none"
-                  >
-                    <option value="">No coding round</option>
-                    {tasks.map((t) => (
-                      <option key={t.id} value={t.id}>
-                        [{difficultyLabel(t.difficulty)}] {t.title}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              {/* Coding round: only for interview types that involve a coding test */}
+              {showCodingRound && (
+                <div className="rounded-xl border border-border bg-card/60 p-4 space-y-3 animate-fade-in-up">
+                  <span className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
+                    <Code className="h-4 w-4" /> Coding Round
+                  </span>
+                  <div className="relative">
+                    <select
+                      aria-label="Coding task"
+                      value={taskId}
+                      onChange={(e) => setTaskId(e.target.value)}
+                      className="w-full appearance-none rounded-lg border border-input bg-background pl-3 pr-9 py-2.5 text-sm text-foreground focus:border-foreground/40 focus:outline-none"
+                    >
+                      <option value="">No coding round</option>
+                      {tasks.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          [{difficultyLabel(t.difficulty)}] {t.title}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  </div>
+                  {tasks.length === 0 && !loadingOptions && (
+                    <p className="text-[11px] text-amber-700 dark:text-amber-400">You haven&apos;t created any coding tasks yet, so there is nothing to choose from.</p>
+                  )}
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-[11px] text-muted-foreground">The candidate picks a language in the room from those the task supports. You can also assign a task during the live interview.</p>
+                    <button type="button" onClick={() => setCreateTaskOpen(true)} className="text-[11px] font-medium text-muted-foreground underline underline-offset-2 hover:text-foreground shrink-0">
+                      + New coding task
+                    </button>
+                  </div>
                 </div>
-                <p className="text-[11px] text-muted-foreground">The candidate picks a language in the room from those the task supports.</p>
-              </div>
+              )}
 
               {/* Monitoring & Integrity Safeguards */}
               <div className="rounded-xl border border-border bg-card/60 p-4 space-y-3">
@@ -717,6 +745,22 @@ export function ScheduleModal({ open, onOpenChange, defaultCandidateId, defaultT
         )}
       </div>
     </Dialog>
+    <CodingTaskModal
+      open={createTaskOpen}
+      onOpenChange={setCreateTaskOpen}
+      task={null}
+      onSaved={() => {
+        // The modal doesn't return the new task, so reload and preselect the newest one.
+        listCodingTasks()
+          .then((tks) => {
+            const known = new Set(tasks.map((t) => t.id));
+            const fresh = tks.find((t) => !known.has(t.id));
+            setTasks(tks);
+            if (fresh) setTaskId(fresh.id);
+          })
+          .catch(() => undefined);
+      }}
+    />
     <AddCandidateModal
       open={addCandidateOpen}
       onOpenChange={setAddCandidateOpen}

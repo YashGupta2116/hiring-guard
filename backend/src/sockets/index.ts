@@ -4,13 +4,21 @@ import { env } from "../config/env.js";
 import { registry } from "../live/registry.js";
 import { acknowledgeWarning } from "../live/warden.js";
 import * as noteService from "../services/note.service.js";
+import { ingestExternalObservations, ingestHeartbeat } from "../services/internal.service.js";
 import { verifyAccessToken, verifyCandidateToken } from "../utils/jwt.js";
+import { handleCandidateViolation } from "../services/lifecycle.service.js";
+import { redis } from "../utils/redis.js";
 import { logger } from "../utils/logger.js";
 import { prisma } from "../utils/prisma.js";
 import { bindSocketServer, replayFrom } from "./emitter.js";
 import {
   clockOffsetSchema,
   clockSyncSchema,
+  cvBatchSchema,
+  cvHeartbeatSchema,
+  cvStatusSchema,
+  rtcSignalSchema,
+  violationSchema,
   editorDeltaSchema,
   editorSnapshotSchema,
   noteAddSchema,
@@ -36,6 +44,7 @@ export function createSocketServer(httpServer: HttpServer): Server {
   bindSocketServer(io);
 
   const interviewerNsp = io.of("/interviewer");
+  const candidateNsp = io.of("/candidate");
   interviewerNsp.use((socket, next) => {
     const token = socket.handshake.auth?.token as string | undefined;
     if (!token) {
@@ -77,6 +86,16 @@ export function createSocketServer(httpServer: HttpServer): Server {
       });
     });
 
+    socket.on("rtc.signal", (raw: unknown) => {
+      const parsed = rtcSignalSchema.safeParse(raw);
+      if (!parsed.success) return;
+      for (const room of socket.rooms) {
+        if (!room.startsWith("session:")) continue;
+        candidateNsp.to(room).emit("rtc.signal", { ...parsed.data, from: socket.id });
+        return;
+      }
+    });
+
     socket.on("note.add", (raw: unknown, ack?: (res: unknown) => void) => {
       void (async () => {
         const parsed = noteAddSchema.safeParse(raw);
@@ -100,7 +119,6 @@ export function createSocketServer(httpServer: HttpServer): Server {
     });
   });
 
-  const candidateNsp = io.of("/candidate");
   candidateNsp.use((socket, next) => {
     const token = socket.handshake.auth?.token as string | undefined;
     if (!token) {
@@ -143,6 +161,7 @@ export function createSocketServer(httpServer: HttpServer): Server {
     socket.on("tel.batch", (raw: unknown) => {
       const parsed = telemetryBatchSchema.safeParse(raw);
       if (!parsed.success) return;
+      void redis.hset(`s:${sessionId}:state`, "telemetrySeen", "1").catch(() => undefined);
       const offsetMs = (socket.data.clockOffsetMs as number | undefined) ?? 0;
       registry.get(sessionId)?.handleTelemetryBatch(parsed.data.connId, parsed.data.seq, parsed.data.events, offsetMs);
     });
@@ -158,6 +177,60 @@ export function createSocketServer(httpServer: HttpServer): Server {
       const parsed = editorSnapshotSchema.safeParse(raw);
       if (!parsed.success) return;
       registry.get(sessionId)?.handleEditorSnapshot(parsed.data.taskId, parsed.data.language, parsed.data.content);
+    });
+
+    // Signalling only: the media itself flows peer-to-peer between the two browsers.
+    socket.on("rtc.signal", (raw: unknown) => {
+      const parsed = rtcSignalSchema.safeParse(raw);
+      if (!parsed.success) return;
+      const room = `session:${sessionId}`;
+      const payload = { ...parsed.data, from: socket.id };
+      if (parsed.data.to) {
+        const target = interviewerNsp.sockets.get(parsed.data.to);
+        if (target?.rooms.has(room)) target.emit("rtc.signal", payload);
+        return;
+      }
+      interviewerNsp.to(room).emit("rtc.signal", payload);
+    });
+
+    // Camera-derived signals (face presence / count / gaze) computed in the candidate's browser.
+    socket.on("session.violation", (raw: unknown) => {
+      const parsed = violationSchema.safeParse(raw);
+      if (!parsed.success) return;
+      void handleCandidateViolation(sessionId, parsed.data.kind).catch((err: unknown) => {
+        logger.error({ err, sessionId }, "session.violation failed");
+      });
+    });
+
+    socket.on("cv.batch", (raw: unknown) => {
+      const parsed = cvBatchSchema.safeParse(raw);
+      if (!parsed.success || !registry.get(sessionId)) return;
+      const offsetMs = (socket.data.clockOffsetMs as number | undefined) ?? 0;
+      const channelFor = { face_absent: "FACE", multiple_faces: "FACE", gaze_away: "GAZE", foreign_object: "SCENE" } as const;
+      const items = parsed.data.items.map((item) => ({
+        channel: channelFor[item.type],
+        type: item.type,
+        ts: new Date(item.ts + offsetMs).toISOString(),
+        strength: item.strength,
+        payload: item.payload,
+      }));
+      void ingestExternalObservations(sessionId, "cv", items).catch((err: unknown) => {
+        logger.error({ err, sessionId }, "cv.batch failed");
+      });
+    });
+
+    socket.on("cv.status", (raw: unknown) => {
+      const parsed = cvStatusSchema.safeParse(raw);
+      if (!parsed.success) return;
+      interviewerNsp.to(`session:${sessionId}`).emit("cv.status", parsed.data);
+    });
+
+    socket.on("cv.heartbeat", (raw: unknown) => {
+      const parsed = cvHeartbeatSchema.safeParse(raw);
+      if (!parsed.success || !registry.get(sessionId)) return;
+      void ingestHeartbeat(sessionId, "cv", ["FACE", "GAZE"], parsed.data.status).catch((err: unknown) => {
+        logger.error({ err, sessionId }, "cv.heartbeat failed");
+      });
     });
 
     socket.on("warn.ack", (raw: unknown) => {

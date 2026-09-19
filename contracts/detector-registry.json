@@ -73,6 +73,7 @@
       "face_absent": "intended for a face-detection CV signal",
       "multiple_faces": "intended for a face-count CV signal",
       "gaze_away": "intended for a gaze-tracking CV signal",
+      "foreign_object": "a phone, book, second laptop or similar object visible on camera (browser-side object detector)",
       "second_voice": "intended for a second-speaker ASR signal"
     },
     "openQuestion": "visibility_loss and face_absent carry near-identical LLR values (0.8/1.2/1.8 vs 0.9/1.4/2.0) and no detector distinguishes their intended trigger. Worth resolving with whoever wires the first CV producer, not decided here."

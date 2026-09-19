@@ -55,10 +55,16 @@ export async function requestScreen(): Promise<MediaOutcome> {
   if (!navigator.mediaDevices?.getDisplayMedia) return { ok: false, reason: "unavailable" };
   try {
     stopStream(holder.screen);
+    // Chrome/Edge honour these hints: open on the "Entire screen" tab, never offer this tab, and forbid
+    // switching the shared surface mid-interview. The surface type is still verified below.
     holder.screen = await navigator.mediaDevices.getDisplayMedia({
-      video: { displaySurface: "monitor" } as MediaTrackConstraints,
+      video: { displaySurface: "monitor", frameRate: { ideal: 10, max: 15 } } as MediaTrackConstraints,
       audio: false,
-    });
+      selfBrowserSurface: "exclude",
+      surfaceSwitching: "exclude",
+      monitorTypeSurfaces: "include",
+      systemAudio: "exclude",
+    } as DisplayMediaStreamOptions);
     if (!trackState().screenIsMonitor) {
       stopStream(holder.screen);
       holder.screen = null;
@@ -94,7 +100,23 @@ type ExtendedScreen = Screen & { isExtended?: boolean };
 type NetworkInformationLike = { downlink?: number };
 
 /** Builds the probe the backend evaluates. Permission fields reflect what was actually obtained. */
-export function buildProbe(): PreflightProbe {
+/**
+ * Measures real download speed. `navigator.connection.downlink` is a coarse, capped estimate that often reads
+ * far below the true speed, so a short timed download is used and the better of the two is reported.
+ */
+export async function measureDownlinkMbps(): Promise<number | null> {
+  try {
+    const started = performance.now();
+    const res = await fetch(`/mediapipe/face_landmarker.task?t=${Date.now()}`, { cache: "no-store" });
+    const bytes = (await res.arrayBuffer()).byteLength;
+    const seconds = (performance.now() - started) / 1000;
+    return seconds > 0 ? (bytes * 8) / seconds / 1e6 : null;
+  } catch {
+    return null;
+  }
+}
+
+export function buildProbe(measuredMbps?: number | null): PreflightProbe {
   const state = trackState();
   const screen = window.screen as ExtendedScreen;
   const connection = (navigator as Navigator & { connection?: NetworkInformationLike }).connection;
@@ -109,7 +131,7 @@ export function buildProbe(): PreflightProbe {
     isExtended,
     // `downlink` is only exposed by Chromium browsers. Elsewhere we can't measure throughput from the
     // page, so we report a passing figure rather than blocking every Firefox/Safari candidate.
-    downlinkMbps: connection?.downlink ?? 10,
+    downlinkMbps: Math.max(connection?.downlink ?? 10, measuredMbps ?? 0),
     hardwareConcurrency: navigator.hardwareConcurrency || 4,
     userAgent: navigator.userAgent.slice(0, 500),
   };

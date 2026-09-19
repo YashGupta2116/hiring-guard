@@ -14,6 +14,7 @@ import { accepted, created, list, noContent, ok } from "../utils/respond.js";
 import { patchConfigSchema } from "../validators/config.schema.js";
 import {
   acceptSuggestionSchema,
+  assignTaskSchema,
   addNoteSchema,
   listFlagsSchema,
   listNotesSchema,
@@ -109,6 +110,16 @@ export async function refreshSuggestions(req: Request, res: Response): Promise<v
 export async function acceptSuggestion(req: Request, res: Response): Promise<void> {
   const { params } = getInput(req, acceptSuggestionSchema);
   ok(res, await suggestionService.acceptSuggestion(req.user!.orgId, params.id, params.suggestionId, req.user!.sub));
+}
+
+export async function openRoom(req: Request, res: Response): Promise<void> {
+  const { params } = getInput(req, sessionIdParamSchema);
+  ok(res, await lifecycleService.openRoom(req.user!.orgId, params.id));
+}
+
+export async function assignTask(req: Request, res: Response): Promise<void> {
+  const { params, body } = getInput(req, assignTaskSchema);
+  ok(res, await codingService.assignLiveTask(req.user!.orgId, params.id, body.taskId));
 }
 
 export async function getSessionCode(req: Request, res: Response): Promise<void> {

@@ -68,11 +68,15 @@ export function useLiveRoom(sessionId: string) {
   const [suggestions, setSuggestions] = useState<(SuggestionBatch & { acceptedIds: string[] }) | null>(null);
   const [transcript, setTranscript] = useState<TranscriptLine[]>([]);
   const [warnings, setWarnings] = useState<WarningLogEntry[]>([]);
+  const [warningCount, setWarningCount] = useState(0);
   const [degraded, setDegraded] = useState<Record<string, SystemDegraded>>({});
+  const [cvStatus, setCvStatus] = useState<{ state: "loading" | "ok" | "unavailable"; faces: number; away: boolean; object?: string; at: number } | null>(null);
   const [reportId, setReportId] = useState<string | null>(null);
 
   const lastFrameSeq = useRef(0);
   const socketRef = useRef<InterviewerSocket | null>(null);
+  const [socketInstance, setSocketInstance] = useState<InterviewerSocket | null>(null);
+  const autoSuggested = useRef(false);
 
   const reload = useCallback(() => {
     setLoading(true);
@@ -91,6 +95,7 @@ export function useLiveRoom(sessionId: string) {
         setStatus(snap.status);
         setFlags(snap.flags);
         setNotes(snap.notes);
+        setWarningCount(snap.warningCount ?? 0);
         // Presence events only cover changes after we join, so seed it from the snapshot on load.
         setPresence(snap.status === "LIVE" ? { connected: snap.candidateConnected, since: new Date().toISOString() } : null);
         if (snap.integrity) setIntegrity({ score: snap.integrity.score, calibrating: snap.integrity.calibrating, channels: [] });
@@ -125,6 +130,7 @@ export function useLiveRoom(sessionId: string) {
     if (!hydrated) return;
     const socket = connectInterviewerSocket();
     socketRef.current = socket;
+    setSocketInstance(socket);
 
     const track = <T,>(handler: (data: T, frame: Frame<T>) => void) => (frame: Frame<T>) => {
       lastFrameSeq.current = Math.max(lastFrameSeq.current, frame.frameSeq);
@@ -165,6 +171,7 @@ export function useLiveRoom(sessionId: string) {
       "warn.issued",
       track<WarnIssued>((d) => {
         setWarnings((prev) => [d, ...prev].slice(0, 50));
+        setWarningCount((n) => n + 1);
         refreshFlags();
       }),
     );
@@ -182,6 +189,7 @@ export function useLiveRoom(sessionId: string) {
       ),
     );
     socket.on("transcript.final", track<TranscriptFinal>((d) => setTranscript((prev) => (prev.some((t) => t.id === d.segmentId) ? prev : [...prev, { id: d.segmentId, speaker: d.speaker, text: d.text, startMs: d.startMs }]))));
+    socket.on("cv.status", (d: { state: "loading" | "ok" | "unavailable"; faces: number; away: boolean; object?: string }) => setCvStatus({ ...d, at: Date.now() }));
     socket.on("report.ready", track<ReportReady>((d) => setReportId(d.reportId)));
 
     if (socket.connected) join();
@@ -190,8 +198,20 @@ export function useLiveRoom(sessionId: string) {
       socket.removeAllListeners();
       socket.disconnect();
       socketRef.current = null;
+      setSocketInstance(null);
     };
   }, [hydrated, sessionId, refreshFlags]);
+
+  // Questions are generated as soon as the interview is live, so the interviewer never starts from an empty panel.
+  useEffect(() => {
+    if (status !== "LIVE" || connection !== "connected" || suggestions !== null || autoSuggested.current) return;
+    autoSuggested.current = true;
+    refreshSuggestionsApi(sessionId)
+      .then((batch) => setSuggestions((prev) => prev ?? { ...batch, acceptedIds: [] }))
+      .catch(() => {
+        autoSuggested.current = false; // allow a retry on the next reconnect; the Suggest button also works
+      });
+  }, [status, connection, suggestions, sessionId]);
 
   // ---- Actions ---------------------------------------------------------------------------------
   const start = useCallback(async () => {
@@ -207,6 +227,7 @@ export function useLiveRoom(sessionId: string) {
     const sess = await endLiveSession(sessionId);
     setSession(sess);
     setStatus(sess.status);
+    return sess.status;
   }, [sessionId]);
 
   const adjudicate = useCallback(
@@ -247,6 +268,8 @@ export function useLiveRoom(sessionId: string) {
     snapshot,
     status,
     connection,
+    socket: socketInstance,
+    cvStatus,
     integrity,
     timer,
     presence,
@@ -255,6 +278,7 @@ export function useLiveRoom(sessionId: string) {
     suggestions,
     transcript,
     warnings,
+    warningCount,
     degraded,
     reportId,
     start,

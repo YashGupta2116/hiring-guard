@@ -11,6 +11,8 @@ export type JoinSummary = {
   status: "READY" | "NOT_YET_OPEN";
   /** When the waiting room opens (ISO), if it is restricted. */
   opensAt: string | null;
+  /** True once the interviewer has opened the live room. The candidate can only begin after that. */
+  roomOpen: boolean;
 };
 
 export type PreflightProbe = {

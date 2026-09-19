@@ -43,3 +43,8 @@ export const suggestionsRefreshSchema = {
 export const acceptSuggestionSchema = {
   params: z.object({ id: z.string().min(1), suggestionId: z.string().min(1) }),
 };
+
+export const assignTaskSchema = {
+  params: z.object({ id: z.string().min(1) }),
+  body: z.object({ taskId: z.string().min(1) }),
+};

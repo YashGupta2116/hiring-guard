@@ -52,6 +52,18 @@ export function JoinFlow({ token }: { token: string }) {
     loadSummary();
   }, [token, loadSummary]);
 
+  // The candidate can only begin once the interviewer has opened the live room, so keep checking quietly.
+  const waitingForRoom = phase === "intro" && summary?.status === "READY" && summary.roomOpen === false;
+  useEffect(() => {
+    if (!waitingForRoom) return;
+    const id = setInterval(() => {
+      getJoinSummary(token)
+        .then((res) => setSummary(res))
+        .catch(() => undefined);
+    }, 3000);
+    return () => clearInterval(id);
+  }, [waitingForRoom, token]);
+
   // While the waiting room is closed, check again when it opens so the candidate never has to refresh.
   const opensAtIso = summary?.status === "NOT_YET_OPEN" ? summary.opensAt : null;
   useEffect(() => {
@@ -123,8 +135,15 @@ export function JoinFlow({ token }: { token: string }) {
               <p className="text-xs text-muted-foreground leading-relaxed">
                 Next we&apos;ll check your camera, microphone, screen sharing and connection, then show you exactly what is recorded and monitored. You&apos;ll choose whether to proceed.
               </p>
+              {waitingForRoom && (
+                <div className="flex items-center gap-2 rounded-lg border border-border bg-background p-3 text-sm text-muted-foreground">
+                  <Loader2 className="h-4 w-4 shrink-0 animate-spin" /> Waiting for your interviewer to open the room. This page continues on its own.
+                </div>
+              )}
               <div className="flex justify-end">
-                <Button onClick={() => setPhase("preflight")}>Begin</Button>
+                <Button onClick={() => setPhase("preflight")} disabled={waitingForRoom}>
+                  Begin
+                </Button>
               </div>
             </>
           )}

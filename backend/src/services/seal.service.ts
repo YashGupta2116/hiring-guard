@@ -93,7 +93,7 @@ export async function sealSession(orgId: string, sessionId: string, reason: EndR
 
     if (completed < 3) {
       if (runtime) {
-        await runtime.destroy(); // stops timers/lease and emits the candidate session.ended thank-you
+        await runtime.destroy(reason === "candidate_violation" ? "This interview was ended because the required full-screen, focused view was left." : undefined); // stops timers/lease and emits the candidate session.ended thank-you
         registry.delete(sessionId);
       }
       await markStepDone(sessionId, (completed = 3));

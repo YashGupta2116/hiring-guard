@@ -15,9 +15,14 @@ import { usePermissions } from "@/components/auth/role-guard";
 import { useToast } from "@/components/ui/toast";
 import { ApiError } from "@/lib/api/client";
 import { sessionCandidateName, sessionRef, sessionRole } from "@/lib/api/sessions";
+import { openSessionRoom } from "@/lib/live/api";
 import { isEndedStatus, useLiveRoom } from "@/lib/live/use-live-room";
-import { Radio, PhoneOff, Clock, Shield, ChevronLeft, Loader2, Play, WifiOff } from "lucide-react";
+import { useLiveVideo } from "@/lib/live/use-live-video";
+import { AlertTriangle, Radio, PhoneOff, Clock, Shield, ChevronLeft, Loader2, Play, WifiOff } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+/** Warnings above this many offer the interviewer a prominent "Cancel interview" button. */
+const WARNING_LIMIT = 10;
 
 function formatTimer(ms: number): string {
   const total = Math.max(0, Math.floor(ms / 1000));
@@ -35,6 +40,7 @@ export default function LiveInterviewPage() {
   const { toast } = useToast();
   const { canConductInterview } = usePermissions();
   const room = useLiveRoom(id);
+  const video = useLiveVideo(room.socket, room.status === "LIVE");
 
   const [now, setNow] = useState(() => Date.now());
   const [endDialogOpen, setEndDialogOpen] = useState(false);
@@ -48,6 +54,12 @@ export default function LiveInterviewPage() {
   }, []);
 
   const { session, status, timer, snapshot } = room;
+
+  // Opening the live room is what lets the candidate begin their setup checks.
+  const preLive = ["DRAFT", "CONFIGURED", "ARMED", "ADMITTED"].includes(status);
+  useEffect(() => {
+    if (preLive && canConductInterview) void openSessionRoom(id).catch(() => undefined);
+  }, [preLive, canConductInterview, id]);
 
   if (room.loading) {
     return (
@@ -92,10 +104,15 @@ export default function LiveInterviewPage() {
   const handleEnd = async () => {
     setEnding(true);
     try {
-      await room.end();
+      const finalStatus = await room.end();
       setEndDialogOpen(false);
-      toast({ title: "Interview ended", description: "Evidence is being sealed and the report is being prepared.", type: "info" });
-      router.push(`/app/interviews/${session.id}/processing`);
+      if (finalStatus === "ABORTED") {
+        toast({ title: "Interview closed", description: "The candidate hadn't taken part yet, so no report was created.", type: "info" });
+        router.push(`/app/interviews/${session.id}`);
+      } else {
+        toast({ title: "Interview ended", description: "Evidence is being sealed and the report is being prepared.", type: "info" });
+        router.push(`/app/interviews/${session.id}/processing`);
+      }
     } catch (err) {
       setEnding(false);
       toast({ title: "Couldn't end the interview", description: err instanceof ApiError ? err.message : "Please try again.", type: "error" });
@@ -113,7 +130,7 @@ export default function LiveInterviewPage() {
             {ended ? <PhoneOff className="h-5 w-5" /> : admitted ? <Play className="h-5 w-5" /> : <Clock className="h-5 w-5" />}
           </div>
           <div className="space-y-1.5">
-            <h1 className="text-lg font-semibold text-foreground">{ended ? "This interview has ended" : admitted ? `${candidateName} is ready` : `Waiting for ${candidateName} to join`}</h1>
+            <h1 className="text-lg font-semibold text-foreground">{ended ? "This interview has ended" : admitted ? `${candidateName} is ready` : `Room open. Waiting for ${candidateName}`}</h1>
             <p className="text-sm text-muted-foreground leading-relaxed">
               {ended
                 ? status === "ABORTED"
@@ -123,7 +140,7 @@ export default function LiveInterviewPage() {
                     : "The session is closed. Its evidence is sealed and the report is being prepared."
                 : admitted
                   ? "The candidate has consented and shared their camera and screen. Start the interview when you're ready. The clock begins immediately."
-                  : "The candidate hasn't completed the join steps yet. This page updates on its own when they do."}
+                  : "The room is open, so the candidate can now press Begin and complete the camera, screen and consent steps. This page updates on its own when they finish."}
             </p>
           </div>
 
@@ -219,6 +236,17 @@ export default function LiveInterviewPage() {
         </div>
       </div>
 
+      {room.warningCount > WARNING_LIMIT && (
+        <div role="alert" className="flex flex-wrap items-center justify-between gap-3 border-b border-red-500/30 bg-red-500/10 px-5 py-2.5 text-sm text-red-700 dark:text-red-400 shrink-0">
+          <span className="flex items-center gap-2 font-medium">
+            <AlertTriangle className="h-4 w-4" /> {candidateName} has received {room.warningCount} warnings, more than the limit of {WARNING_LIMIT}.
+          </span>
+          <Button variant="destructive" size="sm" onClick={() => setEndDialogOpen(true)} disabled={!canConductInterview} className="gap-1.5">
+            <PhoneOff className="h-3.5 w-3.5" /> Cancel interview
+          </Button>
+        </div>
+      )}
+
       <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-3 p-3 overflow-hidden">
         <div className="lg:col-span-8 h-full overflow-hidden">
           <CandidatePanel
@@ -231,6 +259,9 @@ export default function LiveInterviewPage() {
             calibrationEndsAt={snapshot?.calibrationEndsAt ?? null}
             now={now}
             live
+            video={video}
+            cvStatus={room.cvStatus}
+            canAct={canConductInterview}
           />
         </div>
 

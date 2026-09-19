@@ -1,9 +1,13 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
-import { AlertTriangle, CheckCircle2, Code2, Lock, Loader2, Radio, VideoOff, WifiOff } from "lucide-react";
+import React, { useEffect, useRef, useState } from "react";
+import { AlertTriangle, CheckCircle2, Code2, Loader2, Lock, Maximize2, Mic, MicOff, Minimize2, Plus, Radio, Video, VideoOff, WifiOff } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { getSessionCode, type CodeExecution, type SessionCodeTask } from "@/lib/live/api";
+import { ApiError } from "@/lib/api/client";
+import { difficultyLabel, listCodingTasks, type CodingTaskSummary } from "@/lib/api/coding-tasks";
+import { assignLiveTask, getSessionCode, type CodeExecution, type SessionCodeTask } from "@/lib/live/api";
+import type { useLiveVideo } from "@/lib/live/use-live-video";
+import { useToast } from "@/components/ui/toast";
 import type { SystemDegraded } from "@/lib/live/socket";
 import type { Presence } from "@/lib/live/socket";
 import { cn } from "@/lib/utils";
@@ -61,6 +65,120 @@ function ExecutionRow({ e }: { e: CodeExecution }) {
   );
 }
 
+/** Plays a MediaStream in a <video>; shows `empty` until a stream arrives. */
+function VideoTile({ stream, label, muted = false, mirror = false, empty, className }: { stream: MediaStream | null; label: string; muted?: boolean; mirror?: boolean; empty: string; className?: string }) {
+  const ref = useRef<HTMLVideoElement>(null);
+  useEffect(() => {
+    const video = ref.current;
+    if (!video) return;
+    video.srcObject = stream;
+    if (stream) void video.play().catch(() => undefined);
+  }, [stream]);
+  return (
+    <div className={cn("relative overflow-hidden rounded-lg border border-border bg-slate-950", className)}>
+      <video ref={ref} autoPlay playsInline muted={muted} className={cn("h-full w-full object-contain", mirror && "-scale-x-100", !stream && "hidden")} aria-label={label} />
+      {!stream && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-1 px-3 text-center text-slate-400">
+          <VideoOff className="h-5 w-5" />
+          <span className="text-[11px]">{empty}</span>
+        </div>
+      )}
+      <span className="absolute bottom-1.5 left-1.5 rounded bg-black/70 px-1.5 py-0.5 text-[10px] text-white">{label}</span>
+    </div>
+  );
+}
+
+type CvStatus = CandidatePanelProps["cvStatus"];
+
+/** Live read-out of the candidate's camera analysis: face present, face count, looking away. */
+function FaceIndicator({ status, now }: { status: CvStatus; now: number }) {
+  const stale = !status || now - status.at > 5000;
+  let tone = "bg-muted text-muted-foreground";
+  let text = "Camera analysis: waiting for data…";
+  if (status && !stale) {
+    if (status.state === "loading") text = "Camera analysis: starting…";
+    else if (status.state === "unavailable") {
+      tone = "bg-amber-500/15 text-amber-700 dark:text-amber-400";
+      text = "Camera analysis unavailable in the candidate's browser";
+    } else if (status.object) {
+      tone = "bg-red-500/15 text-red-700 dark:text-red-400";
+      text = `Foreign object in view: ${status.object}`;
+    } else if (status.faces === 0) {
+      tone = "bg-red-500/15 text-red-700 dark:text-red-400";
+      text = "No face detected";
+    } else if (status.faces > 1) {
+      tone = "bg-red-500/15 text-red-700 dark:text-red-400";
+      text = `${status.faces} faces detected`;
+    } else if (status.away) {
+      tone = "bg-amber-500/15 text-amber-700 dark:text-amber-400";
+      text = "Face detected, looking away";
+    } else {
+      tone = "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400";
+      text = "Face detected, looking at screen";
+    }
+  }
+  return (
+    <div role="status" className={cn("rounded-md px-2 py-1 text-[11px] font-medium", tone)}>
+      {text}
+    </div>
+  );
+}
+
+/** Lets the interviewer hand the candidate a coding task during the live interview. */
+function AssignTask({ sessionId, assignedTitles }: { sessionId: string; assignedTitles: string[] }) {
+  const { toast } = useToast();
+  const [tasks, setTasks] = useState<CodingTaskSummary[] | null>(null);
+  const [taskId, setTaskId] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    listCodingTasks()
+      .then((res) => !cancelled && setTasks(res))
+      .catch(() => !cancelled && setTasks([]));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const available = (tasks ?? []).filter((t) => !assignedTitles.includes(t.title));
+  const assign = async () => {
+    if (!taskId) return;
+    setBusy(true);
+    try {
+      await assignLiveTask(sessionId, taskId);
+      toast({ title: "Task assigned", description: "The candidate can see it now.", type: "success" });
+      setTaskId("");
+    } catch (err) {
+      toast({ title: "Couldn't assign the task", description: err instanceof ApiError ? err.message : "Please try again.", type: "error" });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="flex items-center gap-2">
+      <select
+        aria-label="Coding task to assign"
+        value={taskId}
+        onChange={(e) => setTaskId(e.target.value)}
+        disabled={tasks === null || available.length === 0}
+        className="h-7 max-w-[220px] rounded-md border border-input bg-background px-2 text-[11px] text-foreground focus:outline-none focus:border-foreground/40 disabled:opacity-60"
+      >
+        <option value="">{tasks === null ? "Loading tasks…" : available.length === 0 ? "No more tasks to assign" : "Assign a coding task…"}</option>
+        {available.map((t) => (
+          <option key={t.id} value={t.id}>
+            [{difficultyLabel(t.difficulty)}] {t.title}
+          </option>
+        ))}
+      </select>
+      <button onClick={assign} disabled={!taskId || busy} className="inline-flex h-7 items-center gap-1 rounded-md bg-foreground px-2.5 text-[11px] font-semibold text-background disabled:opacity-50">
+        {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <Plus className="h-3 w-3" />} Assign
+      </button>
+    </div>
+  );
+}
+
 interface CandidatePanelProps {
   sessionId: string;
   candidateName: string;
@@ -71,9 +189,13 @@ interface CandidatePanelProps {
   calibrationEndsAt: string | null;
   now: number;
   live: boolean;
+  video: ReturnType<typeof useLiveVideo>;
+  cvStatus: { state: "loading" | "ok" | "unavailable"; faces: number; away: boolean; object?: string; at: number } | null;
+  canAct: boolean;
 }
 
-export function CandidatePanel({ sessionId, candidateName, candidateEmail, presence, degraded, calibrating, calibrationEndsAt, now, live }: CandidatePanelProps) {
+export function CandidatePanel({ sessionId, candidateName, candidateEmail, presence, degraded, calibrating, calibrationEndsAt, now, live, video, cvStatus, canAct }: CandidatePanelProps) {
+  const [screenExpanded, setScreenExpanded] = useState(false);
   const { tasks, error } = useSessionCode(sessionId, live);
   const [activeId, setActiveId] = useState<string | null>(null);
   const active = tasks?.find((t) => t.taskId === activeId) ?? tasks?.[0] ?? null;
@@ -109,9 +231,42 @@ export function CandidatePanel({ sessionId, candidateName, candidateEmail, prese
           </div>
         </div>
 
-        <div className="flex items-start gap-2 rounded-lg border border-dashed border-border bg-secondary/30 px-3 py-2 text-xs text-muted-foreground">
-          <VideoOff className="h-4 w-4 shrink-0 mt-0.5" />
-          <p>Live video and audio are not streamed in this environment (the media provider is a stand-in), so there is no candidate feed to show. Signals below are real; camera-based channels such as gaze need a CV producer that isn&apos;t connected.</p>
+        <div className="space-y-2">
+          <div className={cn("grid gap-2", screenExpanded ? "grid-cols-1" : "grid-cols-5")}>
+            {!screenExpanded && (
+              <div className="col-span-2 flex flex-col gap-1.5">
+                <VideoTile stream={video.camera} label={candidateName} empty={video.state === "failed" ? "Connection failed, retrying…" : "Waiting for the candidate's camera…"} className="h-36" />
+                <FaceIndicator status={cvStatus} now={now} />
+              </div>
+            )}
+            <div className={cn("relative", screenExpanded ? "h-[52vh]" : "col-span-3 h-36")}>
+              <VideoTile stream={video.screen} label="Candidate's screen" empty="Waiting for the candidate's screen…" className="h-full w-full" />
+              <button
+                onClick={() => setScreenExpanded((v) => !v)}
+                className="absolute right-1.5 top-1.5 rounded bg-black/60 p-1 text-white hover:bg-black/80"
+                aria-label={screenExpanded ? "Shrink screen view" : "Enlarge screen view"}
+              >
+                {screenExpanded ? <Minimize2 className="h-3.5 w-3.5" /> : <Maximize2 className="h-3.5 w-3.5" />}
+              </button>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-2 text-[11px] text-muted-foreground">
+            <div className="flex items-center gap-2">
+              <VideoTile stream={video.local} label="You" muted mirror empty="" className="h-12 w-20" />
+              <button onClick={video.toggleMic} className="flex h-7 w-7 items-center justify-center rounded-md border border-border bg-secondary text-foreground hover:bg-secondary/80" aria-label="Toggle microphone" title="Toggle microphone">
+                {video.micOn ? <Mic className="h-3.5 w-3.5" /> : <MicOff className="h-3.5 w-3.5 text-red-500" />}
+              </button>
+              <button onClick={video.toggleCam} className="flex h-7 w-7 items-center justify-center rounded-md border border-border bg-secondary text-foreground hover:bg-secondary/80" aria-label="Toggle camera" title="Toggle camera">
+                {video.camOn ? <Video className="h-3.5 w-3.5" /> : <VideoOff className="h-3.5 w-3.5 text-red-500" />}
+              </button>
+            </div>
+            <span className="inline-flex items-center gap-1.5">
+              <span className={cn("h-1.5 w-1.5 rounded-full", video.state === "connected" ? "bg-emerald-500" : video.state === "failed" ? "bg-red-500" : "bg-amber-500 animate-pulse")} />
+              {video.state === "connected" ? "Video connected" : video.state === "failed" ? "Video connection failed, retrying" : "Connecting video…"}
+            </span>
+          </div>
+          {video.mediaError && <p className="text-[11px] text-amber-700 dark:text-amber-400">{video.mediaError}</p>}
         </div>
 
         {calibrationLeftMs !== null && (
@@ -133,7 +288,7 @@ export function CandidatePanel({ sessionId, candidateName, candidateEmail, prese
           <span className="flex items-center gap-2 text-sm font-semibold text-foreground">
             <Code2 className="h-4 w-4" /> Candidate&apos;s code
           </span>
-          <span className="text-[11px] text-muted-foreground">Updates about every 30 s and on each run or submit</span>
+          {canAct && live ? <AssignTask sessionId={sessionId} assignedTitles={(tasks ?? []).map((t) => t.title)} /> : <span className="text-[11px] text-muted-foreground">Updates about every 30 s and on each run or submit</span>}
         </div>
 
         {!live ? (
@@ -143,7 +298,7 @@ export function CandidatePanel({ sessionId, candidateName, candidateEmail, prese
             {error ? <span className="text-sm text-red-600 dark:text-red-400">{error}</span> : <Loader2 className="h-5 w-5 animate-spin" />}
           </div>
         ) : tasks.length === 0 ? (
-          <p className="p-6 text-sm text-muted-foreground">This interview has no coding task, so there is no code to follow.</p>
+          <p className="p-6 text-sm text-muted-foreground">This interview has no coding task yet. Use the Assign a coding task control above to give the candidate one.</p>
         ) : (
           <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
             {tasks.length > 1 && (

@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@mediapipe/tasks-vision": "^1.0.1",
     "@monaco-editor/react": "^4.6.0",
     "canvas-confetti": "^1.9.3",
     "clsx": "^2.1.1",

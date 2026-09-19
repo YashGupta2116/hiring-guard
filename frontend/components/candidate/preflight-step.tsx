@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { JoinCard } from "./join-shell";
 import { ApiError } from "@/lib/api/client";
 import { runPreflight, type PreflightIssue } from "@/lib/candidate/api";
-import { buildProbe, getCameraStream, requestCameraAndMic, requestScreen, trackState } from "@/lib/candidate/media";
+import { buildProbe, getCameraStream, measureDownlinkMbps, requestCameraAndMic, requestScreen, trackState } from "@/lib/candidate/media";
 
 type StepState = "idle" | "running" | "ok" | "failed";
 
@@ -80,7 +80,7 @@ export function PreflightStep({ token, onPassed }: { token: string; onPassed: (p
 
     setSystem({ state: "running", detail: "Checking your connection and device…" });
     try {
-      const result = await runPreflight(token, buildProbe());
+      const result = await runPreflight(token, buildProbe(await measureDownlinkMbps()));
       setFailures(result.failures);
       setWarnings(result.warnings);
       if (result.passed) {

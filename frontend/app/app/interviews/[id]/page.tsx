@@ -320,7 +320,7 @@ export default function InterviewDetailPage() {
                 Join Live Room
               </Button>
             </Link>
-          ) : session.status === "ADMITTED" ? (
+          ) : ["CONFIGURED", "ARMED", "ADMITTED"].includes(session.status) ? (
             <Link href={`/app/interviews/${session.id}/live`} target="_blank" rel="noopener noreferrer">
               <Button
                 disabled={!canConductInterview}
@@ -347,7 +347,7 @@ export default function InterviewDetailPage() {
           ) : (
             <Button
               disabled
-              title="The live room opens once the candidate has joined and consented."
+              title="Finish scheduling the interview to open the live room."
               className="bg-neutral-900 text-white text-xs font-medium px-4 py-2 rounded-lg flex items-center gap-2 h-9 shadow-xs"
             >
               <Zap className="h-3.5 w-3.5 fill-current" />

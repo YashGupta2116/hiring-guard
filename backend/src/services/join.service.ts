@@ -1,4 +1,5 @@
-import { CANDIDATE_TOKEN_GRACE_HOURS, DEFAULT_RETENTION_DAYS, JOIN_EARLY_MINUTES, PREFLIGHT_MIN_CPU_CORES, PREFLIGHT_MIN_DOWNLINK_MBPS } from "../config/constants.js";
+import { isRoomOpen } from "./lifecycle.service.js";
+import { REQUIRE_ROOM_OPEN, CANDIDATE_TOKEN_GRACE_HOURS, DEFAULT_RETENTION_DAYS, JOIN_EARLY_MINUTES, PREFLIGHT_MIN_CPU_CORES, PREFLIGHT_MIN_DOWNLINK_MBPS, PREFLIGHT_HARD_MIN_DOWNLINK_MBPS } from "../config/constants.js";
 import type { InterviewSession, JoinToken } from "../generated/prisma/client.js";
 import type { MonitoringChannel } from "../generated/prisma/enums.js";
 import { getMedia } from "../providers/index.js";
@@ -44,7 +45,9 @@ function evaluatePreflight(probe: PreflightProbe): { failures: PreflightIssue[];
   if (!probe.webrtc) failures.push({ code: "NO_WEBRTC", message: "Your browser does not support the required video call technology." });
   if (!probe.getDisplayMedia) failures.push({ code: "NO_SCREEN_CAPTURE", message: "Your browser does not support screen sharing, which this interview requires." });
   if (probe.camera !== "granted") failures.push({ code: "NO_CAMERA", message: "Camera access is required and was not granted." });
-  if (probe.downlinkMbps < PREFLIGHT_MIN_DOWNLINK_MBPS) failures.push({ code: "LOW_DOWNLINK", message: "Your internet connection looks too slow for a stable interview." });
+  // Only a truly unusable link blocks the candidate; browsers report a coarse, often pessimistic estimate.
+  if (probe.downlinkMbps < PREFLIGHT_HARD_MIN_DOWNLINK_MBPS) failures.push({ code: "LOW_DOWNLINK", message: "Your internet connection looks too slow for a stable interview." });
+  else if (probe.downlinkMbps < PREFLIGHT_MIN_DOWNLINK_MBPS) warnings.push({ code: "LOW_DOWNLINK", message: "Your internet connection is slower than recommended. Close other apps and downloads for a smoother interview." });
 
   if (probe.isExtended) warnings.push({ code: "EXTENDED_DISPLAY", message: "You appear to be using multiple displays. A single display is recommended." });
   if (probe.hardwareConcurrency < PREFLIGHT_MIN_CPU_CORES) warnings.push({ code: "LOW_CPU", message: "Your device may struggle to run the interview smoothly." });
@@ -94,10 +97,17 @@ export async function getJoinSummary(joinToken: JoinToken) {
     durationMinutes: session.durationMinutes,
     status: notYetOpen ? "NOT_YET_OPEN" : "READY",
     opensAt: opensAt ? opensAt.toISOString() : null,
+    roomOpen: await isRoomOpen(session.id, session.status),
   };
 }
 
 export async function runPreflight(joinToken: JoinToken, probe: PreflightProbe) {
+  if (REQUIRE_ROOM_OPEN) {
+    const session = await loadSession(joinToken.sessionId);
+    if (!(await isRoomOpen(session.id, session.status))) {
+      throw new AppError("INTERVIEW_NOT_OPEN", "Your interviewer hasn't opened the room yet. Please wait a moment and try again.");
+    }
+  }
   const { failures, warnings } = evaluatePreflight(probe);
   const passed = failures.length === 0;
 

@@ -19,6 +19,8 @@ export const JD_TOPIC_BUDGET_RESERVED_MINUTES = 10;
 export const DEFAULT_RETENTION_DAYS = 90;
 
 export const PREFLIGHT_MIN_DOWNLINK_MBPS = 2;
+/** Below this the preflight blocks the candidate; between this and the recommended minimum it only warns. */
+export const PREFLIGHT_HARD_MIN_DOWNLINK_MBPS = 0.5;
 export const PREFLIGHT_MIN_CPU_CORES = 4;
 
 /** A candidate may open the waiting room (preflight, consent) this many minutes before the scheduled start, and not earlier. */
@@ -91,3 +93,9 @@ export const SEAL_DRAIN_TIMEOUT_MS = isTest ? 50 : 5000;
 export const RECORDING_FINALIZE_TIMEOUT_MS = isTest ? 200 : 30_000;
 /** TTL for the `s:{sid}:seal` step-progress hash (Architecture.md §7.2). */
 export const SEAL_PROGRESS_TTL_SECONDS = 7 * 24 * 60 * 60;
+
+/** The candidate can only start the setup checks once the interviewer has opened the live room. Off in tests. */
+export const REQUIRE_ROOM_OPEN = !isTest;
+
+/** Ending a LIVE session with no candidate telemetry (or shorter than calibration) discards it instead of building a report. Off in tests, whose fixtures end sessions without a real candidate. */
+export const DISCARD_EMPTY_SESSIONS = !isTest;
