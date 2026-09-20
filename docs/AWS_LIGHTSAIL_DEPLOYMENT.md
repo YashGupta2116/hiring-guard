@@ -68,7 +68,18 @@ chmod 600 .env.production
 Edit it with `nano .env.production`. Set `DOMAIN` and `ACME_EMAIL`. Generate a distinct random value
 for each of these fields by running `openssl rand -hex 32` six times: `POSTGRES_PASSWORD`,
 `HASH_PEPPER`, `JWT_ACCESS_SECRET`, `JOIN_TOKEN_SECRET`, `CANDIDATE_TOKEN_SECRET`, and
-`INTERNAL_SERVICE_TOKEN`. Leave `EVIDENCE_SIGNING_PRIVATE_KEY` blank initially.
+`INTERNAL_SERVICE_TOKEN`.
+
+`EVIDENCE_SIGNING_PRIVATE_KEY` is **not optional** — the backend has no fallback and refuses to
+seal (end) any session without it, so leaving it blank breaks every interview at the finish line.
+Generate a real key (from a machine with the backend's dependencies installed, e.g. locally before
+you ever push to the server) and copy its two output lines into `.env.production`:
+
+```bash
+cd backend && npm run keys:generate
+```
+
+Copy the printed `EVIDENCE_SIGNING_PRIVATE_KEY=...` and `EVIDENCE_SIGNING_KEY_ID=...` lines in as-is.
 
 ## 5. Deploy
 
