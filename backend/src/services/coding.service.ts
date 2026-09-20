@@ -37,7 +37,18 @@ async function loadOwnedSessionTask(sessionId: string, sessionTaskId: string) {
   return sessionTask;
 }
 
+/** A candidate token is valid well beyond the interview window (join + duration + grace); code
+ * execution must not be, or a candidate can run or submit code before the interview starts or after
+ * it has been sealed and still have it scored on a later report recompute. */
+async function requireLiveSession(sessionId: string): Promise<void> {
+  const session = await prisma.interviewSession.findUnique({ where: { id: sessionId }, select: { status: true } });
+  if (!session || session.status !== "LIVE") {
+    throw new AppError("INVALID_STATE_TRANSITION", "This interview is not currently live.", { currentStatus: session?.status ?? "UNKNOWN" });
+  }
+}
+
 export async function runTask(sessionId: string, sessionTaskId: string, input: RunSubmitInput) {
+  await requireLiveSession(sessionId);
   const sessionTask = await loadOwnedSessionTask(sessionId, sessionTaskId);
   if (sessionTask.submittedAt) {
     throw new AppError("TASK_FROZEN", "This task has already been submitted.");
@@ -83,6 +94,7 @@ export async function runTask(sessionId: string, sessionTaskId: string, input: R
 }
 
 export async function submitTask(sessionId: string, sessionTaskId: string, input: RunSubmitInput) {
+  await requireLiveSession(sessionId);
   const sessionTask = await loadOwnedSessionTask(sessionId, sessionTaskId);
   if (sessionTask.submittedAt) {
     throw new AppError("TASK_FROZEN", "This task has already been submitted.");

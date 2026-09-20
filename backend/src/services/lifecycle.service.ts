@@ -37,6 +37,11 @@ export async function startSession(orgId: string, sessionId: string, actorId: st
   }
 
   const startedAt = new Date();
+  // The atomic transition runs first, before any SessionRuntime is constructed: it's the only real
+  // compare-and-set guard against a double-submitted startSession. If it throws (a concurrent call
+  // already won), no runtime is ever created, so there's no zombie runtime left running for the loser.
+  await transition(sessionId, ["ADMITTED"], "LIVE", { orgId, actorType: "USER", actorId });
+
   const runtime = new SessionRuntime({
     sessionId,
     durationMinutes: session.durationMinutes,
@@ -48,13 +53,17 @@ export async function startSession(orgId: string, sessionId: string, actorId: st
     },
   });
   registry.set(sessionId, runtime);
-  await runtime.start();
+  try {
+    await runtime.start();
+  } catch (err) {
+    registry.delete(sessionId);
+    throw err;
+  }
   // The candidate usually connects in the waiting room, before this runtime exists, so nothing would ever
   // tell the interviewer they are already here.
   if ((await countCandidateSockets(sessionId)) > 0) runtime.onCandidateConnected();
   await startRecordingIfConfigured(session);
 
-  await transition(sessionId, ["ADMITTED"], "LIVE", { orgId, actorType: "USER", actorId });
   await broadcastSessionState(sessionId, "LIVE", startedAt, null, null);
 
   return getSession(orgId, sessionId);

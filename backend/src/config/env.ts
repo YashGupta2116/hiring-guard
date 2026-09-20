@@ -71,7 +71,15 @@ const envSchema = z.object({
   RETENTION_CRON: z.string().default("0 3 * * *"),
 });
 
-const parsed = envSchema.safeParse(process.env);
+const envSchemaWithRefinements = envSchema.refine(
+  (value) => !(value.NODE_ENV === "production" && value.SANDBOX_PROVIDER === "local"),
+  {
+    message: "SANDBOX_PROVIDER=local runs candidate code on the API host with no isolation and must not be used when NODE_ENV=production.",
+    path: ["SANDBOX_PROVIDER"],
+  },
+);
+
+const parsed = envSchemaWithRefinements.safeParse(process.env);
 
 if (!parsed.success) {
   const lines = parsed.error.issues.map((issue) => `  - ${issue.path.join(".")}: ${issue.message}`);

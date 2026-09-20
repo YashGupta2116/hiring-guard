@@ -282,12 +282,35 @@ export type EvidenceVerification = {
   verifiedAt: string;
 };
 
+type SignedManifestContent = {
+  chainHead: string;
+  lastSeq: number;
+  eventsLogSha256: string;
+};
+
+/** Parses the bytes that were actually signed, trusting nothing else. Returns null on anything unexpected
+ * so a malformed or tampered manifest fails verification instead of throwing. */
+function parseSignedManifest(bytes: Buffer): SignedManifestContent | null {
+  try {
+    const raw = JSON.parse(bytes.toString("utf8")) as Record<string, unknown>;
+    const artifactChecksums = raw.artifactChecksums as Record<string, unknown> | undefined;
+    const eventsLog = artifactChecksums?.eventsLog as Record<string, unknown> | undefined;
+    if (typeof raw.chainHead !== "string" || typeof raw.lastSeq !== "number" || typeof eventsLog?.sha256 !== "string") {
+      return null;
+    }
+    return { chainHead: raw.chainHead, lastSeq: raw.lastSeq, eventsLogSha256: eventsLog.sha256 };
+  } catch {
+    return null;
+  }
+}
+
 /**
  * `GET /sessions/:id/evidence/verify` (Design.md §4.11). Chain validity is recomputed straight from the
- * `Observation` table (never from the exported file) and cross-checked against the `chainHead`/`lastSeq`
- * the manifest recorded at seal time, so both a tampered row and a row added/removed after sealing are
- * caught. Signature validity is checked against the actual `manifest.json`/`manifest.sig` bytes in
- * storage, so an edit to either file after sealing is caught independently of the DB.
+ * `Observation` table (never from the exported file). It is cross-checked against the `chainHead`/
+ * `lastSeq`/event-log checksum recorded **inside the signed `manifest.json` bytes themselves** — not the
+ * mutable `EvidenceManifest` database row, which anyone with database write access could otherwise edit
+ * to match a rewritten chain without needing the signing key at all. A tampered row, a row added or
+ * removed after sealing, or a replaced event log are all caught this way, independent of the DB.
  */
 export async function verifySession(orgId: string, sessionId: string): Promise<EvidenceVerification> {
   const session = await prisma.interviewSession.findFirst({ where: { id: sessionId, orgId } });
@@ -301,20 +324,34 @@ export async function verifySession(orgId: string, sessionId: string): Promise<E
   }
 
   const chain = await verifyChain(sessionId);
-  const chainMatchesManifest = chain.chainHead === manifest.chainHead && chain.lastSeq === manifest.lastSeq;
-  const chainValid = chain.valid && chainMatchesManifest;
-  const firstBrokenSeq = chain.firstBrokenSeq ?? (chainMatchesManifest ? null : Math.min(chain.lastSeq, manifest.lastSeq) + 1);
 
-  let signatureValid: boolean;
+  let signatureValid = false;
+  let signedContent: SignedManifestContent | null = null;
   try {
     const signer = getSigner();
     const manifestBytes = await getStorage().getBuffer(manifest.manifestUri);
     const sigKey = manifest.manifestUri.replace(/\.json$/, ".sig");
     const sigBytes = await getStorage().getBuffer(sigKey);
     signatureValid = manifest.signingKeyId === signer.keyId && signer.verify(manifestBytes, sigBytes.toString("utf8"));
+    if (signatureValid) {
+      signedContent = parseSignedManifest(manifestBytes);
+    }
   } catch {
     signatureValid = false;
   }
+
+  let manifestMatchesContent = false;
+  if (signedContent) {
+    const eventsLogBuffer = await getStorage()
+      .getBuffer(manifest.eventLogUri)
+      .catch(() => null);
+    const eventsLogSha256 = eventsLogBuffer ? sha256Hex(eventsLogBuffer) : null;
+    manifestMatchesContent =
+      signedContent.chainHead === chain.chainHead && signedContent.lastSeq === chain.lastSeq && signedContent.eventsLogSha256 === eventsLogSha256;
+  }
+
+  const chainValid = chain.valid && signatureValid && manifestMatchesContent;
+  const firstBrokenSeq = chain.firstBrokenSeq ?? (manifestMatchesContent ? null : Math.min(chain.lastSeq, signedContent?.lastSeq ?? chain.lastSeq) + 1);
 
   const verifiedAt = new Date();
   await prisma.evidenceManifest.update({ where: { sessionId }, data: { verifiedAt } });

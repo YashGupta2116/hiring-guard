@@ -207,13 +207,20 @@ export function createSocketServer(httpServer: HttpServer): Server {
       if (!parsed.success || !registry.get(sessionId)) return;
       const offsetMs = (socket.data.clockOffsetMs as number | undefined) ?? 0;
       const channelFor = { face_absent: "FACE", multiple_faces: "FACE", gaze_away: "GAZE", foreign_object: "SCENE" } as const;
-      const items = parsed.data.items.map((item) => ({
-        channel: channelFor[item.type],
-        type: item.type,
-        ts: new Date(item.ts + offsetMs).toISOString(),
-        strength: item.strength,
-        payload: item.payload,
-      }));
+      const items: { channel: "FACE" | "GAZE" | "SCENE"; type: (typeof parsed.data.items)[number]["type"]; ts: string; strength: number; payload: Record<string, unknown> }[] = [];
+      for (const item of parsed.data.items) {
+        // item.ts + offsetMs is attacker-influenced and can exceed the range `Date` can represent,
+        // which makes toISOString() throw a RangeError; dropping the item beats crashing the process.
+        let ts: string;
+        try {
+          ts = new Date(item.ts + offsetMs).toISOString();
+        } catch {
+          logger.warn({ sessionId, ts: item.ts, offsetMs }, "cv.batch item had an out-of-range timestamp; dropped");
+          continue;
+        }
+        items.push({ channel: channelFor[item.type], type: item.type, ts, strength: item.strength, payload: item.payload });
+      }
+      if (items.length === 0) return;
       void ingestExternalObservations(sessionId, "cv", items).catch((err: unknown) => {
         logger.error({ err, sessionId }, "cv.batch failed");
       });

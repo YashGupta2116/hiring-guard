@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import {
   CALIBRATION_MS,
   CANDIDATE_ABANDON_GRACE_MS,
@@ -97,6 +98,8 @@ export class SessionRuntime {
   private fusionState: FusionState = {};
   /** Serializes every telemetry batch and internal-API write so seq/hash assignment never races. */
   private writeQueue: Promise<void> = Promise.resolve();
+  /** Unique per instance, so a renewal or release can never affect a lease another instance now holds. */
+  private readonly leaseToken = randomUUID();
 
   constructor(private readonly opts: SessionRuntimeOptions) {
     this.startedAt = opts.startedAt;
@@ -106,23 +109,48 @@ export class SessionRuntime {
   }
 
   async start(): Promise<void> {
-    await redis.set(this.leaseKey(), "1", "PX", FUSION_LEASE_TTL_MS, "NX");
-    this.leaseInterval = setInterval(() => void this.renewLease(), FUSION_LEASE_RENEW_MS);
-    this.timerInterval = setInterval(() => void this.tick(), TIMER_TICK_MS);
+    const acquired = await redis.set(this.leaseKey(), this.leaseToken, "PX", FUSION_LEASE_TTL_MS, "NX");
+    if (acquired !== "OK") {
+      throw new Error(`Failed to acquire fusion lease for session ${this.opts.sessionId}: another runtime already holds it.`);
+    }
+    this.leaseInterval = setInterval(this.guardTimer(() => this.renewLease(), "lease renewal"), FUSION_LEASE_RENEW_MS);
+    this.timerInterval = setInterval(this.guardTimer(() => this.tick(), "timer tick"), TIMER_TICK_MS);
     this.producerHealthInterval = setInterval(() => this.enqueue(() => this.checkProducerHealth()), PRODUCER_HEALTH_CHECK_MS);
-    this.integrityTickInterval = setInterval(() => void this.emitIntegrityTick(), INTEGRITY_TICK_MS);
+    this.integrityTickInterval = setInterval(this.guardTimer(() => this.emitIntegrityTick(), "integrity tick"), INTEGRITY_TICK_MS);
     this.integritySnapshotInterval = setInterval(() => this.enqueue(() => this.persistIntegritySnapshot()), INTEGRITY_SNAPSHOT_MS);
 
     const remainingMs = this.opts.durationMinutes * 60_000 - (Date.now() - this.startedAt.getTime());
     this.durationTimeout = setTimeout(() => void this.triggerEnd("duration_limit"), Math.max(0, remainingMs));
   }
 
+  /** Wraps a timer callback so a rejection (e.g. a Redis blip) is logged instead of becoming an
+   * unhandled rejection — an unhandled rejection here would otherwise crash the whole process
+   * (see index.ts's `process.on("unhandledRejection", ...)`), taking down every other live session. */
+  private guardTimer(fn: () => Promise<void>, label: string): () => void {
+    return () => {
+      fn().catch((err: unknown) => {
+        logger.error({ err, sessionId: this.opts.sessionId }, `${label} failed`);
+      });
+    };
+  }
+
   private leaseKey(): string {
     return `s:${this.opts.sessionId}:lease`;
   }
 
+  /** Compare-and-extend: only renews the TTL if this instance's token is still the one stored, so a
+   * lease this instance has lost (e.g. to expiry while partitioned from Redis) can never look renewed. */
   private async renewLease(): Promise<void> {
-    await redis.set(this.leaseKey(), "1", "PX", FUSION_LEASE_TTL_MS);
+    const renewed = await redis.eval(
+      'if redis.call("get", KEYS[1]) == ARGV[1] then return redis.call("pexpire", KEYS[1], ARGV[2]) else return 0 end',
+      1,
+      this.leaseKey(),
+      this.leaseToken,
+      FUSION_LEASE_TTL_MS,
+    );
+    if (renewed === 0) {
+      logger.error({ sessionId: this.opts.sessionId }, "fusion lease renewal did not match this instance's token; lease may have been lost");
+    }
   }
 
   private isCalibrating(now: number): boolean {
@@ -438,6 +466,13 @@ export class SessionRuntime {
     if (this.integrityTickInterval) clearInterval(this.integrityTickInterval);
     if (this.integritySnapshotInterval) clearInterval(this.integritySnapshotInterval);
     emitToCandidate(this.opts.sessionId, CANDIDATE_EVENTS.SESSION_ENDED, { message });
-    await redis.del(this.leaseKey());
+    // Compare-and-delete: only clears the lease if it's still this instance's token, so destroy() can
+    // never delete a lease a different (later) runtime instance has since acquired for this session.
+    await redis.eval(
+      'if redis.call("get", KEYS[1]) == ARGV[1] then return redis.call("del", KEYS[1]) else return 0 end',
+      1,
+      this.leaseKey(),
+      this.leaseToken,
+    );
   }
 }
