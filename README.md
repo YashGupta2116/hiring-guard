@@ -147,7 +147,7 @@ flowchart LR
 ```
 
 ```
-veritrust/
+hiring-guard/
 ├── frontend/     Next.js app: interviewer, reviewer and candidate views, in-browser CV
 ├── backend/      Express API, live session runtime, pipeline, workers, Prisma schema
 │   └── src/live/   ingest, detectors, fusion, warden, session runtime
@@ -337,4 +337,4 @@ No license file is included in this repository yet.
 
 ---
 
-<p align="center">[NAME AND GITHUB LINK]</p>
+<p align="center">Yash Gupta</p>
