@@ -1,0 +1,72 @@
+{
+  "band": "suppressed",
+  "calibration": "complete",
+  "channels": {
+    "audio": 0.0,
+    "focus": 0.21182800822892014,
+    "gaze": 0.949502087263397,
+    "input": 1.560380219550327,
+    "network": 0.0,
+    "scene": 0.7469641560463617
+  },
+  "diagnostics": {},
+  "flags": [
+    {
+      "channel": "gaze",
+      "corroborated_by": [
+        "focus"
+      ],
+      "id": "flag-1",
+      "llr": 1.6955352608412457,
+      "media_offset_ms": 150000,
+      "narrative": "Gaze held a fixed point outside the screen region for 9.0s, corroborated by focus.",
+      "observation_ids": [
+        14
+      ],
+      "score_delta": -40.699210179351105,
+      "severity": "medium",
+      "t_end_ms": 150000,
+      "t_start_ms": 150000,
+      "type": "gaze.fixed_external_focus"
+    },
+    {
+      "channel": "scene",
+      "corroborated_by": [
+        "focus",
+        "gaze"
+      ],
+      "id": "flag-2",
+      "llr": 1.3781774269017077,
+      "media_offset_ms": 153000,
+      "narrative": "No face was detected in frame for 6.0s, corroborated by focus, gaze.",
+      "observation_ids": [
+        15
+      ],
+      "score_delta": -46.34959329180424,
+      "severity": "medium",
+      "t_end_ms": 153000,
+      "t_start_ms": 153000,
+      "type": "scene.face_absent"
+    },
+    {
+      "channel": "input",
+      "corroborated_by": [],
+      "id": "flag-3",
+      "llr": 1.8,
+      "media_offset_ms": 240000,
+      "narrative": "A large block of text was pasted.",
+      "observation_ids": [
+        22
+      ],
+      "score_delta": -32.53291482623246,
+      "severity": "medium",
+      "t_end_ms": 240000,
+      "t_start_ms": 240000,
+      "type": "input.large_paste"
+    }
+  ],
+  "score": 11.989950171283438,
+  "status": "scoring",
+  "unscored": [],
+  "weights_version": "phase1-priors"
+}

@@ -1,0 +1,197 @@
+{
+  "channel_weights": {
+    "audio": 1.25,
+    "focus": 1.1,
+    "gaze": 1.0,
+    "input": 0.9,
+    "network": 0.0,
+    "scene": 1.15
+  },
+  "dataset": {
+    "kind": "synthetic",
+    "match_tolerance_ms": 5000,
+    "n_positives": 80,
+    "n_rows": 1025,
+    "sessions": [
+      "honest_seed201",
+      "honest_seed202",
+      "honest_seed203",
+      "honest_seed204",
+      "honest_seed205",
+      "honest_seed206",
+      "honest_seed207",
+      "honest_seed208",
+      "honest_seed209",
+      "honest_seed210",
+      "staged_calibration_seed101",
+      "staged_calibration_seed102",
+      "staged_calibration_seed103",
+      "staged_calibration_seed104",
+      "staged_calibration_seed105",
+      "staged_calibration_seed106",
+      "staged_calibration_seed107",
+      "staged_calibration_seed108",
+      "staged_calibration_seed109",
+      "staged_calibration_seed110",
+      "staged_calibration_seed111",
+      "staged_calibration_seed112",
+      "staged_calibration_seed113",
+      "staged_calibration_seed114",
+      "staged_calibration_seed115",
+      "staged_calibration_seed116",
+      "staged_calibration_seed117",
+      "staged_calibration_seed118",
+      "staged_calibration_seed119",
+      "staged_calibration_seed120"
+    ]
+  },
+  "detectors": {
+    "audio.second_voice": {
+      "channel": "audio",
+      "curve": null,
+      "prior": 2.2,
+      "reason": "not present in the calibration set",
+      "source": "prior"
+    },
+    "focus.fullscreen_exit": {
+      "channel": "focus",
+      "curve": null,
+      "prior": 1.3,
+      "reason": "not present in the calibration set",
+      "source": "prior"
+    },
+    "focus.tab_hidden": {
+      "channel": "focus",
+      "curve": {
+        "confidence_max": 0.8539783435667855,
+        "confidence_min": 0.25547758032222145,
+        "intercept": -1.8719570267223202,
+        "n_negatives": 60,
+        "n_positives": 20,
+        "positive_confidence_median": 0.7717516334683545,
+        "slope": 3.775726519083948
+      },
+      "prior": 1.1,
+      "reason": null,
+      "source": "fitted"
+    },
+    "focus.window_blur": {
+      "channel": "focus",
+      "curve": null,
+      "prior": 0.6,
+      "reason": "only 0 positives, needs 15",
+      "source": "prior"
+    },
+    "gaze.fixed_external_focus": {
+      "channel": "gaze",
+      "curve": null,
+      "prior": 1.6,
+      "reason": "not present in the calibration set",
+      "source": "prior"
+    },
+    "gaze.offscreen_glance": {
+      "channel": "gaze",
+      "curve": null,
+      "prior": 0.3,
+      "reason": "only 0 positives, needs 15",
+      "source": "prior"
+    },
+    "gaze.persistent_offscreen": {
+      "channel": "gaze",
+      "curve": {
+        "confidence_max": 0.9746117804041787,
+        "confidence_min": 0.2524798380492722,
+        "intercept": -2.145560055631436,
+        "n_negatives": 60,
+        "n_positives": 20,
+        "positive_confidence_median": 0.8619974214511195,
+        "slope": 3.9911678776488384
+      },
+      "prior": 1.4,
+      "reason": null,
+      "source": "fitted"
+    },
+    "input.burst_rate": {
+      "channel": "input",
+      "curve": null,
+      "prior": 0.9,
+      "reason": "not present in the calibration set",
+      "source": "prior"
+    },
+    "input.large_paste": {
+      "channel": "input",
+      "curve": {
+        "confidence_max": 1.0,
+        "confidence_min": 0.2505367857373922,
+        "intercept": -2.327520092730455,
+        "n_negatives": 60,
+        "n_positives": 20,
+        "positive_confidence_median": 0.9186455665358461,
+        "slope": 4.175969449381557
+      },
+      "prior": 1.8,
+      "reason": null,
+      "source": "fitted"
+    },
+    "input.low_typed_ratio": {
+      "channel": "input",
+      "curve": null,
+      "prior": 1.0,
+      "reason": "not present in the calibration set",
+      "source": "prior"
+    },
+    "input.rhythm_shift": {
+      "channel": "input",
+      "curve": null,
+      "prior": 1.1,
+      "reason": "not present in the calibration set",
+      "source": "prior"
+    },
+    "network.client_inconsistency": {
+      "channel": "network",
+      "curve": null,
+      "prior": 0.4,
+      "reason": "not present in the calibration set",
+      "source": "prior"
+    },
+    "network.clock_anomaly": {
+      "channel": "network",
+      "curve": null,
+      "prior": 0.0,
+      "reason": "not present in the calibration set",
+      "source": "prior"
+    },
+    "network.telemetry_gap": {
+      "channel": "network",
+      "curve": null,
+      "prior": 0.5,
+      "reason": "not present in the calibration set",
+      "source": "prior"
+    },
+    "scene.face_absent": {
+      "channel": "scene",
+      "curve": null,
+      "prior": 1.2,
+      "reason": "not present in the calibration set",
+      "source": "prior"
+    },
+    "scene.multiple_faces": {
+      "channel": "scene",
+      "curve": {
+        "confidence_max": 1.0,
+        "confidence_min": 0.25943207308336824,
+        "intercept": -2.1038032153537225,
+        "n_negatives": 60,
+        "n_positives": 20,
+        "positive_confidence_median": 0.8336204849560083,
+        "slope": 3.971047678456
+      },
+      "prior": 2.0,
+      "reason": null,
+      "source": "fitted"
+    }
+  },
+  "rejected": {},
+  "schema_version": 1,
+  "version": "phase3-synthetic-1"
+}

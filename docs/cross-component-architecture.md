@@ -100,11 +100,51 @@ start consuming, not evidence that Python should run live.
   before changing constants in `src/config/detection.ts`"; `ml/docs/Rules.md` §1: "do not change the
   fusion constants ... to make a test pass").
 - It does not rename either side's detector type strings or channel enums to match the other.
-- It does not build a network integration between the two components. `contracts/detector-registry.json`'s
-  `typeMapping` is documentation for whoever builds that integration later, not working code.
+- It does not build a network integration between the two components. That is still true and still
+  deliberate: the integration built on 2026-09-20 is an *artifact* one, not a network one. `ml/`
+  writes `ml/weights/weights.json`; `backend/src/config/calibrated-weights.ts` reads that one file
+  at startup. Nothing calls Python, no process talks to another, and the evidence hash chain's
+  single serialized writer is untouched -- which is what made this the reversible cut. See
+  "The artifact seam" below.
 - It does not delete or deprecate any part of `ml/`. Roughly half its source
   (`evaluate/`, `detectors/offline_video.py`, `fixtures/`) has no backend counterpart at all and is
   unaffected.
+
+## The artifact seam (built 2026-09-20)
+
+The direction this file called for -- `ml/` as "the lab whose output the backend is meant to start
+consuming" -- now exists end to end:
+
+1. `ml/src/vtml/calibrate/dataset.py` joins observations to their ground-truth labels by
+   type-matched time overlap and emits the fitting table.
+2. `ml/src/vtml/calibrate/fit.py` fits one logistic per detector over its raw confidence, converts
+   it to an LLR by removing the dataset's class prior, and writes `ml/weights/weights.json` with a
+   per-detector `source` of `fitted` or `prior` and a reason on every unfitted entry.
+3. `backend/src/config/calibrated-weights.ts` reads that artifact, maps ml detector types to
+   backend ones through `contracts/detector-registry.json`'s `typeMapping`, and overrides the
+   matching `LLR_TABLE` magnitudes. `getLlr()` consults it before the hand-set row.
+
+What the seam deliberately does **not** do:
+
+- **It is off by default.** `CALIBRATED_WEIGHTS_ENABLED` gates it. Both components' rules require
+  asking before a change that moves live scores, so the flag is where that decision lives rather
+  than in an edited constant. Every backend test passes with it off, unchanged.
+- **It does not feed `strength` through the curve.** Backend detectors emit a `strength` in 0..1
+  and discard it, so passing it to a confidence curve looks free and is wrong: backend `strength`
+  is a normalised magnitude (`insertedChars / 2000`, `durationMs / 30_000`), not a detector's
+  probabilistic confidence, and no curve was fitted against it. Only the curve's magnitude at its
+  operating point is adopted. Reconciling the two quantities is separate, unstarted work.
+- **It does not merge curves.** Three ml gaze types collapse onto `gaze_away`. A backend type is
+  adopted only when exactly one *fitted* ml type maps to it; otherwise the hand-set value stands
+  and the reason is recorded in the report.
+- **It does not claim the curves mean anything about real behaviour.** The committed artifact's
+  `dataset.kind` is `synthetic`, the backend logs that fact at startup when the flag is on, and
+  Phase 3's recorded-fixture capture is still owed. See `ml/docs/REMAINING_WORK.md`.
+
+With the flag on, four backend types currently change at STANDARD sensitivity: `focus_loss`
+1.20 -> 1.042, `gaze_away` 1.10 -> 1.295, `multiple_faces` 1.70 -> 1.207, `paste_large`
+1.60 -> 1.509. LOW and HIGH keep their hand-set ratios to STANDARD, so the sensitivity spread --
+a product decision the lab says nothing about -- is preserved rather than flattened.
 
 ## Open follow-up (not actioned here, needs explicit approval)
 

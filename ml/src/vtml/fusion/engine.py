@@ -10,7 +10,9 @@ from __future__ import annotations
 import logging
 import math
 from collections import deque
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Literal
 
 import numpy as np
@@ -28,6 +30,8 @@ from vtml.fusion import corroborate, flags as flags_mod, narrate as narrate_mod,
 from vtml.fusion import windows as windows_mod
 from vtml.fusion.channel import ChannelState, EvidenceItem
 from vtml.priors import PRIORS
+from vtml import weights as weights_mod
+from vtml.weights import FittedCurve
 from vtml.types import (
     Channel,
     Flag,
@@ -40,16 +44,64 @@ from vtml.types import (
 logger = logging.getLogger(__name__)
 
 
+def _baseline_to_state(baseline: Baseline) -> dict[str, Any]:
+    """`Baseline` is a frozen dataclass of tuples; JSON has only lists, so the
+    tuple shapes are rebuilt on the way back in rather than trusted."""
+    return {
+        "gaze_home_hull": [list(p) for p in baseline.gaze_home_hull],
+        "head_pose_neutral": list(baseline.head_pose_neutral),
+        "keystroke_intervals_ms": list(baseline.keystroke_intervals_ms),
+        "glance_rate_per_min": baseline.glance_rate_per_min,
+        "fallback": baseline.fallback,
+    }
+
+
+def _baseline_from_state(state: dict[str, Any]) -> Baseline:
+    neutral = state["head_pose_neutral"]
+    return Baseline(
+        gaze_home_hull=tuple((float(p[0]), float(p[1])) for p in state["gaze_home_hull"]),
+        head_pose_neutral=(float(neutral[0]), float(neutral[1])),
+        keystroke_intervals_ms=tuple(float(v) for v in state["keystroke_intervals_ms"]),
+        glance_rate_per_min=float(state["glance_rate_per_min"]),
+        fallback=bool(state["fallback"]),
+    )
+
+
 @dataclass(frozen=True)
 class Weights:
-    """Stand-in for the Phase 3 weights.json artifact.
+    """The calibration weights a session scores with.
 
-    Phase 0/1 has no fitted calibration curves -- every detector scores
-    off its priors.py entry -- so this carries only the version string
-    that SessionResult.weights_version must report either way.
+    Phase 0/1 had no fitted curves -- every detector scored off its
+    priors.py entry -- so this carried only the version string that
+    SessionResult.weights_version must report either way. That is still
+    the default, and `Weights()` scores exactly as it did before Phase 3
+    existed: the locked regression baseline and the golden fixtures are
+    pinned against it.
+
+    Phase 3's artifact is opt-in through `from_file()`. A detector with a
+    fitted curve takes its base LLR from the candidate's own confidence
+    instead of the hand-set prior; every other detector, and every
+    detector at all when `curves` is empty, is unchanged.
     """
 
     version: str = "phase1-priors"
+    # type -> fitted curve. Empty means "every detector on its prior",
+    # which is Phase 1 behaviour. Only detectors whose fit was accepted
+    # appear here -- a rejected or unfitted one is deliberately absent so
+    # the lookup falls through to the prior.
+    curves: Mapping[str, FittedCurve] = field(default_factory=dict)
+
+    @classmethod
+    def from_file(cls, path: Path) -> "Weights":
+        artifact = weights_mod.load(path)
+        return cls(
+            version=artifact.version,
+            curves={
+                type_: entry.curve
+                for type_, entry in artifact.detectors.items()
+                if entry.curve is not None
+            },
+        )
 
 
 class Engine:
@@ -168,7 +220,7 @@ class Engine:
         if calibrating:
             return True
 
-        llr = self._observation_llr(obs.duration_ms, prior)
+        llr = self._observation_llr(obs.duration_ms, self._base_llr(obs, prior))
         llr = self._apply_personalisation(obs, llr)
         boost, corroborated_by = corroborate.compute_boost(
             self._channels, channel, obs.t_ms, self._config
@@ -197,6 +249,26 @@ class Engine:
                 new_flag_id=f"flag-{self._flag_counter}",
             )
         return True
+
+    def _base_llr(self, obs: Observation, prior: float) -> float:
+        """The detector's LLR before duration scaling and the clamp.
+
+        A fitted curve reads the detector's own confidence, which the prior
+        path discards entirely -- every observation of a type scores the same
+        number however sure the detector was. With no curve for this type
+        (unfitted, or a fit that was rejected) the prior is returned unchanged,
+        so an artifact that fits nothing scores exactly as Phase 1 did.
+
+        Confidence outside the range the curve was fitted over is clamped to
+        that range rather than extrapolated: a line fitted between 0.25 and
+        1.0 says nothing trustworthy at 0.05, and letting it run would hand
+        the least certain detections the largest magnitudes.
+        """
+        curve = self._weights.curves.get(obs.type)
+        if curve is None:
+            return prior
+        confidence = min(max(obs.confidence, curve.confidence_min), curve.confidence_max)
+        return curve.llr(confidence)
 
     def _observation_llr(self, duration_ms: int | None, prior: float) -> float:
         if duration_ms is None:
@@ -384,6 +456,18 @@ class Engine:
             "diagnostics": dict(self._diagnostics),
             "rng_state": self._rng.bit_generator.state,
             "weights_version": self._weights.version,
+            # Calibration state. Without these a session resumed mid-window
+            # restarted calibration from nothing: the samples gathered so far
+            # were lost, so the baseline it eventually closed on was built
+            # from whatever arrived after the resume, and a baseline that had
+            # already closed re-opened and closed again on less evidence.
+            "baseline_closed": self._baseline_closed,
+            "baseline": None if self._baseline is None else _baseline_to_state(self._baseline),
+            "baseline_builder": self._baseline_builder.to_state(),
+            # The sliding window the rhythm KS test compares against. Dropping
+            # it made the first post-resume keystroke observation look like the
+            # start of the session to `rhythm_is_anomalous`.
+            "rhythm_window": [[t_ms, interval] for t_ms, interval in self._rhythm_window],
         }
 
     @classmethod
@@ -405,4 +489,17 @@ class Engine:
         engine._t_now = state["t_now"]
         engine._diagnostics = dict(state["diagnostics"])
         engine._rng.bit_generator.state = state["rng_state"]
+
+        # Calibration state is optional on the way in: a state dict written
+        # before these keys existed still loads, and restarts calibration the
+        # way it used to rather than failing to load at all.
+        engine._baseline_closed = bool(state.get("baseline_closed", False))
+        baseline_state = state.get("baseline")
+        engine._baseline = None if baseline_state is None else _baseline_from_state(baseline_state)
+        builder_state = state.get("baseline_builder")
+        if builder_state is not None:
+            engine._baseline_builder = BaselineBuilder.from_state(builder_state, config)
+        engine._rhythm_window = deque(
+            (int(t_ms), float(interval)) for t_ms, interval in state.get("rhythm_window", [])
+        )
         return engine

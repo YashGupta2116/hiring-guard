@@ -7,7 +7,11 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: veritrust
     ports:
-      - "5432:5432"
+      # Host port only. Override with POSTGRES_PORT in backend/.env (compose reads it) when
+      # something already owns 5432 on this machine -- a native Postgres install is the usual
+      # culprit. The container-internal port stays 5432, so the app services below, which reach
+      # it as `postgres:5432` over the compose network, are unaffected.
+      - "${POSTGRES_PORT:-5432}:5432"
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./scripts/init-test-db.sql:/docker-entrypoint-initdb.d/init-test-db.sql:ro

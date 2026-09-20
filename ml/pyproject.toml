@@ -35,3 +35,9 @@ testpaths = ["tests"]
 [tool.mypy]
 strict = true
 files = ["src"]
+# scikit-learn ships no type stubs and no py.typed marker. This says exactly
+# that and nothing more -- the modules that import it stay fully checked
+# (Rules.md section 4: do not narrow the scope to make a module pass).
+[[tool.mypy.overrides]]
+module = ["sklearn.*"]
+ignore_missing_imports = true

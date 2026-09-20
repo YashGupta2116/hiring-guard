@@ -19,6 +19,7 @@ import math
 from collections.abc import Sequence
 from dataclasses import dataclass
 from statistics import median
+from typing import Any
 
 from vtml.config import EngineConfig
 from vtml.detectors.schema import DetectorType
@@ -73,6 +74,27 @@ class BaselineBuilder:
         self._gaze_points: list[tuple[float, float]] = []
         self._keystroke_intervals: list[float] = []
         self._glance_count: int = 0
+
+    def to_state(self) -> dict[str, Any]:
+        """The samples gathered so far, for `Engine.to_state()`.
+
+        The config is deliberately absent: it is passed to `from_state()` by
+        the caller, the same way `Engine.from_state()` takes its own, so a
+        serialised session can never carry a stale copy of the constants.
+        """
+        return {
+            "gaze_points": [list(p) for p in self._gaze_points],
+            "keystroke_intervals": list(self._keystroke_intervals),
+            "glance_count": self._glance_count,
+        }
+
+    @classmethod
+    def from_state(cls, state: dict[str, Any], config: EngineConfig) -> "BaselineBuilder":
+        builder = cls(config)
+        builder._gaze_points = [(float(p[0]), float(p[1])) for p in state["gaze_points"]]
+        builder._keystroke_intervals = [float(v) for v in state["keystroke_intervals"]]
+        builder._glance_count = int(state["glance_count"])
+        return builder
 
     def observe(self, obs: Observation) -> None:
         if obs.channel == Channel.GAZE:

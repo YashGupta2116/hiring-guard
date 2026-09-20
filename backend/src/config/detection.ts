@@ -5,6 +5,7 @@
  */
 import type { MonitoringChannel, Sensitivity } from "../generated/prisma/enums.js";
 import { logger } from "../utils/logger.js";
+import { getCalibratedLlr } from "./calibrated-weights.js";
 
 export const DETECTOR_VERSION = "2026.09.1";
 export const WEIGHTS_VERSION = "2026.09.1";
@@ -52,6 +53,13 @@ const unknownTypeCounts = new Map<string, number>();
  * builds a whole request's observations in one pass, so one unknown type would reject all of them.
  */
 export function getLlr(type: string, sensitivity: Sensitivity): number | null {
+  // The ML lab's fitted curve for this type, when calibrated weights are enabled (off by
+  // default, so this returns null and nothing below changes). Consulted before the hand-set row
+  // rather than replacing it: only the handful of types with an accepted fit are overridden, and
+  // an unknown type still falls through to the warn-and-null path below.
+  const calibrated = getCalibratedLlr(type, sensitivity);
+  if (calibrated !== null) return calibrated;
+
   const row = LLR_TABLE[type];
   if (row === undefined) {
     unknownTypeCounts.set(type, (unknownTypeCounts.get(type) ?? 0) + 1);

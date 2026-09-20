@@ -18,10 +18,12 @@
     "   same rule.",
     "4. backend/tests/unit/detection-contract.test.ts and ml/tests/test_contract.py both load this",
     "   file and fail if their local source drifts from it. Run both before merging a change here.",
-    "5. `typeMapping` is documentation, not code -- nothing enforces it at runtime yet. It exists so",
-    "   a future integration (ml priors informing backend LLRs, or a CV/ASR producer emitting ml-",
-    "   shaped types at the internal API) has one agreed mapping to build against instead of",
-    "   guessing from two independently-invented vocabularies."
+    "5. `typeMapping` is no longer documentation only: backend/src/config/calibrated-weights.ts",
+    "   reads it to adopt ml's fitted calibration curves as LLR_TABLE magnitudes. Changing an entry",
+    "   changes which backend detector type a fitted curve lands on, so change it with the same care",
+    "   as a constant. backend/tests/unit/calibrated-weights.test.ts asserts every adopted override",
+    "   went through this map. A CV/ASR producer emitting ml-shaped types at the internal API is",
+    "   still an unbuilt use for the same mapping."
   ],
 
   "monitoringChannels": {
@@ -101,7 +103,7 @@
     }
   },
 
-  "_readmeTypeMapping": "typeMapping: ml detector type -> the backend detector type it is conceptually equivalent to. Not wired anywhere today -- see docs/cross-component-architecture.md for why (backend types are coarser: 12 vs ml's 16, and several ml types collapse into one backend type). Reference for whoever builds the first real integration.",
+  "_readmeTypeMapping": "typeMapping: ml detector type -> the backend detector type it is conceptually equivalent to. NOW WIRED: backend/src/config/calibrated-weights.ts reads this map at startup to adopt ml's fitted curves as LLR_TABLE magnitudes, behind the CALIBRATED_WEIGHTS_ENABLED flag (off by default). Backend types are coarser (12 vs ml's 16) and several ml types collapse into one backend type, so a backend type is adopted only when exactly one *fitted* ml type maps to it -- there is no defensible way to merge two curves into one value. See docs/cross-component-architecture.md.",
   "typeMapping": {
     "gaze.offscreen_glance": "gaze_away",
     "gaze.persistent_offscreen": "gaze_away",

@@ -1,0 +1,22 @@
+[
+  {
+    "t_start_ms": 60000,
+    "t_end_ms": 68000,
+    "event_type": "gaze.persistent_offscreen"
+  },
+  {
+    "t_start_ms": 65000,
+    "t_end_ms": 70000,
+    "event_type": "scene.multiple_faces"
+  },
+  {
+    "t_start_ms": 120000,
+    "t_end_ms": 120000,
+    "event_type": "input.large_paste"
+  },
+  {
+    "t_start_ms": 150000,
+    "t_end_ms": 154000,
+    "event_type": "focus.tab_hidden"
+  }
+]

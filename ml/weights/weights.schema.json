@@ -1,0 +1,196 @@
+{
+  "$defs": {
+    "Channel": {
+      "enum": [
+        "gaze",
+        "scene",
+        "focus",
+        "input",
+        "network",
+        "audio"
+      ],
+      "title": "Channel",
+      "type": "string"
+    },
+    "DatasetProvenance": {
+      "properties": {
+        "kind": {
+          "enum": [
+            "synthetic",
+            "recorded",
+            "mixed"
+          ],
+          "title": "Kind",
+          "type": "string"
+        },
+        "match_tolerance_ms": {
+          "title": "Match Tolerance Ms",
+          "type": "integer"
+        },
+        "n_positives": {
+          "title": "N Positives",
+          "type": "integer"
+        },
+        "n_rows": {
+          "title": "N Rows",
+          "type": "integer"
+        },
+        "sessions": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Sessions",
+          "type": "array"
+        }
+      },
+      "required": [
+        "kind",
+        "sessions",
+        "n_rows",
+        "n_positives",
+        "match_tolerance_ms"
+      ],
+      "title": "DatasetProvenance",
+      "type": "object"
+    },
+    "DetectorWeight": {
+      "description": "One detector's entry: either a fitted curve or the prior it fell back to.",
+      "properties": {
+        "channel": {
+          "$ref": "#/$defs/Channel"
+        },
+        "curve": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/FittedCurve"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "prior": {
+          "title": "Prior",
+          "type": "number"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reason"
+        },
+        "source": {
+          "enum": [
+            "fitted",
+            "prior"
+          ],
+          "title": "Source",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source",
+        "channel",
+        "prior"
+      ],
+      "title": "DetectorWeight",
+      "type": "object"
+    },
+    "FittedCurve": {
+      "description": "A per-detector logistic over raw confidence, expressed as an LLR.\n\n`llr(c) = intercept + slope * c`, the fitted log-odds with the dataset's\nclass prior removed (see `calibrate/fit.py` for the derivation). The engine\ntreats the result as the detector's base LLR, in place of its prior.",
+      "properties": {
+        "confidence_max": {
+          "title": "Confidence Max",
+          "type": "number"
+        },
+        "confidence_min": {
+          "title": "Confidence Min",
+          "type": "number"
+        },
+        "intercept": {
+          "title": "Intercept",
+          "type": "number"
+        },
+        "n_negatives": {
+          "title": "N Negatives",
+          "type": "integer"
+        },
+        "n_positives": {
+          "title": "N Positives",
+          "type": "integer"
+        },
+        "positive_confidence_median": {
+          "title": "Positive Confidence Median",
+          "type": "number"
+        },
+        "slope": {
+          "title": "Slope",
+          "type": "number"
+        }
+      },
+      "required": [
+        "intercept",
+        "slope",
+        "confidence_min",
+        "confidence_max",
+        "n_positives",
+        "n_negatives",
+        "positive_confidence_median"
+      ],
+      "title": "FittedCurve",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "channel_weights": {
+      "additionalProperties": {
+        "type": "number"
+      },
+      "propertyNames": {
+        "$ref": "#/$defs/Channel"
+      },
+      "title": "Channel Weights",
+      "type": "object"
+    },
+    "dataset": {
+      "$ref": "#/$defs/DatasetProvenance"
+    },
+    "detectors": {
+      "additionalProperties": {
+        "$ref": "#/$defs/DetectorWeight"
+      },
+      "title": "Detectors",
+      "type": "object"
+    },
+    "rejected": {
+      "additionalProperties": {
+        "type": "string"
+      },
+      "title": "Rejected",
+      "type": "object"
+    },
+    "schema_version": {
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "version": {
+      "title": "Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "version",
+    "dataset",
+    "channel_weights"
+  ],
+  "title": "WeightsFile",
+  "type": "object"
+}

@@ -1,0 +1,18 @@
+{
+  "band": "clear",
+  "calibration": "complete",
+  "channels": {
+    "audio": 0.0,
+    "focus": 0.22438603273853852,
+    "gaze": 0.19163993392733109,
+    "input": 0.0,
+    "network": 0.5202968217562439,
+    "scene": 0.37917220696374143
+  },
+  "diagnostics": {},
+  "flags": [],
+  "score": 89.29065229312073,
+  "status": "scoring",
+  "unscored": [],
+  "weights_version": "phase1-priors"
+}

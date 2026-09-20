@@ -27,11 +27,19 @@ def compute_boost(
     if any(window_start <= item.t_ms <= t_ms for item in own_recent):
         return config.same_channel_damping, []
 
+    # A zero-weight channel is a data-quality note to the reviewer and
+    # "never a penalty to the candidate" (PRD section 5) -- `network` is the
+    # one in v1. Dropping it from the weighted sum is not enough on its own:
+    # left in here it re-enters the score through the boost it hands a real
+    # channel, so a candidate's dropped connection both cost points and
+    # raised a flag narrated as "corroborated by network". It cannot
+    # corroborate what it is not allowed to score.
     corroborating = sorted(
         (
             channel
             for channel, state in channel_states.items()
             if channel != incoming_channel
+            and config.channel_weight.get(channel, 0.0) > 0.0
             and any(window_start <= item.t_ms <= t_ms for item in state.recent)
         ),
         key=lambda c: c.value,

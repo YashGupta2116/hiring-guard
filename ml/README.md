@@ -31,6 +31,51 @@ python -m vtml.fixtures.synthetic.generate --profile staged --seed 7
 
 Both write a deterministic JSONL stream of `Observation` records to `fixtures/synthetic/`. A staged session also writes a `.labels.json` file alongside it with the scripted event list (`t_start_ms`, `t_end_ms`, `event_type`) used as ground truth.
 
+Four more profiles exist. `honest_clean`, `honest_noisy_camera` and `staged_phone_and_glance` are the golden fixtures (below). `staged_calibration` is for fitting: it keeps the staged script's event types, timings and durations but varies their confidence and adds detector misfires, because a curve over a single fixed confidence value is unidentifiable.
+
+## Replay the golden fixtures
+
+```bash
+pytest tests/test_replay_golden.py
+python -m vtml.fixtures.golden          # rewrite the committed expected results
+```
+
+Three sessions in `fixtures/golden/` replay to a committed `SessionResult`: `honest_clean` (94.61,
+clear), `honest_noisy_camera` (89.29, clear -- a bad webcam, poor lighting and a dropped connection,
+which must stay above 85) and `staged_phone_and_glance` (11.99, suppressed, 3 flags). A change to any
+fusion constant changes these files, and reviewing that diff is the point; regenerate deliberately
+rather than to make a test green.
+
+## Fit calibration curves
+
+```bash
+python -m vtml.calibrate.dataset --fixtures fixtures/calibration
+python -m vtml.calibrate.fit --fixtures fixtures/calibration \
+    --version phase3-synthetic-1 --dataset-kind synthetic --write-schema
+```
+
+The first command prints the fitting table: how many positives and negatives each detector has, and
+whether it has enough to fit. The second fits one logistic per detector over its raw confidence,
+converts it to an LLR by removing the dataset's class prior, and writes `weights/weights.json` plus
+the schema generated from the Pydantic model in `src/vtml/weights.py`.
+
+The committed artifact is fitted on **synthetic** fixtures -- it records that as
+`dataset.kind: "synthetic"`, and a curve fitted on generated data is not evidence about real
+behaviour. Phase 3's 20 recorded sessions are still owed; see `docs/REMAINING_WORK.md`.
+
+To score with the fitted curves instead of the hand-set priors:
+
+```python
+from pathlib import Path
+from vtml.config import STANDARD
+from vtml.fusion.engine import Engine, Weights
+
+engine = Engine(STANDARD, Weights.from_file(Path("weights/weights.json")))
+```
+
+`Weights()` with no argument keeps every detector on its `priors.py` entry, which is what the locked
+regression baseline and the golden fixtures are pinned against.
+
 ## Replay the demo
 
 ```bash
@@ -64,6 +109,6 @@ Every detector type string, its channel, its backend wire mapping, and its hand-
 
 ## Status
 
-Phase 0 (scaffold), Phase 1 (fusion core), Phase 2 (detector registry, ingest, baselines), Phase 4 (evaluation harness and report), and Phase 6 (demo fixture, replay, walkthrough) are complete -- Phase 6 was the last phase. Phase 3 (fixture capture and calibration) and Phase 5 (Lambda packaging) are cut for the hackathon. See `docs/Memory.md` for current state and key decisions, and `docs/Phases.md` for what remains undone overall.
+Phase 0 (scaffold), Phase 1 (fusion core), Phase 2 (detector registry, ingest, baselines), Phase 4 (evaluation harness and report) and Phase 6 (demo fixture, replay, walkthrough) are complete. Phase 3 is partial: its calibration pipeline, artifact and engine path are built and tested, but the 20 recorded sessions it needs are not captured, so the shipped curves are fitted on synthetic fixtures. Phase 5 (Lambda packaging) is still cut, though its state-serialisation criterion is met (`tests/test_state_roundtrip.py`). See `docs/Memory.md` for current state and key decisions, `docs/Phases.md` for the phase detail, and `docs/REMAINING_WORK.md` for what is left.
 
-This component is not wired into `backend/`, which runs its own independent fusion engine live. See [`../docs/cross-component-architecture.md`](../docs/cross-component-architecture.md) for how the two relate and why.
+`backend/` still runs its own independent fusion engine live; this component is not a second runtime. What is new is an **artifact** seam: `backend/src/config/calibrated-weights.ts` reads `weights/weights.json` and adopts the fitted magnitudes into its own LLR table, behind a flag that is off by default. Nothing calls Python and no process talks to another. See [`../docs/cross-component-architecture.md`](../docs/cross-component-architecture.md) for the shape of it and what it deliberately does not do.

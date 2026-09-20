@@ -91,11 +91,38 @@ already credits it under this phase's "Done" line; this file didn't). Tested in 
 
 ---
 
-## Phase 3: Fixture capture and calibration -- CUT
+## Phase 3: Fixture capture and calibration -- PARTIAL (2026-09-20)
 
-**Not running before submission.** It needs me and two teammates in front of webcams for 20 sessions, and there is no time left to schedule that against a video recording on the evening of the 19th. Phase 4 runs on synthetic fixtures with the hand-set priors in `priors.py` instead.
+**Originally cut before submission** because it needs three people in front of webcams for 20
+sessions. Tasks 5 and 6 -- the pipeline -- were built on 2026-09-20 and run end to end; tasks 1 to 4
+still need people and are the only thing left.
 
-The section below stays as the specification for doing this properly after the hackathon. Nothing in it is wrong, it just has no slot. `calibrate/dataset.py` and `calibrate/fit.py` do not exist and will not this week; `weights.json` stays a stand-in carrying only a version string.
+**Built:** `calibrate/dataset.py` (task 5), `calibrate/fit.py` (task 6), the artifact itself
+(`weights.py`, `weights/weights.json`, `weights/weights.schema.json` generated from the Pydantic
+model so it cannot drift), and the engine path that reads a fitted curve
+(`Weights.from_file()`; `Weights()` still scores off `priors.py`, which is what keeps the locked
+regression baseline and the goldens pinned). `backend/` consumes the artifact -- see
+`../../docs/cross-component-architecture.md`, "The artifact seam".
+
+**Not built:** tasks 1 to 4. No browser capture harness, no recorded sessions, no human-written
+label scripts. `Rules.md` section 1 forbids fabricating a labelled recording, so the fit runs on
+sessions from the synthetic generator instead (a new `staged_calibration` profile with jittered
+confidences and detector misfires, since the regression fixtures pin one fixed confidence per event
+type and a curve over a single x is unidentifiable). The artifact records this as
+`dataset.kind: "synthetic"` and every consumer surfaces it. **A curve fitted on generated fixtures
+is not evidence about real behaviour**, and no number from it should be presented as if it were.
+
+**Exit criteria, as actually met:** 4 of 16 detectors fitted, 12 on priors with a recorded reason
+each; `weights.json` validates against its schema; no accepted curve exceeds the clamp ceiling. Two
+criteria are not met and cannot be without tasks 1 to 4: there are no 20 recorded fixtures, and
+"a held-out honest session scores above 85" is only checkable against generated data (where it
+holds: both honest goldens stay in the clear band with the fitted artifact).
+
+**One criterion was changed, with approval.** "No fitted curve produces an LLR outside the clamp
+before clamping" now applies to the ceiling (`llr_clamp_max`) only. An LLR is centred at zero by
+construction while the clamp is `[-1.0, 4.0]`, centred at +1.5, so the floor trips as soon as a
+detector discriminates at all and the rule as written admitted only detectors that barely work.
+Full reasoning in `Memory.md`'s Key decisions, 2026-09-20.
 
 **Goal.** Fitted curves from real recordings. This is the only phase with a hard external dependency, which is me and two teammates sitting in front of a webcam.
 

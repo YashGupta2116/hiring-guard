@@ -62,6 +62,13 @@ const envSchema = z.object({
   /** PDF is optional (Architecture.md §1); HTML report rendering is never gated by this. */
   REPORT_PDF_ENABLED: flag.default(false),
 
+  /**
+   * Adopt the ML lab's fitted curves as LLR_TABLE magnitudes (config/calibrated-weights.ts).
+   * Off by default: turning it on changes live scores, so it is a decision, not a default. The
+   * committed artifact is fitted on synthetic fixtures and is not evidence about real behaviour.
+   */
+  CALIBRATED_WEIGHTS_ENABLED: flag.default(false),
+
   /** Retention windows, days (PRD FR-RET-1 / Phases.md §11). */
   RETENTION_MEDIA_DAYS: z.coerce.number().int().min(1).default(90),
   RETENTION_OBSERVATIONS_DAYS: z.coerce.number().int().min(1).default(180),

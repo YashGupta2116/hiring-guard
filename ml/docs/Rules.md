@@ -44,7 +44,11 @@ These rules bind every coding session on this repo. When a rule and a convenienc
 - Any library for "explainable AI". The explainability here is arithmetic, and a SHAP dependency would be both slower and less honest.
 
 ### The import rule, enforced by a test
-`tests/test_runtime_deps.py` imports every module under `src/vtml/` except `handler.py`, `calibrate/fit.py`, `calibrate/dataset.py`, `evaluate/`, and `detectors/offline_video.py`, and asserts that `sys.modules` afterwards contains no `sklearn`, `pandas`, `matplotlib`, `cv2`, `mediapipe` or `boto3`. This test is the reason the Lambda bundle stays small, so it does not get skipped.
+`tests/test_runtime_deps.py` imports every module under `src/vtml/` except `handler.py`, `calibrate/`, `evaluate/`, and `detectors/offline_video.py`, and asserts that no `sklearn`, `pandas`, `matplotlib`, `cv2`, `mediapipe` or `boto3` is loaded afterwards. This test is the reason the Lambda bundle stays small, so it does not get skipped.
+
+As of 2026-09-20 it runs the import in a **subprocess**. `sys.modules` is process-wide, so reading it in-process measured the whole pytest session rather than this import graph: once `tests/test_calibrate.py` imported `vtml.calibrate.fit`, scikit-learn was already loaded and the assertion fired on an import the test never made. A fresh interpreter is the only place the question has a meaningful answer, and it makes the result independent of test ordering.
+
+`pyproject.toml` carries one `[[tool.mypy.overrides]]`, for `sklearn.*`, because scikit-learn ships no stubs and no `py.typed` marker. It sets `ignore_missing_imports` for that package and nothing else; the modules importing it stay fully checked.
 
 ## 4. Code rules
 
@@ -93,7 +97,23 @@ These are the specification. Changing one is a deliberate decision that updates 
 
 `network` weight is 0.0 in v1 and that is intentional, not a placeholder. See PRD section 5.
 
-`calibrate/curves.py` does not exist. Raw confidence to LLR conversion lives inline in `fusion/engine.py::_observation_llr`, reading `priors.py`. No detector has a fitted curve until Phase 3. The three constants above moved to `config.py` with the rest.
+A zero-weight channel also cannot **corroborate** another channel, as of 2026-09-20. Keeping it out
+of the weighted sum was not enough on its own: as a corroborator it re-entered the score through the
+boost it handed a real channel, so a candidate's dropped connection cost 2.674 points and raised a
+flag narrated "corroborated by network" -- against PRD section 5's "never a penalty to the
+candidate". No constant in this table changed; the rule is in `fusion/corroborate.py` and is tested
+by `tests/test_corroboration.py`.
+
+`calibrate/curves.py` does not exist. Since 2026-09-20 the fitting lives in `calibrate/fit.py`
+(offline, never imported by the runtime) and its output in `weights/weights.json`. The engine's
+`fusion/engine.py::_base_llr` reads a fitted curve for a detector that has one and falls back to
+`priors.py` for every detector that does not, which is all of them under the default `Weights()`.
+Duration scaling and the clamp apply on top of either, so there is still one scoring path. The three
+constants above moved to `config.py` with the rest.
+
+The shipped artifact fits 4 of 16 detectors, on **synthetic** fixtures. `dataset.kind` records that,
+and a curve fitted on generated data is not evidence about real behaviour -- Phase 3's recorded
+sessions are still owed.
 
 ### Duration scaling
 
@@ -159,8 +179,8 @@ One test per rule. These tests do not get marked xfail.
 ## 8. Testing rules
 
 - Every fusion function has a unit test with hand-computed expected values. Not a snapshot of whatever the code currently produces.
-- Golden fixtures: three sessions (`honest_clean`, `honest_noisy_camera`, `staged_phone_and_glance`) replay to a committed expected `SessionResult`. Any change to the constants changes these goldens, and that diff is the review surface.
-- `honest_noisy_camera` is the most important test in the repo. A session with a bad webcam, poor lighting and a dropped connection must score above 85. If it does not, the false-positive behaviour is broken regardless of what the other metrics say.
+- Golden fixtures: three sessions (`honest_clean`, `honest_noisy_camera`, `staged_phone_and_glance`) replay to a committed expected `SessionResult`. Any change to the constants changes these goldens, and that diff is the review surface. **Built 2026-09-20**: `fixtures/golden/` holds the three fixtures and their `<name>.expected.json`; `tests/test_replay_golden.py` is the consumer; regenerate with `python -m vtml.fixtures.golden` and review the diff rather than accepting it.
+- `honest_noisy_camera` is the most important test in the repo. A session with a bad webcam, poor lighting and a dropped connection must score above 85. If it does not, the false-positive behaviour is broken regardless of what the other metrics say. It currently scores 89.29. That margin depends on how bad "a bad webcam" is taken to be: the fixture models sub-second face-detection dropouts at about one per 50 s, and the bar breaks at 7 dropouts per 5 minutes (sensitivity table in `Memory.md`). If a real recording turns out noisier than that, the fix is a scene-channel change, not a gentler fixture.
 - Latency test asserts p95 under 50 ms for a 20-observation batch on a session with 500 accumulated observations.
 - No test depends on network, AWS, a browser or wall-clock time. Time is injected.
 
