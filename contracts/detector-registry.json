@@ -69,14 +69,15 @@
       "typed_ratio_low": "authorship.detector.ts (coding round)",
       "typing_burst": "authorship.detector.ts (coding round)"
     },
-    "_readmeReserved": "reservedForExternalProducer: types with an LLR_TABLE entry but no client detector -- only reachable today via POST /api/v1/internal/:id/observations (CV/ASR producers, backend Architecture.md §2). No producer sends these yet.",
+    "_readmeReserved": "reservedForExternalProducer: types with an LLR_TABLE entry but no dedicated backend/src/live/detectors/*.ts module -- reachable via the socket `cv.batch` event (routed through backend/src/sockets/index.ts's channelFor map into the same internal-observation path as POST /api/v1/internal/:id/observations, backend Architecture.md §2). As of 2026-09, face_absent/multiple_faces/gaze_away/foreign_object/screen_share_stopped are actually emitted, live, by frontend/lib/candidate/cv.ts and screen-monitor.ts (on-device MediaPipe + a screen-track poll, no frames leave the device). second_voice remains genuinely unemitted: no ASR producer exists.",
     "reservedForExternalProducer": {
       "visibility_loss": "intended for a screen/camera-visibility CV signal",
-      "face_absent": "intended for a face-detection CV signal",
-      "multiple_faces": "intended for a face-count CV signal",
-      "gaze_away": "intended for a gaze-tracking CV signal",
-      "foreign_object": "a phone, book, second laptop or similar object visible on camera (browser-side object detector)",
-      "second_voice": "intended for a second-speaker ASR signal"
+      "face_absent": "emitted by frontend/lib/candidate/cv.ts (on-device MediaPipe face landmarker)",
+      "multiple_faces": "emitted by frontend/lib/candidate/cv.ts (on-device MediaPipe face landmarker)",
+      "gaze_away": "emitted by frontend/lib/candidate/cv.ts (on-device MediaPipe face landmarker)",
+      "foreign_object": "emitted by frontend/lib/candidate/cv.ts (on-device MediaPipe object detector): a phone, book, second laptop or similar object visible on camera",
+      "screen_share_stopped": "emitted by frontend/lib/candidate/screen-monitor.ts: the shared screen track ended or is no longer a whole monitor",
+      "second_voice": "intended for a second-speaker ASR signal; not emitted by anything yet"
     },
     "openQuestion": "visibility_loss and face_absent carry near-identical LLR values (0.8/1.2/1.8 vs 0.9/1.4/2.0) and no detector distinguishes their intended trigger. Worth resolving with whoever wires the first CV producer, not decided here."
   },

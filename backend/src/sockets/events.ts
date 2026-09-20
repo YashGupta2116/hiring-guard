@@ -42,7 +42,7 @@ export const cvBatchSchema = z.object({
   items: z
     .array(
       z.object({
-        type: z.enum(["face_absent", "multiple_faces", "gaze_away", "foreign_object"]),
+        type: z.enum(["face_absent", "multiple_faces", "gaze_away", "foreign_object", "screen_share_stopped"]),
         ts: z.number().int().min(0),
         strength: z.number().min(0).max(1),
         payload: z.record(z.string(), z.unknown()).default({}),

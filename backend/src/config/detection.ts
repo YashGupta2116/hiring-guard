@@ -27,6 +27,9 @@ export const LLR_TABLE: Record<string, BySensitivity> = {
   gaze_away: { LOW: 0.7, STANDARD: 1.1, HIGH: 1.6 },
   foreign_object: { LOW: 1.0, STANDARD: 1.6, HIGH: 2.2 },
   second_voice: { LOW: 1.0, STANDARD: 1.5, HIGH: 2.1 },
+  // A monitored screen-share ending or losing full-monitor scope mid-interview is an unambiguous
+  // state change (not an inference), so it scores like the other high-confidence CV signals.
+  screen_share_stopped: { LOW: 1.0, STANDARD: 1.6, HIGH: 2.2 },
   // Phase 8: authorship detector (editor.delta), reusing the PASTE/RHYTHM channels — no dedicated channel exists.
   typed_ratio_low: { LOW: 0.9, STANDARD: 1.4, HIGH: 2.0 },
   typing_burst: { LOW: 0.8, STANDARD: 1.3, HIGH: 1.9 },

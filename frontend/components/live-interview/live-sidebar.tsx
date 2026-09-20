@@ -17,13 +17,14 @@ type Room = ReturnType<typeof useLiveRoom>;
 type Tab = "telemetry" | "assistant" | "transcript" | "notes";
 
 /**
- * Channels fed by the browser itself, including the candidate-side MediaPipe pipeline in
- * lib/candidate/cv.ts (face presence, gaze, foreign-object scene checks — see its cv.batch events
- * and the backend's channelFor mapping in sockets/index.ts). Identity, audio and screen still need
- * an external CV/ASR/media producer this deployment doesn't have, so a zero there means "not
- * monitored", not "clean".
+ * Channels fed by the browser itself, including the candidate-side pipelines in lib/candidate/cv.ts
+ * (face presence, gaze, foreign-object scene checks — on-device MediaPipe) and
+ * lib/candidate/screen-monitor.ts (screen-share ended / no longer a whole monitor) — see their
+ * cv.batch events and the backend's channelFor mapping in sockets/index.ts. Identity and audio
+ * still need an external CV/ASR/media producer this deployment doesn't have, so a zero there means
+ * "not monitored", not "clean".
  */
-const BROWSER_CHANNELS = new Set(["FOCUS", "PASTE", "RHYTHM", "POINTER", "ENVIRONMENT", "FACE", "GAZE", "SCENE"]);
+const BROWSER_CHANNELS = new Set(["FOCUS", "PASTE", "RHYTHM", "POINTER", "ENVIRONMENT", "FACE", "GAZE", "SCENE", "SCREEN"]);
 const CHANNEL_LABEL: Record<string, string> = {
   GAZE: "Gaze",
   FACE: "Face",

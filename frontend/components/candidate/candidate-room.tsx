@@ -29,6 +29,7 @@ import { connectCandidateSocket, syncClock, type CandidateServerEvents, type Can
 import { EditorSync, TelemetryReporter } from "@/lib/candidate/telemetry";
 import { CandidateRtc } from "@/lib/candidate/rtc";
 import { CvProducer } from "@/lib/candidate/cv";
+import { ScreenShareMonitor } from "@/lib/candidate/screen-monitor";
 import { isTestMode } from "@/lib/candidate/test-mode";
 import { enterFullscreen, isFullscreen, startLockdown, type ViolationKind } from "@/lib/candidate/lockdown";
 import { cn } from "@/lib/utils";
@@ -283,6 +284,14 @@ export function CandidateRoom({ candidateToken, onInvalid, onFinished }: Candida
     cv.start();
     return () => cv.stop();
   }, [phase, socket, media.camera]);
+
+  // SCREEN channel: flags the shared screen ending or losing full-monitor scope mid-interview.
+  useEffect(() => {
+    if (phase !== "live" || !socket) return;
+    const monitor = new ScreenShareMonitor(socket);
+    monitor.start();
+    return () => monitor.stop();
+  }, [phase, socket]);
 
   // ---- Coding tasks & live signals ----------------------------------------------------------
   useEffect(() => {

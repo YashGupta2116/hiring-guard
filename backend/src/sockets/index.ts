@@ -206,8 +206,8 @@ export function createSocketServer(httpServer: HttpServer): Server {
       const parsed = cvBatchSchema.safeParse(raw);
       if (!parsed.success || !registry.get(sessionId)) return;
       const offsetMs = (socket.data.clockOffsetMs as number | undefined) ?? 0;
-      const channelFor = { face_absent: "FACE", multiple_faces: "FACE", gaze_away: "GAZE", foreign_object: "SCENE" } as const;
-      const items: { channel: "FACE" | "GAZE" | "SCENE"; type: (typeof parsed.data.items)[number]["type"]; ts: string; strength: number; payload: Record<string, unknown> }[] = [];
+      const channelFor = { face_absent: "FACE", multiple_faces: "FACE", gaze_away: "GAZE", foreign_object: "SCENE", screen_share_stopped: "SCREEN" } as const;
+      const items: { channel: "FACE" | "GAZE" | "SCENE" | "SCREEN"; type: (typeof parsed.data.items)[number]["type"]; ts: string; strength: number; payload: Record<string, unknown> }[] = [];
       for (const item of parsed.data.items) {
         // item.ts + offsetMs is attacker-influenced and can exceed the range `Date` can represent,
         // which makes toISOString() throw a RangeError; dropping the item beats crashing the process.
