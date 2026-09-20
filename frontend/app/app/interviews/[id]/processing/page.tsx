@@ -24,7 +24,7 @@ const STEPS: { step: PipelineStepName; label: string }[] = [
   { step: "TRANSCRIPT_FINALIZE", label: "Finalizing the transcript" },
   { step: "INTEGRITY_RESCORE", label: "Recomputing the integrity score from stored evidence" },
   { step: "CODE_EVALUATE", label: "Evaluating the coding round" },
-  { step: "MEDIA_INDEX", label: "Linking evidence to the recording timeline" },
+  { step: "MEDIA_INDEX", label: "Linking evidence to the recording timeline, if there is a recording" },
   { step: "ANSWER_GRADING", label: "Grading answers" },
   { step: "COMPOSITE_SCORE", label: "Combining the scores" },
   { step: "RENDER_REPORT", label: "Rendering the report" },

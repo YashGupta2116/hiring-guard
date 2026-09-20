@@ -1,4 +1,5 @@
 import type { InterviewMode, SessionStatus } from "../generated/prisma/enums.js";
+import { getMedia } from "../providers/index.js";
 import { AppError } from "../utils/app-error.js";
 import { newSessionId } from "../utils/ids.js";
 import { prisma } from "../utils/prisma.js";
@@ -56,6 +57,7 @@ function toDto(session: Awaited<ReturnType<typeof findSessionOrThrow>>) {
       recordVideo: session.recordVideo,
       recordAudio: session.recordAudio,
       recordScreen: session.recordScreen,
+      recordingAvailable: getMedia().canRecord,
       channels: session.channels,
       sensitivity: session.sensitivity,
       topicBudgets: session.topicBudgets,

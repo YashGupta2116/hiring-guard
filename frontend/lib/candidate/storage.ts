@@ -6,7 +6,6 @@
 
 export type StoredCandidateSession = {
   candidateToken: string;
-  recording: { video: boolean; audio: boolean; screen: boolean } | null;
 };
 
 const keyFor = (joinToken: string) => `vt_candidate_${joinToken.slice(-32)}`;

@@ -10,19 +10,28 @@ import { prisma } from "../utils/prisma.js";
 import { log } from "./audit.service.js";
 import { transition } from "./session-state.service.js";
 
-const CHANNEL_BULLETS: Record<MonitoringChannel, string> = {
+/**
+ * What each channel tells a candidate. Only channels with a detector behind them belong here. IDENTITY
+ * (matching the face to an ID) and AUDIO (voice and extra-speaker analysis) have none, so they never
+ * reach a consent screen and are never recorded as consented to.
+ */
+const CHANNEL_BULLETS: Partial<Record<MonitoringChannel, string>> = {
   GAZE: "where you are looking on screen",
-  FACE: "whether a face is visible on camera",
-  IDENTITY: "that the person on camera matches who joined",
-  SCENE: "your surrounding environment on camera",
-  AUDIO: "audio in the room, including additional voices",
-  SCREEN: "what is shown on your shared screen",
+  FACE: "how many faces are visible on camera",
+  SCENE: "objects that appear in your camera view",
+  SCREEN: "whether you keep sharing your entire screen",
   FOCUS: "whether this browser tab stays in focus",
   PASTE: "text pasted into the code editor",
   RHYTHM: "your typing rhythm",
   POINTER: "mouse pointer activity",
-  ENVIRONMENT: "your device and network setup, such as number of displays",
+  ENVIRONMENT: "your device and network setup, including how many displays you use",
 };
+
+const LIVE_CALL_BULLET = "Your interviewer can see and hear you, and see your shared screen, live during the interview.";
+const NO_MEDIA_STORED_BULLET = "No video or audio is stored. Camera and screen checks run in your own browser, so only their results are sent to us.";
+const SPEECH_BULLET =
+  "If your browser supports speech recognition, what you say is turned into text. In Chrome and Edge your audio is sent to Google or Microsoft for this. We save the transcript of the conversation, not the audio, and use it to assess your answers.";
+const CODING_BULLET = "If your interview includes a coding task, the code you write and the results of running it in our coding sandbox are saved for review.";
 
 export type PreflightProbe = {
   webrtc: boolean;
@@ -119,19 +128,17 @@ export async function runPreflight(joinToken: JoinToken, probe: PreflightProbe) 
 }
 
 function buildPolicy(session: InterviewSession & { org: { name: string } }) {
-  const bullets: string[] = [];
-  if (session.recordVideo || session.recordAudio || session.recordScreen) {
-    const parts = [session.recordVideo && "video", session.recordAudio && "audio", session.recordScreen && "your screen"].filter(Boolean);
-    bullets.push(`This interview records ${parts.join(", ")} for review by the hiring team.`);
-  }
-  for (const channel of session.channels) {
-    bullets.push(`We monitor ${CHANNEL_BULLETS[channel]} to help ensure interview integrity.`);
-  }
-  bullets.push(`Recordings and evidence are kept for up to ${DEFAULT_RETENTION_DAYS} days.`);
+  const bullets = [
+    LIVE_CALL_BULLET,
+    NO_MEDIA_STORED_BULLET,
+    SPEECH_BULLET,
+    ...session.channels.flatMap((channel) => CHANNEL_BULLETS[channel] ?? []).map((what) => `To help ensure interview integrity, we monitor ${what}.`),
+    CODING_BULLET,
+    `The evidence collected in this interview is kept for up to ${DEFAULT_RETENTION_DAYS} days.`,
+  ];
 
   const policy = {
     bullets,
-    recording: { video: session.recordVideo, audio: session.recordAudio, screen: session.recordScreen },
     retentionDays: DEFAULT_RETENTION_DAYS,
     viewers: `Your interviewer and the hiring team at ${session.org.name}`,
   };
@@ -182,7 +189,7 @@ export async function submitConsent(joinToken: JoinToken, input: ConsentInput) {
       sessionId: session.id,
       joinTokenId: joinToken.id,
       accepted: true,
-      channels: session.channels,
+      channels: session.channels.filter((channel) => channel in CHANNEL_BULLETS),
       scopeDisplayed: { bullets: currentPolicy.bullets },
       policyHash: currentPolicy.policyHash,
       configVersion: session.configVersion,

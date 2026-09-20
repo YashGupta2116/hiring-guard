@@ -12,7 +12,7 @@ import { getPolicy, submitConsent, type Policy } from "@/lib/candidate/api";
 interface PolicyStepProps {
   token: string;
   preflightId: string;
-  onAccepted: (candidateToken: string, recording: Policy["recording"]) => void;
+  onAccepted: (candidateToken: string) => void;
   onDeclined: () => void;
   /** The system check is stale or was never passed; send the candidate back to it. */
   onNeedPreflight: () => void;
@@ -61,7 +61,7 @@ export function PolicyStep({ token, preflightId, onAccepted, onDeclined, onNeedP
       if ("ended" in result) {
         onDeclined();
       } else {
-        onAccepted(result.candidateToken, policy.recording);
+        onAccepted(result.candidateToken);
       }
     } catch (err) {
       if (err instanceof ApiError && err.code === "POLICY_CHANGED") {
@@ -81,7 +81,7 @@ export function PolicyStep({ token, preflightId, onAccepted, onDeclined, onNeedP
   if (!policy) return <p className="text-sm text-muted-foreground text-center">Loading…</p>;
 
   return (
-    <JoinCard title="Before you begin" description="Please read exactly what will be recorded and monitored during this interview.">
+    <JoinCard title="Before you begin" description="Please read exactly what will be monitored and saved during this interview.">
       <div
         ref={boxRef}
         onScroll={checkScroll}
@@ -107,7 +107,7 @@ export function PolicyStep({ token, preflightId, onAccepted, onDeclined, onNeedP
 
       <label className={`flex items-start gap-2.5 text-sm ${scrolledToEnd ? "text-foreground cursor-pointer" : "text-muted-foreground/60"}`}>
         <input type="checkbox" className="mt-1 h-4 w-4" checked={agreed} disabled={!scrolledToEnd} onChange={(e) => setAgreed(e.target.checked)} />
-        <span>I have read this and consent to the recording and monitoring described above.</span>
+        <span>I have read this and consent to what is described above.</span>
       </label>
 
       {error && (

@@ -45,12 +45,14 @@ async function finalizeRecording(sessionId: string): Promise<void> {
         throw new Error("recording finalize timed out");
       }),
     ]);
+    // READY means there is something to play. A provider that hands back no artifact has recorded nothing.
+    if (!result.compositeKey && !result.hlsKey) throw new Error("media provider returned no recording artifact");
     await prisma.recording.update({
       where: { sessionId },
       data: { status: "READY", compositeUri: result.compositeKey, hlsUri: result.hlsKey, endedAt: new Date() },
     });
   } catch (err) {
-    logger.warn({ err, sessionId }, "recording finalize failed or timed out; continuing seal");
+    logger.warn({ err, sessionId }, "recording finalize failed, timed out or produced no artifact; continuing seal");
     await prisma.recording.update({ where: { sessionId }, data: { status: "FAILED", endedAt: new Date() } });
   }
 }

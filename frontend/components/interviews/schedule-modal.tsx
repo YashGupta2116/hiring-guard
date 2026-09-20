@@ -248,7 +248,7 @@ export function ScheduleModal({ open, onOpenChange, defaultCandidateId, defaultT
   const [duration, setDuration] = useState<number>(60);
   const [interviewType, setInterviewType] = useState<InterviewTypeCode>("TECHNICAL");
   const [taskId, setTaskId] = useState(defaultTaskId ?? "");
-  const [recordingEnabled, setRecordingEnabled] = useState(true);
+  const [recordingEnabled, setRecordingEnabled] = useState(false);
   const [monitoring, setMonitoring] = useState<Record<MonitoringKey, boolean>>({
     webcam: true,
     screen: true,
@@ -659,7 +659,7 @@ export function ScheduleModal({ open, onOpenChange, defaultCandidateId, defaultT
                   <MonitoringToggleRow
                     icon={<Camera className="h-4 w-4" />}
                     title="Webcam Telemetry"
-                    description="Presence, identity, scene, audio"
+                    description="Face presence, scene"
                     checked={monitoring.webcam}
                     onChange={(v) => setMonitoring((m) => ({ ...m, webcam: v }))}
                   />
@@ -687,7 +687,7 @@ export function ScheduleModal({ open, onOpenChange, defaultCandidateId, defaultT
                   <MonitoringToggleRow
                     icon={<CloudCog className="h-4 w-4" />}
                     title="Session Recording"
-                    description="Video, audio and screen"
+                    description="Needs a media provider that can record"
                     checked={recordingEnabled}
                     onChange={setRecordingEnabled}
                   />

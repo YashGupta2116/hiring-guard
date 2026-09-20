@@ -469,7 +469,7 @@ function DetectionTab() {
         <div className="space-y-1">
           <h3 className="font-semibold text-foreground">What gets monitored in an interview</h3>
           <p className="text-muted-foreground leading-relaxed">
-            You choose this per interview when you schedule it: which monitoring groups are on, and whether video, audio and screen are recorded. The candidate sees exactly that list before they consent.{" "}
+            You choose this per interview when you schedule it: which monitoring groups are on. The candidate sees exactly that list before they consent.{" "}
             <Link href="/app/interviews" className="underline underline-offset-2 hover:text-foreground">
               Go to interviews
             </Link>

@@ -178,7 +178,8 @@ Session object:
   "scheduledAt": "2026-09-20T09:00:00.000Z", "durationMinutes": 60,
   "config": {
     "interviewType": "CODING", "difficulty": "MEDIUM",
-    "recordVideo": true, "recordAudio": true, "recordScreen": true,
+    "recordVideo": false, "recordAudio": false, "recordScreen": false,
+    "recordingAvailable": false,
     "channels": ["FOCUS", "PASTE", "RHYTHM", "POINTER", "ENVIRONMENT"],
     "sensitivity": "STANDARD", "topicBudgets": { "APIs": 900 },
     "configVersion": 3, "needsReconsent": false
@@ -236,7 +237,7 @@ Test case shape: `{ "input": "...", "expectedOutput": "..." }`.
 |---|---|---|---|
 | GET | `/join/:token` | J | `{ sessionTitle, orgName, interviewerNames, scheduledAt, durationMinutes, status: "READY" \| "NOT_YET_OPEN", opensAt: ISO \| null }`. `opensAt` = start minus 15 min (or link `notBefore` if later) |
 | POST | `/join/:token/preflight` | J | probe (below) → `{ preflightId, passed, failures: [{code, message}], warnings: [{code, message}] }` |
-| GET | `/join/:token/policy` | J | `{ bullets: string[], recording: {...}, retentionDays, viewers: string, policyHash }` |
+| GET | `/join/:token/policy` | J | `{ bullets: string[], retentionDays, viewers: string, policyHash }` |
 | POST | `/join/:token/consent` | J | `{ preflightId, policyHash, accepted, scrolledToEnd: true }` → accepted: `{ candidateToken, media: { url, token } }` · declined: `{ ended: true }` |
 
 Preflight probe:

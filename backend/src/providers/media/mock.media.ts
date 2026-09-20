@@ -1,10 +1,11 @@
 import { ulid } from "ulid";
 import type { MediaProvider, ParticipantRole, TrackVerification } from "./media.provider.js";
 
-/** Pretends every track is published. Lets the full session flow run without LiveKit. */
+/** Pretends every track is published. Lets the full session flow run without LiveKit. It never records anything. */
 export class MockMediaProvider implements MediaProvider {
   readonly name = "mock";
   readonly url = "ws://localhost:7880";
+  readonly canRecord = false;
 
   async createParticipantToken(input: { sessionId: string; identity: string; role: ParticipantRole; ttlSeconds: number }): Promise<string> {
     return `mock-media-token.${input.sessionId}.${input.role}.${input.identity}`;

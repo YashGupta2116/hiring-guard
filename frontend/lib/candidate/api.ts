@@ -32,7 +32,6 @@ export type PreflightResult = { preflightId: string; passed: boolean; failures: 
 
 export type Policy = {
   bullets: string[];
-  recording: { video: boolean; audio: boolean; screen: boolean };
   retentionDays: number;
   viewers: string;
   policyHash: string;

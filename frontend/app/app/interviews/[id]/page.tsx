@@ -27,6 +27,7 @@ import {
   listSessionNotes,
   localDateKey,
   monitoringEnabled,
+  recordingState,
   revokeSessionLink,
   sessionCandidateName,
   sessionRef,
@@ -296,7 +297,7 @@ export default function InterviewDetailPage() {
   const additional = session.interviewers.filter((i) => i !== primary);
   const authorName = (authorId: string) => session.interviewers.find((i) => i.userId === authorId)?.name ?? "Team member";
   const timeline = buildTimeline(session, primary?.name ?? "the team");
-  const recording = session.config.recordVideo || session.config.recordAudio || session.config.recordScreen;
+  const recording = recordingState(session.config);
   const canCancel = canDeleteInterview && CANCELLABLE.has(session.status);
   const canEdit = canConductInterview && EDITABLE.has(session.status);
 
@@ -546,8 +547,14 @@ export default function InterviewDetailPage() {
                   <Video className="h-3.5 w-3.5" />
                 </div>
                 <div className="text-[11px] text-neutral-500">Session Recording</div>
-                <div className={cn("font-semibold text-xs leading-tight", recording ? "text-sage-700 dark:text-sage-400" : "text-neutral-500")}>
-                  {recording ? "Enabled" : "Disabled"}
+                <div
+                  className={cn(
+                    "font-semibold text-xs leading-tight",
+                    recording === "on" ? "text-sage-700 dark:text-sage-400" : recording === "unavailable" ? "text-amber-700 dark:text-amber-400" : "text-neutral-500",
+                  )}
+                  title={recording === "unavailable" ? "Recording was requested, but no media provider that can record is configured. Nothing was recorded." : undefined}
+                >
+                  {recording === "on" ? "Enabled" : recording === "unavailable" ? "Not available" : "Disabled"}
                 </div>
               </div>
             </div>
@@ -617,8 +624,8 @@ export default function InterviewDetailPage() {
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
               {[
-                { title: "Video & Audio", icon: Video, tone: "bg-slate-50 text-slate-600 dark:bg-slate-950/50 dark:text-slate-400", on: monitoringEnabled(session.config.channels, "webcam") || session.config.recordVideo || session.config.recordAudio },
-                { title: "Screen Monitoring", icon: Monitor, tone: "bg-slate-50 text-slate-600 dark:bg-slate-950/50 dark:text-slate-400", on: monitoringEnabled(session.config.channels, "screen") || session.config.recordScreen },
+                { title: "Camera Analysis", icon: Video, tone: "bg-slate-50 text-slate-600 dark:bg-slate-950/50 dark:text-slate-400", on: monitoringEnabled(session.config.channels, "webcam") },
+                { title: "Screen Monitoring", icon: Monitor, tone: "bg-slate-50 text-slate-600 dark:bg-slate-950/50 dark:text-slate-400", on: monitoringEnabled(session.config.channels, "screen") },
                 { title: "Eye Tracking", icon: Eye, tone: "bg-sage-50 text-sage-600 dark:bg-sage-950/50 dark:text-sage-400", on: monitoringEnabled(session.config.channels, "gaze") },
                 { title: "Code Environment", icon: Code2, tone: "bg-clay-50 text-clay-600 dark:bg-clay-950/50 dark:text-clay-400", on: session.tasks.length > 0 },
               ].map(({ title, icon: Icon, tone, on }) => (

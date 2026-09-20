@@ -14,7 +14,7 @@ import { Dialog, DialogHeader, DialogTitle, DialogDescription, DialogFooter } fr
 import { usePermissions } from "@/components/auth/role-guard";
 import { useToast } from "@/components/ui/toast";
 import { ApiError } from "@/lib/api/client";
-import { sessionCandidateName, sessionRef, sessionRole } from "@/lib/api/sessions";
+import { recordingState, sessionCandidateName, sessionRef, sessionRole } from "@/lib/api/sessions";
 import { openSessionRoom } from "@/lib/live/api";
 import { isEndedStatus, useLiveRoom } from "@/lib/live/use-live-room";
 import { useLiveVideo } from "@/lib/live/use-live-video";
@@ -193,7 +193,7 @@ export default function LiveInterviewPage() {
   // ---- Live ---------------------------------------------------------------------------------------
   const elapsedMs = timer ? timer.elapsedMs + (now - timer.receivedAt) : 0;
   const remainingMs = timer ? Math.max(0, timer.remainingMs - (now - timer.receivedAt)) : null;
-  const recording = session.config.recordVideo || session.config.recordAudio || session.config.recordScreen;
+  const recording = recordingState(session.config);
   const browserChannels = room.integrity.channels.filter((c) => ["FOCUS", "PASTE", "RHYTHM", "POINTER", "ENVIRONMENT"].includes(c.channel)).length;
 
   return (
@@ -237,9 +237,13 @@ export default function LiveInterviewPage() {
             )}
           </div>
 
-          {recording && (
-            <div className="hidden lg:flex items-center gap-1.5 rounded-lg border border-border bg-secondary/30 px-3 py-1.5 text-xs font-medium text-muted-foreground" title="Recording is enabled for this interview; the media provider in this environment is a stand-in.">
-              <span className="h-2 w-2 rounded-full bg-terra-500" /> Recording enabled
+          {recording !== "off" && (
+            <div
+              className="hidden lg:flex items-center gap-1.5 rounded-lg border border-border bg-secondary/30 px-3 py-1.5 text-xs font-medium text-muted-foreground"
+              title={recording === "on" ? "Recording is enabled for this interview." : "Recording was requested, but no media provider that can record is configured. Nothing is being recorded."}
+            >
+              <span className={`h-2 w-2 rounded-full ${recording === "on" ? "bg-terra-500" : "bg-amber-500"}`} />
+              {recording === "on" ? "Recording enabled" : "Recording not available"}
             </div>
           )}
         </div>

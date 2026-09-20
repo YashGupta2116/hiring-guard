@@ -1,5 +1,6 @@
 import { AppError } from "../utils/app-error.js";
 import { getMedia } from "../providers/index.js";
+import { logger } from "../utils/logger.js";
 import { prisma } from "../utils/prisma.js";
 import { redis } from "../utils/redis.js";
 
@@ -16,7 +17,9 @@ export async function markMediaReady(sessionId: string): Promise<{ ready: true }
 /**
  * Starts egress and creates the `Recording` row when the session goes LIVE (Architecture.md §7.1/§6.7
  * step 4 assumes a recording is already running by the time seal stops it). A session with all three
- * record flags off never gets a `Recording` row at all, and seal's stop step is then a no-op.
+ * record flags off never gets a `Recording` row at all, and seal's stop step is then a no-op. The same
+ * holds when the media provider cannot record (the mock, today): no egress and no row, so nothing
+ * downstream can report a recording that was never made.
  */
 export async function startRecordingIfConfigured(session: {
   id: string;
@@ -25,6 +28,10 @@ export async function startRecordingIfConfigured(session: {
   recordScreen: boolean;
 }): Promise<void> {
   if (!session.recordVideo && !session.recordAudio && !session.recordScreen) return;
+  if (!getMedia().canRecord) {
+    logger.warn({ sessionId: session.id }, "recording was requested but the media provider cannot record; nothing will be recorded");
+    return;
+  }
 
   const { egressId, startedAt } = await getMedia().startRecording(session.id);
   await prisma.recording.upsert({

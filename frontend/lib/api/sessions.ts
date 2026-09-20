@@ -47,7 +47,7 @@ export type MonitoringChannel =
 export type MonitoringKey = "webcam" | "screen" | "clipboard" | "gaze";
 
 export const MONITORING_GROUPS: { key: MonitoringKey; channels: MonitoringChannel[] }[] = [
-  { key: "webcam", channels: ["FACE", "IDENTITY", "SCENE", "AUDIO"] },
+  { key: "webcam", channels: ["FACE", "SCENE"] },
   { key: "screen", channels: ["SCREEN", "FOCUS", "POINTER", "ENVIRONMENT"] },
   { key: "clipboard", channels: ["PASTE", "RHYTHM"] },
   { key: "gaze", channels: ["GAZE"] },
@@ -60,6 +60,12 @@ export function channelsFor(enabled: Record<MonitoringKey, boolean>): Monitoring
 export function monitoringEnabled(channels: string[], key: MonitoringKey): boolean {
   const group = MONITORING_GROUPS.find((g) => g.key === key);
   return !!group && group.channels.every((c) => channels.includes(c));
+}
+
+/** "unavailable" = recording was requested but the server has no provider that can make one. */
+export function recordingState(config: ApiSession["config"]): "off" | "unavailable" | "on" {
+  if (!(config.recordVideo || config.recordAudio || config.recordScreen)) return "off";
+  return config.recordingAvailable ? "on" : "unavailable";
 }
 
 export type ApiSession = {
@@ -77,6 +83,8 @@ export type ApiSession = {
     recordVideo: boolean;
     recordAudio: boolean;
     recordScreen: boolean;
+    /** Whether the server's media provider can produce a recording at all. The record flags only say it was asked for. */
+    recordingAvailable: boolean;
     channels: MonitoringChannel[];
     sensitivity: string;
     configVersion: number;

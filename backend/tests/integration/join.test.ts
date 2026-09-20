@@ -89,6 +89,43 @@ describe("POST /sessions/:id/links", () => {
   });
 });
 
+describe("GET /join/:token/policy", () => {
+  it("lists only what the system does: no identity, voice or recording claims, and says nothing is stored", async () => {
+    const owner = await registerOwner();
+    const created = await request(app)
+      .post("/api/v1/sessions")
+      .set("Authorization", `Bearer ${owner.accessToken}`)
+      .send({ mode: "DIRECT_LINK", candidateEmail: "candidate@example.com", candidateName: "Cand Idate" });
+    const sessionId = created.body.data.id as string;
+    // Everything the old scheduler requested by default: all three record flags and all eleven channels,
+    // including IDENTITY and AUDIO, which have no detector.
+    await request(app)
+      .patch(`/api/v1/sessions/${sessionId}/config`)
+      .set("Authorization", `Bearer ${owner.accessToken}`)
+      .send({ recordVideo: true, recordAudio: true, recordScreen: true, channels: ["FACE", "IDENTITY", "SCENE", "AUDIO", "SCREEN", "FOCUS", "POINTER", "ENVIRONMENT", "PASTE", "RHYTHM", "GAZE"] });
+    const { rawToken } = await createLink(owner.accessToken, sessionId);
+
+    const policy = await request(app).get(`/api/v1/join/${rawToken}/policy`);
+    const text = (policy.body.data.bullets as string[]).join("\n");
+    expect(policy.body.data).not.toHaveProperty("recording");
+    expect(text).not.toMatch(/matches who joined|additional voices|This interview records|Recordings/);
+    expect(text).toContain("No video or audio is stored.");
+    expect(text).toContain("run in your own browser");
+    expect(text).not.toContain("Nothing is recorded"); // the speech transcript is saved, so this would mislead
+    expect(text).toContain("speech recognition"); // and the transcript is disclosed instead
+    expect(text).toContain("not the audio");
+    expect(text).toContain("we monitor how many faces are visible on camera"); // the real channels are still listed
+
+    // The consent row must not claim consent to a channel that was never shown.
+    const preflight = await request(app).post(`/api/v1/join/${rawToken}/preflight`).send(passingProbe());
+    await request(app)
+      .post(`/api/v1/join/${rawToken}/consent`)
+      .send({ preflightId: preflight.body.data.preflightId, policyHash: policy.body.data.policyHash, accepted: true, scrolledToEnd: true });
+    const consent = await prisma.consent.findFirstOrThrow({ where: { sessionId } });
+    expect([...consent.channels].sort()).toEqual(["ENVIRONMENT", "FACE", "FOCUS", "GAZE", "PASTE", "POINTER", "RHYTHM", "SCENE", "SCREEN"]);
+  });
+});
+
 describe("full join -> preflight -> policy -> consent -> ADMITTED", () => {
   it("accepts consent and returns a candidate token; the link is then consumed", async () => {
     const owner = await registerOwner();

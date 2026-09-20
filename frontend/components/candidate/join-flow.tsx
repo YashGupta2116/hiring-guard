@@ -100,7 +100,7 @@ export function JoinFlow({ token }: { token: string }) {
     return (
       <JoinShell>
         <JoinCard title="You've declined this interview">
-          <p className="text-sm text-muted-foreground leading-relaxed">No monitoring or recording has started, and this link no longer works. You can close this window.</p>
+          <p className="text-sm text-muted-foreground leading-relaxed">No monitoring has started, and this link no longer works. You can close this window.</p>
         </JoinCard>
       </JoinShell>
     );
@@ -133,7 +133,7 @@ export function JoinFlow({ token }: { token: string }) {
           ) : (
             <>
               <p className="text-xs text-muted-foreground leading-relaxed">
-                Next we&apos;ll check your camera, microphone, screen sharing and connection, then show you exactly what is recorded and monitored. You&apos;ll choose whether to proceed.
+                Next we&apos;ll check your camera, microphone, screen sharing and connection, then show you exactly what is monitored and saved. You&apos;ll choose whether to proceed.
               </p>
               {waitingForRoom && (
                 <div className="flex items-center gap-2 rounded-lg border border-border bg-background p-3 text-sm text-muted-foreground">
@@ -180,8 +180,8 @@ export function JoinFlow({ token }: { token: string }) {
             stopAllMedia();
             setPhase("declined");
           }}
-          onAccepted={(candidateJwt, recording) => {
-            saveCandidateSession(token, { candidateToken: candidateJwt, recording });
+          onAccepted={(candidateJwt) => {
+            saveCandidateSession(token, { candidateToken: candidateJwt });
             setCandidateToken(candidateJwt);
             setPhase("room");
           }}

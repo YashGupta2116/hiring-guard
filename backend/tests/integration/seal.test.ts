@@ -4,7 +4,7 @@ import request from "supertest";
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createApp } from "../../src/app.js";
 import { registry } from "../../src/live/registry.js";
-import { getStorage } from "../../src/providers/index.js";
+import { getMedia, getStorage } from "../../src/providers/index.js";
 import { appendObservations } from "../../src/services/evidence.service.js";
 import { resumeStuckSeals } from "../../src/services/seal.service.js";
 import { createSocketServer } from "../../src/sockets/index.js";
@@ -138,15 +138,34 @@ describe("seal sequence", () => {
     expect(manifest).not.toBeNull();
     expect(manifest?.lastSeq).toBe(1);
 
-    // Default config records video/audio/screen, so lifecycle.startSession should have started egress
-    // and seal step 4 should have stopped and finalised it.
-    const recording = await prisma.recording.findUnique({ where: { sessionId } });
-    expect(recording?.status).toBe("READY");
-    expect(recording?.egressId).toBeTruthy();
+    // The record flags default to on, but the mock media provider cannot record: no egress starts and
+    // no Recording row exists, so nothing can report a recording that was never made.
+    expect(await prisma.recording.findUnique({ where: { sessionId } })).toBeNull();
+    const session = await request(app).get(`/api/v1/sessions/${sessionId}`).set("Authorization", `Bearer ${owner.accessToken}`);
+    expect(session.body.data.config).toMatchObject({ recordVideo: true, recordingAvailable: false });
 
     const verify = await request(app).get(`/api/v1/sessions/${sessionId}/evidence/verify`).set("Authorization", `Bearer ${owner.accessToken}`);
     expect(verify.status).toBe(200);
     expect(verify.body.data).toMatchObject({ valid: true, chainValid: true, signatureValid: true, lastSeq: 1, firstBrokenSeq: null });
+  });
+
+  it("marks a recording FAILED, not READY, when a recording-capable provider hands back no artifact", async () => {
+    Object.assign(getMedia(), { canRecord: true }); // the mock's stopRecording returns null keys
+    try {
+      const owner = await registerOwner();
+      const { sessionId } = await startLiveSession(owner.accessToken);
+      expect((await prisma.recording.findUnique({ where: { sessionId } }))?.status).toBe("RECORDING");
+
+      const ended = await request(app).post(`/api/v1/sessions/${sessionId}/end`).set("Authorization", `Bearer ${owner.accessToken}`);
+      expect(ended.body.data.status).toBe("PROCESSING"); // a failed recording never blocks the seal
+
+      const recording = await prisma.recording.findUnique({ where: { sessionId } });
+      expect(recording?.status).toBe("FAILED");
+      expect(recording?.compositeUri).toBeNull();
+      expect(recording?.hlsUri).toBeNull();
+    } finally {
+      Object.assign(getMedia(), { canRecord: false });
+    }
   });
 
   it("detects a tampered observation on the next verify call", async () => {
