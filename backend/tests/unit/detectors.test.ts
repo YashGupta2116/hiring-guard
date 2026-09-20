@@ -41,11 +41,16 @@ describe("PasteDetector", () => {
     expect(detector.handle({ kind: "clipboard", action: "paste", length: 10, target: "editor", ts: 0 }, ctx)).toEqual([]);
   });
 
-  it("emits paste_large for a large paste", () => {
+  it("emits paste_large for a large paste outside the editor", () => {
     const detector = new PasteDetector();
     const out = detector.handle({ kind: "clipboard", action: "paste", length: 500, target: "other", ts: 0 }, ctx);
     expect(out).toHaveLength(1);
     expect(out[0]).toMatchObject({ channel: "PASTE", type: "paste_large" });
+  });
+
+  it("ignores a large paste into the editor — AuthorshipDetector scores that from the editor.delta instead, to avoid double-counting", () => {
+    const detector = new PasteDetector();
+    expect(detector.handle({ kind: "clipboard", action: "paste", length: 500, target: "editor", ts: 0 }, ctx)).toEqual([]);
   });
 
   it("ignores copy actions", () => {
@@ -55,14 +60,26 @@ describe("PasteDetector", () => {
 });
 
 describe("PointerDetector", () => {
+  // The client never puts a duration on the "leave" event itself — it only knows how long the
+  // pointer was away once it returns, so the away-duration is carried on the matching "enter" event.
+  it("ignores a leave event, which never carries a duration", () => {
+    const detector = new PointerDetector();
+    expect(detector.handle({ kind: "pointer", state: "leave", ts: 0 }, ctx)).toEqual([]);
+  });
+
+  it("ignores an enter event with no duration (returned from idle, not from leaving)", () => {
+    const detector = new PointerDetector();
+    expect(detector.handle({ kind: "pointer", state: "enter", ts: 0 }, ctx)).toEqual([]);
+  });
+
   it("ignores a brief pointer leave", () => {
     const detector = new PointerDetector();
-    expect(detector.handle({ kind: "pointer", state: "leave", durationMs: 100, ts: 0 }, ctx)).toEqual([]);
+    expect(detector.handle({ kind: "pointer", state: "enter", durationMs: 100, ts: 0 }, ctx)).toEqual([]);
   });
 
   it("emits pointer_leave once past the ignore threshold", () => {
     const detector = new PointerDetector();
-    const out = detector.handle({ kind: "pointer", state: "leave", durationMs: 2000, ts: 0 }, ctx);
+    const out = detector.handle({ kind: "pointer", state: "enter", durationMs: 2000, ts: 0 }, ctx);
     expect(out).toHaveLength(1);
     expect(out[0]).toMatchObject({ channel: "POINTER", type: "pointer_leave" });
   });

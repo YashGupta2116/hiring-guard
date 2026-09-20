@@ -1,10 +1,16 @@
 import { PASTE_LARGE_CHARS } from "../../config/constants.js";
 import type { DetectorContext, DetectorObservation, TelemetryEvent } from "./types.js";
 
-/** Large clipboard pastes anywhere in the interview surface. Pure, stateless. */
+/**
+ * Large clipboard pastes outside the editor (task statement, chat, etc). A paste *into* the editor is
+ * scored once, by `AuthorshipDetector` reading the matching `editor.delta` PASTE change instead — that
+ * change carries the actual inserted character count, and scoring it here too would double-count the
+ * same physical paste on the same PASTE channel.
+ */
 export class PasteDetector {
   handle(event: TelemetryEvent, _ctx: DetectorContext): DetectorObservation[] {
     if (event.kind !== "clipboard" || event.action !== "paste") return [];
+    if (event.target === "editor") return [];
     if (event.length < PASTE_LARGE_CHARS) return [];
     return [
       {
