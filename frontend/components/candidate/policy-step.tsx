@@ -111,7 +111,7 @@ export function PolicyStep({ token, preflightId, onAccepted, onDeclined, onNeedP
       </label>
 
       {error && (
-        <div role="alert" className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-600 dark:text-red-400">
+        <div role="alert" className="rounded-md border border-terra-500/30 bg-terra-500/10 px-3 py-2 text-xs text-terra-600 dark:text-terra-400">
           {error}
         </div>
       )}

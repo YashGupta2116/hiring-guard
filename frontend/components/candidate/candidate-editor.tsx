@@ -56,7 +56,7 @@ function ResultLines({ results, runner }: { results: TestResult[]; runner: strin
       )}
       {results.map((r) => (
         <div key={r.index} className="text-[11px]">
-          <span className={r.passed ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}>
+          <span className={r.passed ? "text-sage-600 dark:text-sage-400" : "text-terra-600 dark:text-terra-400"}>
             {r.passed ? "✓ Passed" : "✗ Failed"}
           </span>{" "}
           <span className="text-foreground">Test {r.index + 1}</span>
@@ -220,11 +220,11 @@ export function CandidateEditor({ task, candidateToken, telemetry, editorSync, l
         <div className="text-[10px] font-semibold text-muted-foreground pb-1 flex items-center gap-1.5">
           <Terminal className="h-3 w-3" /> {output?.kind === "submit" ? "Submission results" : "Test Execution Output"}
         </div>
-        {error && <div className="text-[11px] text-red-600 dark:text-red-400">{error}</div>}
+        {error && <div className="text-[11px] text-terra-600 dark:text-terra-400">{error}</div>}
         {!output && !error && <span className="text-muted-foreground text-[11px] italic">Press &quot;Run Code&quot; to run the visible tests.</span>}
         {output && <ResultLines results={output.result.results} runner={output.result.runner} />}
         {output?.kind === "run" && "stderr" in output.result && output.result.stderr && (
-          <pre className="text-[11px] text-red-600 dark:text-red-400 whitespace-pre-wrap">{output.result.stderr}</pre>
+          <pre className="text-[11px] text-terra-600 dark:text-terra-400 whitespace-pre-wrap">{output.result.stderr}</pre>
         )}
         {output?.kind === "run" && "stdout" in output.result && output.result.stdout && (
           <pre className="text-[11px] text-foreground whitespace-pre-wrap">{output.result.stdout}</pre>

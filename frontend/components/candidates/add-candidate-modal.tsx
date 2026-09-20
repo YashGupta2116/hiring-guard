@@ -27,7 +27,7 @@ function FieldLabel({ children, required }: { children: React.ReactNode; require
   return (
     <label className="text-xs font-semibold text-foreground">
       {children}
-      {required && <span className="text-red-500 ml-0.5">*</span>}
+      {required && <span className="text-terra-500 ml-0.5">*</span>}
     </label>
   );
 }
@@ -254,7 +254,7 @@ export function AddCandidateModal({ open, onOpenChange, onCreated }: AddCandidat
           </div>
 
           {error && (
-            <div role="alert" className="mt-2 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-600 dark:text-red-400">
+            <div role="alert" className="mt-2 rounded-md border border-terra-500/30 bg-terra-500/10 px-3 py-2 text-xs text-terra-600 dark:text-terra-400">
               {error}
             </div>
           )}

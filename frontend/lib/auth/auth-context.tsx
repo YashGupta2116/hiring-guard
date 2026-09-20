@@ -4,11 +4,12 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useS
 import { usePathname, useRouter } from "next/navigation";
 import * as authApi from "@/lib/api/auth";
 import type { AuthUser } from "@/lib/api/auth";
-import { setSessionExpiredHandler } from "@/lib/api/client";
+import { isTransientApiError, setSessionExpiredHandler } from "@/lib/api/client";
 import { clearOverviewCache } from "@/lib/api/overview";
 import { Loader2 } from "lucide-react";
+import { ErrorState } from "@/components/ui/error-state";
 
-type AuthStatus = "loading" | "authenticated" | "unauthenticated";
+type AuthStatus = "loading" | "authenticated" | "unauthenticated" | "error";
 
 interface AuthContextType {
   status: AuthStatus;
@@ -18,6 +19,8 @@ interface AuthContextType {
   signOut: () => Promise<void>;
   /** Re-reads the signed-in user (after a name or organisation-name change). */
   refreshUser: () => Promise<void>;
+  /** Re-attempts session restore after it failed for a transient reason. */
+  retryRestore: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | null>(null);
@@ -25,6 +28,7 @@ const AuthContext = createContext<AuthContextType | null>(null);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [status, setStatus] = useState<AuthStatus>("loading");
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [restoreKey, setRestoreKey] = useState(0);
   const pathname = usePathname();
   // Candidates authenticate with their interview link, never with a staff session; don't probe for one.
   const isCandidateRoute = pathname.startsWith("/join") || pathname.startsWith("/interview/");
@@ -39,10 +43,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(restored);
         setStatus(restored ? "authenticated" : "unauthenticated");
       })
-      .catch(() => {
+      .catch((err) => {
         if (cancelled) return;
         setUser(null);
-        setStatus("unauthenticated");
+        // A rate limit, a server fault or a dropped connection says nothing about whether the
+        // session is valid. Signing the user out here would throw away a good session (and the
+        // work behind it) over a blip, so surface it as an error they can retry instead.
+        setStatus(isTransientApiError(err) ? "error" : "unauthenticated");
       });
     setSessionExpiredHandler(() => {
       setUser(null);
@@ -52,7 +59,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       cancelled = true;
       setSessionExpiredHandler(null);
     };
-  }, [isCandidateRoute]);
+  }, [isCandidateRoute, restoreKey]);
 
   const signIn = useCallback(async (email: string, password: string) => {
     const next = await authApi.login(email, password);
@@ -82,7 +89,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(await authApi.fetchMe());
   }, []);
 
-  const value = useMemo(() => ({ status, user, signIn, signUp, signOut, refreshUser }), [status, user, signIn, signUp, signOut, refreshUser]);
+  const retryRestore = useCallback(() => {
+    setStatus("loading");
+    setRestoreKey((k) => k + 1);
+  }, []);
+
+  const value = useMemo(
+    () => ({ status, user, signIn, signUp, signOut, refreshUser, retryRestore }),
+    [status, user, signIn, signUp, signOut, refreshUser, retryRestore],
+  );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 
@@ -101,7 +116,7 @@ export function useCurrentUser(): AuthUser {
 
 /** Keeps signed-out visitors out of /app: shows a loader while restoring, then redirects to /login. */
 export function AuthGate({ children }: { children: React.ReactNode }) {
-  const { status } = useAuth();
+  const { status, retryRestore } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
 
@@ -110,6 +125,19 @@ export function AuthGate({ children }: { children: React.ReactNode }) {
       router.replace(`/login?next=${encodeURIComponent(pathname)}`);
     }
   }, [status, router, pathname]);
+
+  if (status === "error") {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-background p-6">
+        <ErrorState
+          title="Couldn't reach the server"
+          description="Your session is still valid — the server just didn't answer. Check that the backend is running, then try again."
+          onRetry={retryRestore}
+          className="w-full max-w-md"
+        />
+      </div>
+    );
+  }
 
   if (status !== "authenticated") {
     return (

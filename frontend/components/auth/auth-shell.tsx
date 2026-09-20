@@ -75,7 +75,7 @@ export function AuthShell({ title, subtitle, children, footer }: { title: string
 export function AuthError({ message }: { message: string | null }) {
   if (!message) return null;
   return (
-    <div role="alert" className="rounded-lg border border-red-500/30 bg-red-500/10 px-3.5 py-2.5 text-sm text-red-600 dark:text-red-400">
+    <div role="alert" className="rounded-lg border border-terra-500/30 bg-terra-500/10 px-3.5 py-2.5 text-sm text-terra-600 dark:text-terra-400">
       {message}
     </div>
   );
@@ -130,7 +130,7 @@ export function PasswordMeter({ password }: { password: string }) {
   if (/[a-z]/.test(password) && /[A-Z]/.test(password)) score++;
   if (/\d/.test(password) && /[^A-Za-z0-9]/.test(password)) score++;
   const labels = ["Too short", "Weak", "Fair", "Good", "Strong"];
-  const colors = ["bg-red-500", "bg-red-500", "bg-amber-500", "bg-emerald-500", "bg-emerald-600"];
+  const colors = ["bg-terra-500", "bg-terra-500", "bg-amber-500", "bg-sage-500", "bg-sage-600"];
   const level = password.length < 10 ? 0 : score;
   return (
     <div className="space-y-1" aria-live="polite">

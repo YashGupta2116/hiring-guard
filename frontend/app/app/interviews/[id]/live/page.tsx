@@ -147,7 +147,7 @@ export default function LiveInterviewPage() {
           {admitted && (
             <>
               {startError && (
-                <div role="alert" className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-600 dark:text-red-400">
+                <div role="alert" className="rounded-md border border-terra-500/30 bg-terra-500/10 px-3 py-2 text-xs text-terra-600 dark:text-terra-400">
                   {startError}
                 </div>
               )}
@@ -219,7 +219,7 @@ export default function LiveInterviewPage() {
           <div className="hidden sm:flex items-center gap-1.5 rounded-lg border border-border bg-secondary/30 px-3 py-1.5 text-xs font-medium text-muted-foreground">
             {room.connection === "connected" ? (
               <>
-                <span className="h-2 w-2 rounded-full bg-emerald-500" /> Live updates on
+                <span className="h-2 w-2 rounded-full bg-sage-500" /> Live updates on
               </>
             ) : (
               <>
@@ -230,14 +230,14 @@ export default function LiveInterviewPage() {
 
           {recording && (
             <div className="hidden lg:flex items-center gap-1.5 rounded-lg border border-border bg-secondary/30 px-3 py-1.5 text-xs font-medium text-muted-foreground" title="Recording is enabled for this interview; the media provider in this environment is a stand-in.">
-              <span className="h-2 w-2 rounded-full bg-red-500" /> Recording enabled
+              <span className="h-2 w-2 rounded-full bg-terra-500" /> Recording enabled
             </div>
           )}
         </div>
       </div>
 
       {room.warningCount > WARNING_LIMIT && (
-        <div role="alert" className="flex flex-wrap items-center justify-between gap-3 border-b border-red-500/30 bg-red-500/10 px-5 py-2.5 text-sm text-red-700 dark:text-red-400 shrink-0">
+        <div role="alert" className="flex flex-wrap items-center justify-between gap-3 border-b border-terra-500/30 bg-terra-500/10 px-5 py-2.5 text-sm text-terra-700 dark:text-terra-400 shrink-0">
           <span className="flex items-center gap-2 font-medium">
             <AlertTriangle className="h-4 w-4" /> {candidateName} has received {room.warningCount} warnings, more than the limit of {WARNING_LIMIT}.
           </span>

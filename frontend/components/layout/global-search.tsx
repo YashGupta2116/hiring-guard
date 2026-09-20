@@ -114,7 +114,7 @@ export function GlobalSearch({ sessions }: { sessions: ApiSession[] }) {
               <Loader2 className="h-3.5 w-3.5 animate-spin" /> Searching...
             </p>
           )}
-          {current?.error && <p className="px-2.5 py-2 text-xs text-red-600 dark:text-red-400">{current.error}</p>}
+          {current?.error && <p className="px-2.5 py-2 text-xs text-terra-600 dark:text-terra-400">{current.error}</p>}
           {empty && <p className="px-2.5 py-2 text-xs text-stone-500">No matches for &ldquo;{term}&rdquo;.</p>}
 
           {current && current.candidates.length > 0 && (

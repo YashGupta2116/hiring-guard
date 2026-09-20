@@ -133,7 +133,7 @@ export function Header({ collapsed, setCollapsed }: HeaderProps) {
             >
               <Bell className="h-4 w-4" />
               {liveSessions.length > 0 && (
-                <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-emerald-500 ring-2 ring-[#FAF9F6] dark:ring-[#181510]" />
+                <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-sage-500 ring-2 ring-[#FAF9F6] dark:ring-[#181510]" />
               )}
             </button>
 
@@ -210,7 +210,7 @@ export function Header({ collapsed, setCollapsed }: HeaderProps) {
 
                 <button
                   onClick={handleLogout}
-                  className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30 transition-colors"
+                  className="flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-xs text-terra-600 dark:text-terra-400 hover:bg-terra-50 dark:hover:bg-terra-950/30 transition-colors"
                 >
                   <LogOut className="h-3.5 w-3.5" /> Sign out
                 </button>

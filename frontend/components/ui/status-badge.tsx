@@ -89,13 +89,13 @@ export function StatusBadge({
       case "Approved":
       case "Easy":
         return {
-          classes: "bg-emerald-50/80 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 border border-emerald-200/70 dark:border-emerald-800/40",
-          icon: <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />,
+          classes: "bg-sage-50/80 dark:bg-sage-950/40 text-sage-700 dark:text-sage-300 border border-sage-200/70 dark:border-sage-800/40",
+          icon: <span className="h-1.5 w-1.5 rounded-full bg-sage-500" />,
         };
       case "Interviewing":
         return {
-          classes: "bg-blue-50/80 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 border border-blue-200/70 dark:border-blue-800/40",
-          icon: <span className="h-1.5 w-1.5 rounded-full bg-blue-500" />,
+          classes: "bg-slate-50/80 dark:bg-slate-950/40 text-slate-700 dark:text-slate-300 border border-slate-200/70 dark:border-slate-800/40",
+          icon: <span className="h-1.5 w-1.5 rounded-full bg-slate-500" />,
         };
       case "Scheduled":
       case "Hire":
@@ -120,15 +120,15 @@ export function StatusBadge({
       case "No Hire":
       case "Hard":
         return {
-          classes: "bg-rose-50/80 dark:bg-rose-950/40 text-rose-700 dark:text-rose-300 border border-rose-200/70 dark:border-rose-800/40",
-          icon: <span className="h-1.5 w-1.5 rounded-full bg-rose-500" />,
+          classes: "bg-terra-50/80 dark:bg-terra-950/40 text-terra-700 dark:text-terra-300 border border-terra-200/70 dark:border-terra-800/40",
+          icon: <span className="h-1.5 w-1.5 rounded-full bg-terra-500" />,
         };
       case "Draft":
       case "Shortlisted":
       default:
         return {
-          classes: "bg-stone-100/90 dark:bg-stone-800/90 text-stone-700 dark:text-stone-300 border border-stone-200/80 dark:border-stone-700/80",
-          icon: <span className="h-1.5 w-1.5 rounded-full bg-stone-400 dark:bg-stone-500" />,
+          classes: "bg-sand-100/90 dark:bg-sand-800/90 text-sand-700 dark:text-sand-300 border border-sand-200/80 dark:border-sand-700/80",
+          icon: <span className="h-1.5 w-1.5 rounded-full bg-sand-400 dark:bg-sand-500" />,
         };
     }
   };

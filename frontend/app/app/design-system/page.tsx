@@ -114,6 +114,8 @@ export default function DesignSystemPage() {
         { label: "600", bg: "bg-clay-600" },
         { label: "700", bg: "bg-clay-700" },
         { label: "800", bg: "bg-clay-800" },
+        { label: "900", bg: "bg-clay-900" },
+        { label: "950", bg: "bg-clay-950" },
       ],
     },
     {
@@ -127,6 +129,9 @@ export default function DesignSystemPage() {
         { label: "500", bg: "bg-sage-500" },
         { label: "600", bg: "bg-sage-600" },
         { label: "700", bg: "bg-sage-700" },
+        { label: "800", bg: "bg-sage-800" },
+        { label: "900", bg: "bg-sage-900" },
+        { label: "950", bg: "bg-sage-950" },
       ],
     },
     {
@@ -140,6 +145,9 @@ export default function DesignSystemPage() {
         { label: "500", bg: "bg-amber-500" },
         { label: "600", bg: "bg-amber-600" },
         { label: "700", bg: "bg-amber-700" },
+        { label: "800", bg: "bg-amber-800" },
+        { label: "900", bg: "bg-amber-900" },
+        { label: "950", bg: "bg-amber-950" },
       ],
     },
     {
@@ -153,6 +161,9 @@ export default function DesignSystemPage() {
         { label: "500", bg: "bg-terra-500" },
         { label: "600", bg: "bg-terra-600" },
         { label: "700", bg: "bg-terra-700" },
+        { label: "800", bg: "bg-terra-800" },
+        { label: "900", bg: "bg-terra-900" },
+        { label: "950", bg: "bg-terra-950" },
       ],
     },
     {
@@ -166,6 +177,9 @@ export default function DesignSystemPage() {
         { label: "500", bg: "bg-slate-500" },
         { label: "600", bg: "bg-slate-600" },
         { label: "700", bg: "bg-slate-700" },
+        { label: "800", bg: "bg-slate-800" },
+        { label: "900", bg: "bg-slate-900" },
+        { label: "950", bg: "bg-slate-950" },
       ],
     },
   ];
@@ -206,7 +220,7 @@ export default function DesignSystemPage() {
             A warm paper report on a desk, not a security console.
           </h1>
           <p className="text-xs sm:text-sm text-muted-foreground max-w-2xl leading-relaxed">
-            Tokens, type and components driven entirely from <code className="bg-secondary px-1 py-0.5 rounded font-mono text-xs">src/index.css</code>. Edit the CSS variables to restyle every surface — in light and dark.
+            Tokens, type and components driven entirely from <code className="bg-secondary px-1 py-0.5 rounded font-mono text-xs">app/globals.css</code>. Edit the CSS variables to restyle every surface — in light and dark.
           </p>
         </div>
 

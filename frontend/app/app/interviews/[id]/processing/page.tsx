@@ -175,14 +175,14 @@ export default function ProcessingPage() {
               <div className="flex h-4 w-4 shrink-0 items-center justify-center mt-0.5">
                 {status === "SUCCEEDED" && <CheckCircle2 className="h-3.5 w-3.5 text-sage-600 dark:text-sage-400" />}
                 {status === "RUNNING" && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                {status === "FAILED" && <XCircle className="h-3.5 w-3.5 text-red-500" />}
+                {status === "FAILED" && <XCircle className="h-3.5 w-3.5 text-terra-500" />}
                 {status === "SKIPPED" && <MinusCircle className="h-3.5 w-3.5 text-muted-foreground" />}
                 {status === "PENDING" && <Circle className="h-2.5 w-2.5 text-muted-foreground/40" />}
               </div>
               <div className="min-w-0">
                 <span className={status === "RUNNING" ? "font-semibold" : ""}>{label}</span>
                 {s && s.attempts > 1 && <span className="ml-1.5 text-[10px] text-muted-foreground">(attempt {s.attempts})</span>}
-                {status === "FAILED" && s?.error && <p className="mt-0.5 text-[11px] text-red-600 dark:text-red-400 break-words">{s.error}</p>}
+                {status === "FAILED" && s?.error && <p className="mt-0.5 text-[11px] text-terra-600 dark:text-terra-400 break-words">{s.error}</p>}
               </div>
             </div>
           );

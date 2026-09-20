@@ -254,28 +254,28 @@ export default function CandidatesPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           icon={<Users className="h-4 w-4" />}
-          tone="bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400"
+          tone="bg-slate-50 dark:bg-slate-950/40 text-slate-600 dark:text-slate-400"
           label="Total Candidates"
           value={total}
           note="Across all stages"
         />
         <StatCard
           icon={<UserCheck className="h-4 w-4" />}
-          tone="bg-sky-50 dark:bg-sky-950/40 text-sky-600 dark:text-sky-400"
+          tone="bg-slate-50 dark:bg-slate-950/40 text-slate-600 dark:text-slate-400"
           label="Active in Process"
           value={summary?.byStatus.INTERVIEWING ?? null}
           note={summary ? percentOf(summary.byStatus.INTERVIEWING, summary.total) : ""}
         />
         <StatCard
           icon={<CheckCircle2 className="h-4 w-4" />}
-          tone="bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400"
+          tone="bg-sage-50 dark:bg-sage-950/40 text-sage-600 dark:text-sage-400"
           label="Hired"
           value={summary?.byStatus.HIRED ?? null}
           note={summary ? percentOf(summary.byStatus.HIRED, summary.total) : ""}
         />
         <StatCard
           icon={<User className="h-4 w-4" />}
-          tone="bg-rose-50 dark:bg-rose-950/40 text-rose-500 dark:text-rose-400"
+          tone="bg-terra-50 dark:bg-terra-950/40 text-terra-500 dark:text-terra-400"
           label="Under Review"
           value={summary?.byStatus.UNDER_REVIEW ?? null}
           note={summary ? percentOf(summary.byStatus.UNDER_REVIEW, summary.total) : ""}

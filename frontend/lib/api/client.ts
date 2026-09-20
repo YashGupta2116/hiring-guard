@@ -26,6 +26,20 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * True when a request failed for a reason that says nothing about the session: no network,
+ * a rate limit, or a server fault. These must not be read as "signed out" — retrying the same
+ * request later can still succeed with the very same credentials.
+ */
+export function isTransientApiError(err: unknown): boolean {
+  if (!(err instanceof ApiError)) return true;
+  return isTransientStatus(err.status);
+}
+
+function isTransientStatus(status: number): boolean {
+  return status === 0 || status === 408 || status === 429 || status >= 500;
+}
+
 let accessToken: string | null = null;
 let refreshInFlight: Promise<string | null> | null = null;
 let onSessionExpired: (() => void) | null = null;
@@ -75,12 +89,16 @@ export function refreshAccessToken(): Promise<string | null> {
     refreshInFlight = (async () => {
       try {
         const raw = await send("/auth/refresh", { method: "POST" });
-        if (raw.status !== 200) {
-          accessToken = null;
-          return null;
+        if (raw.status === 200) {
+          accessToken = (raw.body as { data: { accessToken: string } }).data.accessToken;
+          return accessToken;
         }
-        accessToken = (raw.body as { data: { accessToken: string } }).data.accessToken;
-        return accessToken;
+        // Only the server actually rejecting the refresh cookie means "signed out". A rate limit
+        // or a server fault must throw instead: returning null there would report a perfectly
+        // good session as expired and drop the user on /login.
+        if (isTransientStatus(raw.status)) throw toApiError(raw);
+        accessToken = null;
+        return null;
       } finally {
         refreshInFlight = null;
       }
@@ -116,6 +134,7 @@ async function execute(path: string, options: RequestOptions): Promise<RawRespon
   let raw = await attempt();
 
   if (raw.status === 401 && auth) {
+    // A transient failure here propagates rather than expiring the session (see refreshAccessToken).
     const renewed = await refreshAccessToken();
     if (renewed) {
       raw = await attempt();

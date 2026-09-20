@@ -75,8 +75,8 @@ function formatStamp(iso: string): string {
 function StatusChip({ status }: { status: string }) {
   if (status === "Live") {
     return (
-      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800">
-        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-medium bg-sage-50 text-sage-700 border border-sage-200 dark:bg-sage-950/40 dark:text-sage-400 dark:border-sage-800">
+        <span className="h-1.5 w-1.5 rounded-full bg-sage-500 animate-pulse" />
         Live
       </span>
     );
@@ -98,7 +98,7 @@ function StatusChip({ status }: { status: string }) {
 
 function EnabledPill({ on }: { on: boolean }) {
   return on ? (
-    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800">
+    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-sage-50 text-sage-700 border border-sage-200 dark:bg-sage-950/40 dark:text-sage-400 dark:border-sage-800">
       Enabled
     </span>
   ) : (
@@ -316,7 +316,7 @@ export default function InterviewDetailPage() {
           {session.status === "LIVE" ? (
             <Link href={`/app/interviews/${session.id}/live`} target="_blank" rel="noopener noreferrer">
               <Button className="bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-medium px-4 py-2 rounded-lg flex items-center gap-2 h-9 shadow-xs">
-                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="h-2 w-2 rounded-full bg-sage-500 animate-pulse" />
                 Join Live Room
               </Button>
             </Link>
@@ -426,7 +426,7 @@ export default function InterviewDetailPage() {
               <Link href={`/app/candidates/${session.candidate.id}`}>
                 <Button
                   variant="outline"
-                  className="border border-emerald-200/80 dark:border-emerald-800 bg-emerald-50/50 dark:bg-emerald-950/20 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 text-emerald-800 dark:text-emerald-300 text-xs font-medium px-3.5 py-2 rounded-lg flex items-center gap-1.5 h-9 transition-colors"
+                  className="border border-sage-200/80 dark:border-sage-800 bg-sage-50/50 dark:bg-sage-950/20 hover:bg-sage-50 dark:hover:bg-sage-950/40 text-sage-800 dark:text-sage-300 text-xs font-medium px-3.5 py-2 rounded-lg flex items-center gap-1.5 h-9 transition-colors"
                 >
                   View Full Profile <ArrowUpRight className="h-3.5 w-3.5" />
                 </Button>
@@ -517,7 +517,7 @@ export default function InterviewDetailPage() {
 
             <div className="grid grid-cols-3 gap-3 pt-1">
               <div className="rounded-lg border border-neutral-200/70 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-800/30 p-3 space-y-1">
-                <div className="h-7 w-7 rounded-md bg-blue-50 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400 flex items-center justify-center">
+                <div className="h-7 w-7 rounded-md bg-slate-50 text-slate-600 dark:bg-slate-950/50 dark:text-slate-400 flex items-center justify-center">
                   <Calendar className="h-3.5 w-3.5" />
                 </div>
                 <div className="text-[11px] text-neutral-500">Date & Time</div>
@@ -534,7 +534,7 @@ export default function InterviewDetailPage() {
               </div>
 
               <div className="rounded-lg border border-neutral-200/70 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-800/30 p-3 space-y-1">
-                <div className="h-7 w-7 rounded-md bg-rose-50 text-rose-600 dark:bg-rose-950/50 dark:text-rose-400 flex items-center justify-center">
+                <div className="h-7 w-7 rounded-md bg-terra-50 text-terra-600 dark:bg-terra-950/50 dark:text-terra-400 flex items-center justify-center">
                   <Clock className="h-3.5 w-3.5" />
                 </div>
                 <div className="text-[11px] text-neutral-500">Duration</div>
@@ -542,11 +542,11 @@ export default function InterviewDetailPage() {
               </div>
 
               <div className="rounded-lg border border-neutral-200/70 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-800/30 p-3 space-y-1">
-                <div className="h-7 w-7 rounded-md bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400 flex items-center justify-center">
+                <div className="h-7 w-7 rounded-md bg-sage-50 text-sage-600 dark:bg-sage-950/50 dark:text-sage-400 flex items-center justify-center">
                   <Video className="h-3.5 w-3.5" />
                 </div>
                 <div className="text-[11px] text-neutral-500">Session Recording</div>
-                <div className={cn("font-semibold text-xs leading-tight", recording ? "text-emerald-700 dark:text-emerald-400" : "text-neutral-500")}>
+                <div className={cn("font-semibold text-xs leading-tight", recording ? "text-sage-700 dark:text-sage-400" : "text-neutral-500")}>
                   {recording ? "Enabled" : "Disabled"}
                 </div>
               </div>
@@ -563,7 +563,7 @@ export default function InterviewDetailPage() {
                       <div className="flex items-center gap-1.5">
                         <span className="font-semibold text-xs text-neutral-900 dark:text-white">{primary.name}</span>
                         {primary.userId === currentUser.id && (
-                          <span className="inline-flex items-center px-1.5 rounded-full text-[10px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800">
+                          <span className="inline-flex items-center px-1.5 rounded-full text-[10px] font-medium bg-sage-50 text-sage-700 border border-sage-200 dark:bg-sage-950/40 dark:text-sage-400 dark:border-sage-800">
                             You
                           </span>
                         )}
@@ -617,10 +617,10 @@ export default function InterviewDetailPage() {
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
               {[
-                { title: "Video & Audio", icon: Video, tone: "bg-blue-50 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400", on: monitoringEnabled(session.config.channels, "webcam") || session.config.recordVideo || session.config.recordAudio },
-                { title: "Screen Monitoring", icon: Monitor, tone: "bg-blue-50 text-blue-600 dark:bg-blue-950/50 dark:text-blue-400", on: monitoringEnabled(session.config.channels, "screen") || session.config.recordScreen },
-                { title: "Eye Tracking", icon: Eye, tone: "bg-emerald-50 text-emerald-600 dark:bg-emerald-950/50 dark:text-emerald-400", on: monitoringEnabled(session.config.channels, "gaze") },
-                { title: "Code Environment", icon: Code2, tone: "bg-purple-50 text-purple-600 dark:bg-purple-950/50 dark:text-purple-400", on: session.tasks.length > 0 },
+                { title: "Video & Audio", icon: Video, tone: "bg-slate-50 text-slate-600 dark:bg-slate-950/50 dark:text-slate-400", on: monitoringEnabled(session.config.channels, "webcam") || session.config.recordVideo || session.config.recordAudio },
+                { title: "Screen Monitoring", icon: Monitor, tone: "bg-slate-50 text-slate-600 dark:bg-slate-950/50 dark:text-slate-400", on: monitoringEnabled(session.config.channels, "screen") || session.config.recordScreen },
+                { title: "Eye Tracking", icon: Eye, tone: "bg-sage-50 text-sage-600 dark:bg-sage-950/50 dark:text-sage-400", on: monitoringEnabled(session.config.channels, "gaze") },
+                { title: "Code Environment", icon: Code2, tone: "bg-clay-50 text-clay-600 dark:bg-clay-950/50 dark:text-clay-400", on: session.tasks.length > 0 },
               ].map(({ title, icon: Icon, tone, on }) => (
                 <div key={title} className="rounded-lg border border-neutral-200/70 dark:border-neutral-800 bg-neutral-50/50 dark:bg-neutral-800/30 p-3 space-y-2">
                   <div className={cn("h-7 w-7 rounded-md flex items-center justify-center", tone)}>
@@ -659,7 +659,7 @@ export default function InterviewDetailPage() {
                   <div
                     className={cn(
                       "absolute -left-6 top-0 flex h-5 w-5 items-center justify-center rounded-full text-white ring-4 ring-white dark:ring-neutral-900",
-                      item.tone === "done" && "bg-emerald-600",
+                      item.tone === "done" && "bg-sage-600",
                       item.tone === "stopped" && "bg-terra-500",
                       item.tone === "pending" && "border-2 border-neutral-300 bg-white dark:bg-neutral-900",
                     )}
@@ -728,7 +728,7 @@ export default function InterviewDetailPage() {
             )}
 
             {notesError ? (
-              <p className="text-xs text-red-600 dark:text-red-400">{notesError}</p>
+              <p className="text-xs text-terra-600 dark:text-terra-400">{notesError}</p>
             ) : notes === null ? (
               <p className="text-xs text-neutral-400">Loading notes…</p>
             ) : notes.length === 0 ? (
@@ -870,7 +870,7 @@ function CandidateDialog({ session, onOpenChange, onSaved }: { session: ApiSessi
 
         {mode === "existing" ? (
           loadError ? (
-            <p role="alert" className="text-xs text-red-600 dark:text-red-400">{loadError}</p>
+            <p role="alert" className="text-xs text-terra-600 dark:text-terra-400">{loadError}</p>
           ) : !candidates ? (
             <p className="text-xs text-muted-foreground">Loading candidates…</p>
           ) : candidates.length === 0 ? (
@@ -902,7 +902,7 @@ function CandidateDialog({ session, onOpenChange, onSaved }: { session: ApiSessi
         )}
 
         {error && (
-          <div role="alert" className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-600 dark:text-red-400">
+          <div role="alert" className="rounded-md border border-terra-500/30 bg-terra-500/10 px-3 py-2 text-xs text-terra-600 dark:text-terra-400">
             {error}
           </div>
         )}
@@ -987,7 +987,7 @@ function EditScheduleDialog({
           </div>
         </div>
         {error && (
-          <div role="alert" className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-600 dark:text-red-400">
+          <div role="alert" className="rounded-md border border-terra-500/30 bg-terra-500/10 px-3 py-2 text-xs text-terra-600 dark:text-terra-400">
             {error}
           </div>
         )}

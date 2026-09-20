@@ -493,7 +493,7 @@ export function ScheduleModal({ open, onOpenChange, defaultCandidateId, defaultT
           <form onSubmit={handleSchedule} className="flex flex-col flex-1 min-h-0">
             <div className="flex-1 min-h-0 overflow-y-auto space-y-5 px-0.5 -mx-0.5 pb-1">
               {optionsError && (
-                <div role="alert" className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-600 dark:text-red-400">
+                <div role="alert" className="rounded-md border border-terra-500/30 bg-terra-500/10 px-3 py-2 text-xs text-terra-600 dark:text-terra-400">
                   {optionsError}
                 </div>
               )}
@@ -718,7 +718,7 @@ export function ScheduleModal({ open, onOpenChange, defaultCandidateId, defaultT
             </div>
 
             {error && (
-              <div role="alert" className="mt-2 rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-600 dark:text-red-400">
+              <div role="alert" className="mt-2 rounded-md border border-terra-500/30 bg-terra-500/10 px-3 py-2 text-xs text-terra-600 dark:text-terra-400">
                 {error}
               </div>
             )}

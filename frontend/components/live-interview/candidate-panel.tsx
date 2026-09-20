@@ -56,7 +56,7 @@ function ExecutionRow({ e }: { e: CodeExecution }) {
         <Badge variant="outline" size="sm" className="text-[10px]">
           {e.kind === "SUBMIT" ? "Submit" : "Run"}
         </Badge>
-        <span className={cn("font-medium", e.status === "PASSED" ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400")}>{e.status.toLowerCase()}</span>
+        <span className={cn("font-medium", e.status === "PASSED" ? "text-sage-600 dark:text-sage-400" : "text-terra-600 dark:text-terra-400")}>{e.status.toLowerCase()}</span>
         {visible && <span className="text-muted-foreground">visible {visible}</span>}
         {hidden && <span className="text-muted-foreground">hidden {hidden}</span>}
       </div>
@@ -101,19 +101,19 @@ function FaceIndicator({ status, now }: { status: CvStatus; now: number }) {
       tone = "bg-amber-500/15 text-amber-700 dark:text-amber-400";
       text = "Camera analysis unavailable in the candidate's browser";
     } else if (status.object) {
-      tone = "bg-red-500/15 text-red-700 dark:text-red-400";
+      tone = "bg-terra-500/15 text-terra-700 dark:text-terra-400";
       text = `Foreign object in view: ${status.object}`;
     } else if (status.faces === 0) {
-      tone = "bg-red-500/15 text-red-700 dark:text-red-400";
+      tone = "bg-terra-500/15 text-terra-700 dark:text-terra-400";
       text = "No face detected";
     } else if (status.faces > 1) {
-      tone = "bg-red-500/15 text-red-700 dark:text-red-400";
+      tone = "bg-terra-500/15 text-terra-700 dark:text-terra-400";
       text = `${status.faces} faces detected`;
     } else if (status.away) {
       tone = "bg-amber-500/15 text-amber-700 dark:text-amber-400";
       text = "Face detected, looking away";
     } else {
-      tone = "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400";
+      tone = "bg-sage-500/15 text-sage-700 dark:text-sage-400";
       text = "Face detected, looking at screen";
     }
   }
@@ -219,8 +219,8 @@ export function CandidatePanel({ sessionId, candidateName, candidateEmail, prese
                 <Radio className="h-3 w-3" /> Presence unknown
               </Badge>
             ) : presence.connected ? (
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-0.5 text-[11px] font-medium text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" /> Candidate connected
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-sage-200 bg-sage-50 px-2.5 py-0.5 text-[11px] font-medium text-sage-700 dark:border-sage-800 dark:bg-sage-950/40 dark:text-sage-400">
+                <span className="h-1.5 w-1.5 rounded-full bg-sage-500 animate-pulse" /> Candidate connected
               </span>
             ) : (
               <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-300 bg-amber-50 px-2.5 py-0.5 text-[11px] font-medium text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-400">
@@ -255,14 +255,14 @@ export function CandidatePanel({ sessionId, candidateName, candidateEmail, prese
             <div className="flex items-center gap-2">
               <VideoTile stream={video.local} label="You" muted mirror empty="" className="h-12 w-20" />
               <button onClick={video.toggleMic} className="flex h-7 w-7 items-center justify-center rounded-md border border-border bg-secondary text-foreground hover:bg-secondary/80" aria-label="Toggle microphone" title="Toggle microphone">
-                {video.micOn ? <Mic className="h-3.5 w-3.5" /> : <MicOff className="h-3.5 w-3.5 text-red-500" />}
+                {video.micOn ? <Mic className="h-3.5 w-3.5" /> : <MicOff className="h-3.5 w-3.5 text-terra-500" />}
               </button>
               <button onClick={video.toggleCam} className="flex h-7 w-7 items-center justify-center rounded-md border border-border bg-secondary text-foreground hover:bg-secondary/80" aria-label="Toggle camera" title="Toggle camera">
-                {video.camOn ? <Video className="h-3.5 w-3.5" /> : <VideoOff className="h-3.5 w-3.5 text-red-500" />}
+                {video.camOn ? <Video className="h-3.5 w-3.5" /> : <VideoOff className="h-3.5 w-3.5 text-terra-500" />}
               </button>
             </div>
             <span className="inline-flex items-center gap-1.5">
-              <span className={cn("h-1.5 w-1.5 rounded-full", video.state === "connected" ? "bg-emerald-500" : video.state === "failed" ? "bg-red-500" : "bg-amber-500 animate-pulse")} />
+              <span className={cn("h-1.5 w-1.5 rounded-full", video.state === "connected" ? "bg-sage-500" : video.state === "failed" ? "bg-terra-500" : "bg-amber-500 animate-pulse")} />
               {video.state === "connected" ? "Video connected" : video.state === "failed" ? "Video connection failed, retrying" : "Connecting video…"}
             </span>
           </div>
@@ -295,7 +295,7 @@ export function CandidatePanel({ sessionId, candidateName, candidateEmail, prese
           <p className="p-6 text-sm text-muted-foreground">The candidate&apos;s code appears here once the interview is live.</p>
         ) : tasks === null ? (
           <div className="flex-1 flex items-center justify-center text-muted-foreground">
-            {error ? <span className="text-sm text-red-600 dark:text-red-400">{error}</span> : <Loader2 className="h-5 w-5 animate-spin" />}
+            {error ? <span className="text-sm text-terra-600 dark:text-terra-400">{error}</span> : <Loader2 className="h-5 w-5 animate-spin" />}
           </div>
         ) : tasks.length === 0 ? (
           <p className="p-6 text-sm text-muted-foreground">This interview has no coding task yet. Use the Assign a coding task control above to give the candidate one.</p>
@@ -323,7 +323,7 @@ export function CandidatePanel({ sessionId, candidateName, candidateEmail, prese
                     {latest && <span className="font-mono">{latest.language}</span>}
                     {latest && <span>snapshot {time(latest.createdAt)}</span>}
                     {active.frozen && (
-                      <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400">
+                      <span className="inline-flex items-center gap-1 text-sage-700 dark:text-sage-400">
                         <Lock className="h-3 w-3" /> submitted {active.submittedAt ? time(active.submittedAt) : ""}
                       </span>
                     )}

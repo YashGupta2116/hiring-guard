@@ -427,7 +427,7 @@ export function CandidateRoom({ candidateToken, onInvalid, onFinished }: Candida
             <Loader2 className="h-3.5 w-3.5 animate-spin" /> Waiting for the interviewer to start…
           </div>
           {mediaError && (
-            <div role="alert" className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-600 dark:text-red-400">
+            <div role="alert" className="rounded-md border border-terra-500/30 bg-terra-500/10 px-3 py-2 text-xs text-terra-600 dark:text-terra-400">
               {mediaError}
             </div>
           )}
@@ -476,7 +476,7 @@ export function CandidateRoom({ candidateToken, onInvalid, onFinished }: Candida
             <span>{remainingMs !== null ? formatTimer(remainingMs) : "--:--"}</span>
           </div>
           <div className="hidden sm:flex items-center gap-1.5 rounded border border-border bg-secondary/30 px-2 py-1 text-[11px] font-medium text-muted-foreground">
-            <span className={cn("h-1.5 w-1.5 rounded-full", socketStatus === "connected" ? "bg-emerald-500" : "bg-amber-500")} />
+            <span className={cn("h-1.5 w-1.5 rounded-full", socketStatus === "connected" ? "bg-sage-500" : "bg-amber-500")} />
             <span>{socketStatus === "connected" ? "Connected" : "Reconnecting…"}</span>
           </div>
         </div>
@@ -507,7 +507,7 @@ export function CandidateRoom({ candidateToken, onInvalid, onFinished }: Candida
               {!camOn && <VideoOff className="h-5 w-5 text-slate-500" />}
               <div className="absolute bottom-1 left-1 bg-black/70 px-1.5 py-0.5 rounded text-[9px] text-white">You</div>
               {cvLocal?.state === "ok" && (
-                <div className={cn("absolute top-1 left-1 rounded px-1.5 py-0.5 text-[9px] text-white", cvLocal.faces === 1 && !cvLocal.away && !cvLocal.object ? "bg-emerald-600/90" : "bg-red-600/90")}>
+                <div className={cn("absolute top-1 left-1 rounded px-1.5 py-0.5 text-[9px] text-white", cvLocal.faces === 1 && !cvLocal.away && !cvLocal.object ? "bg-sage-600/90" : "bg-terra-600/90")}>
                   {cvLocal.object ? `Remove ${cvLocal.object}` : cvLocal.faces === 0 ? "No face" : cvLocal.faces > 1 ? `${cvLocal.faces} faces` : cvLocal.away ? "Look at screen" : "Face OK"}
                 </div>
               )}
@@ -516,7 +516,7 @@ export function CandidateRoom({ candidateToken, onInvalid, onFinished }: Candida
 
           <div className="flex-1 rounded-lg border border-border bg-card p-3.5 overflow-y-auto space-y-2.5 text-xs">
             {newTaskNotice && (
-              <div role="status" className="flex items-center justify-between gap-2 rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1.5 text-[11px] text-emerald-700 dark:text-emerald-400">
+              <div role="status" className="flex items-center justify-between gap-2 rounded-md border border-sage-500/30 bg-sage-500/10 px-2.5 py-1.5 text-[11px] text-sage-700 dark:text-sage-400">
                 <span>Your interviewer assigned a coding task.</span>
                 <button onClick={() => setNewTaskNotice(false)} className="font-semibold underline">
                   Dismiss
@@ -524,7 +524,7 @@ export function CandidateRoom({ candidateToken, onInvalid, onFinished }: Candida
               </div>
             )}
             {tasksError ? (
-              <p className="text-red-600 dark:text-red-400">{tasksError}</p>
+              <p className="text-terra-600 dark:text-terra-400">{tasksError}</p>
             ) : tasks === null ? (
               <p className="text-muted-foreground">Loading…</p>
             ) : tasks.length === 0 ? (

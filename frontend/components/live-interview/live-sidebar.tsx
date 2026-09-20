@@ -124,7 +124,7 @@ function AdjudicationDialog({
           />
         </div>
         {error && (
-          <div role="alert" className="rounded-md border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-600 dark:text-red-400">
+          <div role="alert" className="rounded-md border border-terra-500/30 bg-terra-500/10 px-3 py-2 text-xs text-terra-600 dark:text-terra-400">
             {error}
           </div>
         )}
@@ -318,7 +318,7 @@ function AssistantTab({ room, canAct }: { room: Room; canAct: boolean }) {
                 {canAct && (
                   <div className="pt-1 flex justify-end">
                     {done ? (
-                      <span className="inline-flex items-center gap-1 text-[11px] text-emerald-700 dark:text-emerald-400">
+                      <span className="inline-flex items-center gap-1 text-[11px] text-sage-700 dark:text-sage-400">
                         <Check className="h-3 w-3" /> Marked as asked
                       </span>
                     ) : (

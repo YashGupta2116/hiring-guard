@@ -54,9 +54,9 @@ const STATUS_STYLE: Record<
     icon: <CheckCircle2 className="h-3 w-3 shrink-0 text-muted-foreground" />,
     cardBg: "bg-card border-border/70 hover:border-border",
     timeText: "text-foreground",
-    pillBg: "bg-sky-100/70 dark:bg-sky-950/40 border-sky-500/30",
-    pillText: "text-sky-700 dark:text-sky-300",
-    dot: "bg-sky-500",
+    pillBg: "bg-slate-100/70 dark:bg-slate-950/40 border-slate-500/30",
+    pillText: "text-slate-700 dark:text-slate-300",
+    dot: "bg-slate-500",
   },
   Cancelled: {
     icon: <Clock className="h-3 w-3 shrink-0 text-muted-foreground" />,

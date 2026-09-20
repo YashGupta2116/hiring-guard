@@ -31,10 +31,10 @@ interface TableViewProps {
 }
 
 const TYPE_STYLE: Record<InterviewTypeCode | "NONE", { icon: React.ElementType; classes: string }> = {
-  TECHNICAL: { icon: Video, classes: "bg-blue-100/70 dark:bg-blue-950/40 border-blue-500/20 text-blue-700 dark:text-blue-300" },
-  BEHAVIORAL: { icon: User, classes: "bg-violet-100/70 dark:bg-violet-950/40 border-violet-500/20 text-violet-700 dark:text-violet-300" },
-  CODING: { icon: Code2, classes: "bg-green-100/70 dark:bg-green-950/40 border-green-500/20 text-green-700 dark:text-green-300" },
-  SYSTEM_DESIGN: { icon: Layers, classes: "bg-violet-100/70 dark:bg-violet-950/40 border-violet-500/20 text-violet-700 dark:text-violet-300" },
+  TECHNICAL: { icon: Video, classes: "bg-slate-100/70 dark:bg-slate-950/40 border-slate-500/20 text-slate-700 dark:text-slate-300" },
+  BEHAVIORAL: { icon: User, classes: "bg-clay-100/70 dark:bg-clay-950/40 border-clay-500/20 text-clay-700 dark:text-clay-300" },
+  CODING: { icon: Code2, classes: "bg-sage-100/70 dark:bg-sage-950/40 border-sage-500/20 text-sage-700 dark:text-sage-300" },
+  SYSTEM_DESIGN: { icon: Layers, classes: "bg-clay-100/70 dark:bg-clay-950/40 border-clay-500/20 text-clay-700 dark:text-clay-300" },
   MIXED: { icon: Layers, classes: "bg-amber-100/70 dark:bg-amber-950/40 border-amber-500/20 text-amber-700 dark:text-amber-300" },
   NONE: { icon: Layers, classes: "bg-secondary border-border text-muted-foreground" },
 };

@@ -41,14 +41,14 @@ function integrityTone(score: number): Tone {
 
 const TONE_STROKE: Record<Tone, string> = { green: "#1E6539", amber: "#B7791F", red: "#B24734" };
 const TONE_PILL: Record<Tone, string> = {
-  green: "bg-[#EEF7F1] dark:bg-emerald-950/40 text-[#1F7A44] dark:text-emerald-400",
+  green: "bg-[#EEF7F1] dark:bg-sage-950/40 text-[#1F7A44] dark:text-sage-400",
   amber: "bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400",
-  red: "bg-[#FDF2F0] dark:bg-red-950/40 text-[#C23E30] dark:text-red-400",
+  red: "bg-[#FDF2F0] dark:bg-terra-950/40 text-[#C23E30] dark:text-terra-400",
 };
 const TONE_DOT: Record<Tone, string> = {
-  green: "bg-[#1F7A44] dark:bg-emerald-500",
+  green: "bg-[#1F7A44] dark:bg-sage-500",
   amber: "bg-amber-500",
-  red: "bg-[#D44333] dark:bg-red-500",
+  red: "bg-[#D44333] dark:bg-terra-500",
 };
 
 function ScoreRing({ score, tone }: { score: number; tone: Tone }) {
@@ -128,8 +128,8 @@ function UpcomingRow({ session, now }: { session: ApiSession; now: Date }) {
           <div className="flex items-center gap-2">
             <span className="text-xs sm:text-sm font-semibold text-stone-900 dark:text-stone-100 truncate">{name}</span>
             {isLive ? (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 text-[10px] font-semibold shrink-0">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-sage-50 dark:bg-sage-950/40 text-sage-700 dark:text-sage-400 text-[10px] font-semibold shrink-0">
+                <span className="h-1.5 w-1.5 rounded-full bg-sage-500 animate-pulse" />
                 Live
               </span>
             ) : (
@@ -289,8 +289,8 @@ export default function DashboardPage() {
       {liveSession && (
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 sm:px-4 sm:py-3 rounded-2xl border border-stone-200/90 dark:border-stone-800 bg-white/80 dark:bg-stone-900/60 shadow-2xs backdrop-blur-xs">
           <div className="flex items-center gap-3 min-w-0">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 text-xs font-semibold shrink-0">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-sage-50 dark:bg-sage-950/40 text-sage-700 dark:text-sage-400 text-xs font-semibold shrink-0">
+              <span className="h-1.5 w-1.5 rounded-full bg-sage-500 animate-pulse" />
               Live
             </span>
             <div className="truncate">
@@ -326,7 +326,7 @@ export default function DashboardPage() {
         />
         <StatCard
           href="/app/interviews"
-          icon={<CalendarDays className="h-4 w-4 text-blue-600 dark:text-blue-400" />}
+          icon={<CalendarDays className="h-4 w-4 text-slate-600 dark:text-slate-400" />}
           tint="bg-[#EEF4FA]"
           label="Upcoming Sessions"
           value={stats.upcoming}
@@ -341,12 +341,12 @@ export default function DashboardPage() {
         />
         <StatCard
           href="/app/interviews"
-          icon={<CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />}
+          icon={<CheckCircle2 className="h-4 w-4 text-sage-600 dark:text-sage-400" />}
           tint="bg-[#EDF7EE]"
           label="Completed Rounds"
           value={stats.completed}
           caption={stats.completionRate === null ? "No concluded sessions yet" : `${stats.completionRate}% of concluded sessions`}
-          captionClass="font-semibold text-emerald-600 dark:text-emerald-400"
+          captionClass="font-semibold text-sage-600 dark:text-sage-400"
         />
         <StatCard
           href="/app/reports"

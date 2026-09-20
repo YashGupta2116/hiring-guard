@@ -25,7 +25,7 @@ import {
 } from "@/lib/api/sessions";
 import { cn } from "@/lib/utils";
 
-type Tab = "All" | "Upcoming" | "Live" | "Completed" | "Drafts";
+type Tab = "All" | "Upcoming" | "Live" | "Completed" | "Drafts" | "Cancelled";
 type ViewMode = "table" | "calendar" | "list";
 
 const TAB_STATUS: Record<Exclude<Tab, "All">, string> = {
@@ -33,6 +33,7 @@ const TAB_STATUS: Record<Exclude<Tab, "All">, string> = {
   Live: "Live",
   Completed: "Completed",
   Drafts: "Draft",
+  Cancelled: "Cancelled",
 };
 
 const tabButton = (active: boolean) =>
@@ -116,7 +117,7 @@ export default function InterviewsPage() {
   }, []);
 
   const counts = useMemo(() => {
-    const tally = { Scheduled: 0, Live: 0, Completed: 0, Draft: 0 };
+    const tally = { Scheduled: 0, Live: 0, Completed: 0, Draft: 0, Cancelled: 0 };
     for (const s of sessions) {
       const ui = sessionUiStatus(s);
       if (ui in tally) tally[ui as keyof typeof tally] += 1;
@@ -204,7 +205,7 @@ export default function InterviewsPage() {
             Upcoming ({counts.Scheduled})
           </button>
           <button onClick={() => setActiveTab("Live")} className={cn(tabButton(activeTab === "Live"), "flex items-center gap-1.5")}>
-            <span className="h-1.5 w-1.5 rounded-full bg-rose-500 animate-pulse" />
+            <span className="h-1.5 w-1.5 rounded-full bg-terra-500 animate-pulse" />
             Live ({counts.Live})
           </button>
           <button onClick={() => setActiveTab("Completed")} className={tabButton(activeTab === "Completed")}>
@@ -212,6 +213,9 @@ export default function InterviewsPage() {
           </button>
           <button onClick={() => setActiveTab("Drafts")} className={tabButton(activeTab === "Drafts")}>
             Drafts ({counts.Draft})
+          </button>
+          <button onClick={() => setActiveTab("Cancelled")} className={tabButton(activeTab === "Cancelled")}>
+            Cancelled ({counts.Cancelled})
           </button>
         </div>
 

@@ -283,7 +283,7 @@ export default function ReportDetailPage() {
                 <span
                   className={
                     "inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-medium " +
-                    (status === "Ready" ? "border-emerald-200 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-400" : "border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-400")
+                    (status === "Ready" ? "border-sage-200 bg-sage-50 text-sage-700 dark:border-sage-800 dark:bg-sage-950/40 dark:text-sage-400" : "border-amber-300 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-400")
                   }
                 >
                   {status}
@@ -345,8 +345,8 @@ export default function ReportDetailPage() {
               note={scores.composite === null ? "Not available for this interview" : "Composite of the three scores"}
               bar={scores.composite}
             />
-            <ScoreCard icon={<Code className="h-4 w-4" />} tone="bg-blue-100/60 text-blue-700 dark:bg-blue-900/25 dark:text-blue-400" label="Technical" value={scoreText(scores.technical)} note={scores.technical === null ? "Nothing technical was scored" : "Answers and hidden tests"} bar={scores.technical} />
-            <ScoreCard icon={<MessageSquare className="h-4 w-4" />} tone="bg-purple-100/60 text-purple-700 dark:bg-purple-900/25 dark:text-purple-400" label="Communication" value={scoreText(scores.communication)} note={scores.communication === null ? "No graded answers" : "Structure and specificity"} bar={scores.communication} />
+            <ScoreCard icon={<Code className="h-4 w-4" />} tone="bg-slate-100/60 text-slate-700 dark:bg-slate-900/25 dark:text-slate-400" label="Technical" value={scoreText(scores.technical)} note={scores.technical === null ? "Nothing technical was scored" : "Answers and hidden tests"} bar={scores.technical} />
+            <ScoreCard icon={<MessageSquare className="h-4 w-4" />} tone="bg-clay-100/60 text-clay-700 dark:bg-clay-900/25 dark:text-clay-400" label="Communication" value={scoreText(scores.communication)} note={scores.communication === null ? "No graded answers" : "Structure and specificity"} bar={scores.communication} />
             <div className="p-3 flex flex-col items-center justify-center text-center">
               <IntegrityGauge score={scores.integrity === null ? null : Math.round(scores.integrity)} status={scores.integrity === null ? "down" : "score"} size="sm" />
             </div>
@@ -416,7 +416,7 @@ export default function ReportDetailPage() {
               </div>
             )}
 
-            {codeError && <p className="text-xs text-red-600 dark:text-red-400">{codeError}</p>}
+            {codeError && <p className="text-xs text-terra-600 dark:text-terra-400">{codeError}</p>}
             {code?.map((task) => {
               const last = task.snapshots[task.snapshots.length - 1];
               return (
@@ -517,8 +517,8 @@ export default function ReportDetailPage() {
                   { label: "Hash chain", ok: verification.chainValid, detail: `${verification.lastSeq} events, gapless and unmodified` },
                   { label: "Signed manifest", ok: verification.signatureValid, detail: "Signature matches the stored manifest" },
                 ].map((c) => (
-                  <div key={c.label} className={`flex items-start gap-2 rounded-md border p-3 ${c.ok ? "border-emerald-200 bg-emerald-50/50 dark:border-emerald-900 dark:bg-emerald-950/20" : "border-red-300 bg-red-50 dark:border-red-900 dark:bg-red-950/20"}`}>
-                    {c.ok ? <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" /> : <XCircle className="h-4 w-4 text-red-600 shrink-0" />}
+                  <div key={c.label} className={`flex items-start gap-2 rounded-md border p-3 ${c.ok ? "border-sage-200 bg-sage-50/50 dark:border-sage-900 dark:bg-sage-950/20" : "border-terra-300 bg-terra-50 dark:border-terra-900 dark:bg-terra-950/20"}`}>
+                    {c.ok ? <CheckCircle2 className="h-4 w-4 text-sage-600 shrink-0" /> : <XCircle className="h-4 w-4 text-terra-600 shrink-0" />}
                     <div>
                       <p className="font-medium text-foreground">
                         {c.label}: {c.ok ? "valid" : "FAILED"}
@@ -584,7 +584,7 @@ export default function ReportDetailPage() {
         <div className="rounded-lg border border-border bg-card p-5 space-y-3 text-xs">
           <SectionHeader title="Interviewer notes" description="Private notes taken during the interview." />
           {notesError ? (
-            <p className="text-red-600 dark:text-red-400">{notesError}</p>
+            <p className="text-terra-600 dark:text-terra-400">{notesError}</p>
           ) : notes === null ? (
             <p className="text-muted-foreground">Loading…</p>
           ) : notes.length === 0 ? (

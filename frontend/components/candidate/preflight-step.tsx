@@ -27,12 +27,12 @@ function StepRow({ icon, title, state, detail }: { icon: React.ReactNode; title:
       <span className="mt-0.5 text-muted-foreground shrink-0">{icon}</span>
       <div className="min-w-0 flex-1">
         <p className="text-sm font-medium text-foreground">{title}</p>
-        {detail && <p className={`text-xs mt-0.5 leading-relaxed ${state === "failed" ? "text-red-600 dark:text-red-400" : "text-muted-foreground"}`}>{detail}</p>}
+        {detail && <p className={`text-xs mt-0.5 leading-relaxed ${state === "failed" ? "text-terra-600 dark:text-terra-400" : "text-muted-foreground"}`}>{detail}</p>}
       </div>
       <span className="shrink-0 mt-0.5">
         {state === "running" && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
-        {state === "ok" && <CheckCircle2 className="h-4 w-4 text-emerald-600" />}
-        {state === "failed" && <XCircle className="h-4 w-4 text-red-500" />}
+        {state === "ok" && <CheckCircle2 className="h-4 w-4 text-sage-600" />}
+        {state === "failed" && <XCircle className="h-4 w-4 text-terra-500" />}
       </span>
     </div>
   );
@@ -113,7 +113,7 @@ export function PreflightStep({ token, onPassed }: { token: string; onPassed: (p
       {failures.length > 0 && (
         <ul className="space-y-1.5" aria-label="Problems found">
           {failures.map((f) => (
-            <li key={f.code} className="flex gap-2 text-xs text-red-600 dark:text-red-400">
+            <li key={f.code} className="flex gap-2 text-xs text-terra-600 dark:text-terra-400">
               <XCircle className="h-3.5 w-3.5 shrink-0 mt-0.5" /> {f.message}
             </li>
           ))}

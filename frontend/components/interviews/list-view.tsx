@@ -56,8 +56,8 @@ function groupFor(s: ApiSession, todayStart: number): GroupKey {
 function StatusChip({ status }: { status: ReturnType<typeof sessionUiStatus> }) {
   if (status === "Live") {
     return (
-      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-400 dark:border-emerald-800">
-        <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-medium bg-sage-50 text-sage-700 border border-sage-200 dark:bg-sage-950/40 dark:text-sage-400 dark:border-sage-800">
+        <span className="h-1.5 w-1.5 rounded-full bg-sage-500 animate-pulse" />
         Live
       </span>
     );
@@ -109,7 +109,7 @@ export function ListView({ interviews }: ListViewProps) {
                   key={item.id}
                   className={cn(
                     "group flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-white dark:bg-neutral-900 rounded-xl border border-neutral-200/90 dark:border-neutral-800 transition-all hover:shadow-2xs gap-4",
-                    status === "Live" && "border-l-[3px] border-l-emerald-500",
+                    status === "Live" && "border-l-[3px] border-l-sage-500",
                   )}
                 >
                   <div className="flex items-center gap-3.5 min-w-0">
