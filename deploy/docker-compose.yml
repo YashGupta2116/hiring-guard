@@ -120,7 +120,12 @@ services:
       MAIL_FROM: ${MAIL_FROM:-VeriTrust <no-reply@${DOMAIN}>}
       LLM_PROVIDER: mock
       MEDIA_PROVIDER: mock
-      SANDBOX_PROVIDER: mock
+      # docker.sandbox.ts's mkdtemp(tmpdir()) paths are passed as bind-mount sources straight to the
+      # Docker daemon over the mounted socket, which resolves them on the HOST filesystem, not
+      # inside this container. TMPDIR here must be a path also bind-mounted (see the api service's
+      # volumes below) so the same path exists and holds the same files on both sides.
+      SANDBOX_PROVIDER: ${SANDBOX_PROVIDER:-mock}
+      TMPDIR: /var/lib/veritrust-sandbox-tmp
       REPORT_PDF_ENABLED: "false"
       CALIBRATED_WEIGHTS_ENABLED: "false"
       RETENTION_MEDIA_DAYS: 90
@@ -141,6 +146,15 @@ services:
       - "9000"
     volumes:
       - app_storage:/app/storage
+      # Lets docker.sandbox.ts (SANDBOX_PROVIDER=docker) launch per-run sandbox containers via the
+      # HOST's Docker daemon. Security tradeoff: anything that compromises this container gets that
+      # socket, which is root-equivalent on the host — only the api service gets it (worker/migrate
+      # never execute candidate code, so they don't).
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Must be bind-mounted at the identical absolute path on the host (create it there first: see
+      # README) — the sandbox provider's temp-file paths get handed to the host daemon as bind-mount
+      # sources, which only resolve correctly if this container's view of the path IS the host's.
+      - /var/lib/veritrust-sandbox-tmp:/var/lib/veritrust-sandbox-tmp
     depends_on:
       postgres:
         condition: service_healthy
