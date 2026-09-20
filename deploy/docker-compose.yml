@@ -120,9 +120,12 @@ services:
       MAIL_FROM: ${MAIL_FROM:-VeriTrust <no-reply@${DOMAIN}>}
       LLM_PROVIDER: mock
       MEDIA_PROVIDER: mock
-      # "piston" runs candidate code on the free public Piston API (emkc.org), not on this server,
-      # so there is no Docker-socket / host-compromise tradeoff to accept for a real sandbox.
+      # "docker" is real, per-run-isolated candidate code execution (no network, read-only rootfs,
+      # resource-capped — see backend/src/providers/sandbox/docker.sandbox.ts). It needs the api
+      # service's Docker-socket mount below. "piston" (a free external sandbox) is defined but not
+      # usable as of 2026-02: the public Piston API went whitelist-only.
       SANDBOX_PROVIDER: ${SANDBOX_PROVIDER:-mock}
+      TMPDIR: /var/lib/veritrust-sandbox-tmp
       REPORT_PDF_ENABLED: "false"
       CALIBRATED_WEIGHTS_ENABLED: "false"
       RETENTION_MEDIA_DAYS: 90
@@ -143,6 +146,15 @@ services:
       - "9000"
     volumes:
       - app_storage:/app/storage
+      # Only needed when SANDBOX_PROVIDER=docker. Lets docker.sandbox.ts launch per-run sandbox
+      # containers via the HOST's Docker daemon. Security tradeoff: anything that compromises this
+      # container gets that socket, which is root-equivalent on the host — only api gets it
+      # (worker/migrate never execute candidate code, so they don't).
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Must be bind-mounted at the identical absolute path on the host (create it there first: see
+      # README) — the sandbox provider's temp-file paths get handed to the host daemon as bind-mount
+      # sources, which only resolve correctly if this container's view of the path IS the host's.
+      - /var/lib/veritrust-sandbox-tmp:/var/lib/veritrust-sandbox-tmp
     depends_on:
       postgres:
         condition: service_healthy
