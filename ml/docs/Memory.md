@@ -38,6 +38,29 @@ Session of 2026-09-20 (Phase 3's buildable half, the golden fixtures, and the ba
   `../../docs/cross-component-architecture.md`. No fusion constant in `detection.ts` was edited;
   the flag defaults to off and all 232 backend tests pass with it off.
 
+Later session of 2026-09-20 (post-calibration cleanup):
+
+- **`Engine.to_state()` drops the `BaselineBuilder` samples once the baseline closes**
+  (`baseline_builder: null`), since nothing reads them after that. `from_state()` still loads a payload
+  that carries them. Three tests added to `tests/test_state_roundtrip.py`. No constant moved.
+- **The `[-1.0, 4.0]` clamp asymmetry now has its rationale** in `REMAINING_WORK.md` section 6. Neither
+  value changed.
+- **Container packaging and a fail-loud flag** on the backend side. The backend image copies
+  `weights/weights.json` and the detector contract through named build contexts, and
+  `CALIBRATED_WEIGHTS_ENABLED=true` with an unloadable artifact stops the API at boot. Details in
+  `../../docs/cross-component-architecture.md`, "The artifact seam", which also states that only
+  per-detector magnitudes cross the seam and `channel_weights` do not.
+- `pytest -q`: 167 passed (164 before + 3 new). `mypy`: clean, 34 files. An Application Control policy
+  on this machine blocked scikit-learn's `_pairwise_fast` DLL during the first run of the session, and
+  a later run loaded it, so treat `tests/test_calibrate.py` as machine-dependent.
+- **Rules.md section 1 note:** "Do not touch anything outside this repo" was overridden again, by an
+  explicit instruction to finish the backend side of the seam. Files changed outside `ml/`:
+  `backend/Dockerfile`, `backend/docker-compose.yml`, `backend/README.md`,
+  `backend/src/config/calibrated-weights.ts`, `backend/src/index.ts`,
+  `backend/tests/unit/calibrated-weights.test.ts`, `backend/docs/Memory.md`, `README.md` and
+  `../../docs/cross-component-architecture.md`. `frontend/` was read for an audit and not changed. No
+  fusion constant was edited. Backend: 244 tests pass, `tsc` clean. No git command was run.
+
 Cross-component note (2026-09-18, out-of-phase): `backend/` runs its own independent fusion engine
 live and does not import or call anything in `ml/`. This was reviewed and the decision recorded in
 `../../docs/cross-component-architecture.md` -- `backend/`'s TypeScript engine stays canonical for

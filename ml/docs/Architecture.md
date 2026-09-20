@@ -291,7 +291,7 @@ API Gateway WebSocket
   persist state back to DynamoDB
 ```
 
-Engine state serialises to a dict of channel accumulators, open windows, baselines and the flag list. Target under 100 KB per session so it fits a DynamoDB item comfortably. If it approaches 300 KB, flags move to their own table and state keeps ids only.
+Engine state serialises to a dict of channel accumulators, open windows, baselines and the flag list. While the baseline is still open the dict also carries the samples gathered for it. After the baseline closes those samples are dropped (`baseline_builder` is `null`), which trims the payload. Target under 100 KB per session so it fits a DynamoDB item comfortably. If it approaches 300 KB, flags move to their own table and state keeps ids only.
 
 Cold start budget: the module imports pydantic and numpy and loads a roughly 20 KB weights file. Measure it in Phase 5, target under 800 ms.
 

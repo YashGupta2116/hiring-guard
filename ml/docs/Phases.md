@@ -182,7 +182,7 @@ One piece of it is worth keeping in reach regardless: `tests/test_runtime_deps.p
 
 **Tasks**
 1. `handler.py`: parse the WebSocket event, load state from DynamoDB, `Engine.from_state`, ingest, persist with a conditional write on `state_version`, return the new flags and score.
-2. State serialisation round-trip test: `from_state(to_state(engine))` produces an engine that scores identically on the next batch.
+2. State serialisation round-trip test: `from_state(to_state(engine))` produces an engine that scores identically on the next batch. Once the baseline has closed, `to_state` writes `baseline_builder: null` because nothing reads those samples again, and `from_state` still loads a payload that carries them.
 3. Build the zip with runtime deps only. Assert size and assert the dev libraries are absent.
 4. `tests/test_runtime_deps.py` from Rules section 3.
 5. Measure cold start and per-batch latency. Record both in `Memory.md`.

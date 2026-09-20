@@ -123,7 +123,7 @@ Three rules govern the seam:
 
 - Only per-detector magnitudes are adopted. The artifact's channel weights are stripped by the schema and ignored.
 - A backend type is adopted only if exactly one fitted lab type maps to it. Three lab gaze types map to `gaze_away`, so it is adopted through the mapping in [contracts/detector-registry.json](contracts/detector-registry.json).
-- A missing, invalid or newer-schema artifact falls back to the hand-set table and logs an error. The calibration report is built lazily on the first LLR lookup, once per process, so the "synthetic" log appears then and not at startup. Nothing surfaces the calibration provenance in `/ready` or in reports yet.
+- With the flag on, a missing, invalid or newer-schema artifact stops the API at startup with a message that names the path. It never scores on the hand-set table in that state. The report builds at boot, so the "synthetic" log line appears then. Nothing surfaces the calibration provenance in `/ready` or in reports yet.
 
 LOW and HIGH keep their hand-set ratios. The `gaze_away` value moves up while its lab counterpart was fitted lower than its prior, because the backend value comes from the fit line and not from the lab prior. That is the reconciliation gap listed in the [Roadmap](#roadmap).
 

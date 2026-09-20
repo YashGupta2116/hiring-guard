@@ -89,11 +89,13 @@ network/cold-start). Revisit once there's an actual place this needs to run.
   draw a hatch block on the figure. Not required by any phase's exit criteria so far; build it once a
   fixture actually needs to show it.
 - **`Engine.to_state()`/`from_state()` round-trip — done 2026-09-20.** They now carry the baseline,
-  the `BaselineBuilder`'s gathered samples and the rhythm window, covered by
-  `tests/test_state_roundtrip.py`. The gap was not theoretical: a candidate sitting ~20 degrees to
-  their camera lost 3.839 points and gained a spurious flag purely for crossing a serialisation
-  boundary, because the resumed engine fell back to the population neutral pose. A state dict written
-  without the new keys still loads.
+  the rhythm window and, until the baseline closes, the `BaselineBuilder`'s gathered samples, covered
+  by `tests/test_state_roundtrip.py`. Once the baseline closes, `to_state()` writes
+  `baseline_builder: null`, because nothing reads the samples after that. `from_state()` still loads a
+  payload that carries them and ignores them. The gap was not theoretical: a candidate sitting ~20
+  degrees to their camera lost 3.839 points and gained a spurious flag purely for crossing a
+  serialisation boundary, because the resumed engine fell back to the population neutral pose. A state
+  dict written without the new keys still loads.
 - **`offline_video.py` uses a fixed 20° yaw threshold and a fixed 5s glance/persistent split**, not
   the candidate's own baseline — there's no baseline at offline-capture time by design (baselines are
   built live, per-session). This is a known, intentional stand-in for turning a video clip into
@@ -135,10 +137,13 @@ smaller items above are.
 
 ## 6. Opened by the 2026-09-20 session
 
-- **The `[-1.0, 4.0]` clamp is asymmetric and the asymmetry is undocumented.** The ceiling is 4x the
-  floor's magnitude, which is why a centred LLR trips the floor and never the ceiling. Nothing in
-  `Rules.md` §5 or `PRD.md` says why those two numbers, and the difference now has consequences for
-  fitting. Worth settling deliberately rather than inheriting.
+- **The `[-1.0, 4.0]` clamp is asymmetric on purpose.** The two ends fail differently. Clipping at
+  the ceiling hides a fit that wanted to dominate the score. Clipping at the floor only makes
+  clean-behaviour evidence less exculpatory than the fit asked for, and the clipped value stays at or
+  below zero, so it cannot manufacture a false positive. Each end is set by the error it can cause.
+  The ceiling is 4x the floor's magnitude, which is why a centred LLR trips the floor and never the
+  ceiling. This entry is the record of that reasoning: `Rules.md` §5 lists the two values and
+  nothing else, and neither value changed.
 - **`evaluate/` still reads the seed-7 pair, not the golden set**, and does not know about
   `weights/weights.json` — the report title still says `eval-phase1-priors.md`. Running the harness
   against the goldens with the fitted artifact would produce the first before/after any reader could
@@ -150,4 +155,6 @@ smaller items above are.
   curve's value at its operating point. This is the single largest piece of value left on the table
   from calibration.
 - **Codex review is owed on this session's diff too**, on top of the four phases already listed in
-  section 2.
+  section 2. It is also owed on the later post-calibration cleanup diff (Dockerfile packaging, the
+  fail-loud flag, the `scaleBySensitivity` guard and the `to_state` change). Codex is rate-limited until
+  29 Sep, so that diff had a ponytail review instead.

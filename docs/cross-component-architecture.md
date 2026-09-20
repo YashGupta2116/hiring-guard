@@ -124,11 +124,20 @@ consuming" -- now exists end to end:
    backend ones through `contracts/detector-registry.json`'s `typeMapping`, and overrides the
    matching `LLR_TABLE` magnitudes. `getLlr()` consults it before the hand-set row.
 
+**Only per-detector LLR magnitudes cross the seam.** The artifact also carries `channel_weights`,
+but the backend's zod schema parses them away, so "the backend adopts the lab's calibration" means
+four detector magnitudes at STANDARD sensitivity and no change to channel weighting.
+
 What the seam deliberately does **not** do:
 
 - **It is off by default.** `CALIBRATED_WEIGHTS_ENABLED` gates it. Both components' rules require
   asking before a change that moves live scores, so the flag is where that decision lives rather
   than in an edited constant. Every backend test passes with it off, unchanged.
+- **It does not fall back quietly.** With the flag on, a missing, unreadable or newer-schema
+  artifact, or a missing contract file, stops the API at boot with a message that names the path.
+  Scoring on the hand-set table while the flag says "calibrated" would go unnoticed, so the backend
+  refuses to start. `index.ts` builds the report at boot, so a failure appears there and not on the
+  first live observation. With the flag off nothing is read, and a missing artifact is fine.
 - **It does not feed `strength` through the curve.** Backend detectors emit a `strength` in 0..1
   and discard it, so passing it to a confidence curve looks free and is wrong: backend `strength`
   is a normalised magnitude (`insertedChars / 2000`, `durationMs / 30_000`), not a detector's
@@ -140,6 +149,20 @@ What the seam deliberately does **not** do:
 - **It does not claim the curves mean anything about real behaviour.** The committed artifact's
   `dataset.kind` is `synthetic`, the backend logs that fact at startup when the flag is on, and
   Phase 3's recorded-fixture capture is still owed. See `ml/docs/REMAINING_WORK.md`.
+
+### In the container image
+
+The backend image copies two files from outside `backend/`: `ml/weights/weights.json` and
+`contracts/detector-registry.json`. It takes the weights file alone, so the rest of the lab stays
+out of the image. The Docker build context is `backend/`, so both files arrive as named build
+contexts (`additional_contexts` in `backend/docker-compose.yml`, `--build-context` on the CLI) and
+land at `/ml/weights/` and `/contracts/`. The loader finds the repo root by going three directories
+up from `dist/config`, which is `/` inside the image, so those are the paths it reads. The image
+carries the artifact whether or not the flag is on, so turning calibration on takes a restart and
+no rebuild. A build that omits the named contexts fails at the `COPY` step.
+
+Before this change the image held neither file. With the flag on, the API logged an error and
+scored on the hand-set table, which looked calibrated and was not.
 
 With the flag on, four backend types currently change at STANDARD sensitivity: `focus_loss`
 1.20 -> 1.042, `gaze_away` 1.10 -> 1.295, `multiple_faces` 1.70 -> 1.207, `paste_large`

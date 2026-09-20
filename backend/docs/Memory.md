@@ -11,7 +11,7 @@
 - **Current phase:** Phase 11 — Retention, hardening, docs (✅ done). This was also the last phase in
   `Phases.md`; everything through Phase 11 is now built, and both bugs found in Phase 10's self-check
   are now fixed too (see Decisions log's two "Bug fix" entries).
-- **Last updated:** 2026-09-18
+- **Last updated:** 2026-09-20
 - **Next step:** None queued in `Phases.md`. Both Phase 10 self-check bugs are fixed, and this backend
   is now containerized and verified deployable (`Dockerfile` + `docker-compose.yml`'s `app` profile,
   built and actually run end-to-end this session — see Decisions log's "Deployment" entries and
@@ -72,6 +72,9 @@ backend/
 │   ├── config/detection.ts       SERVER-ONLY: LLR_TABLE (type×sensitivity), CHANNEL_WEIGHTS,
 │   │   CHANNEL_DECAY_SECONDS, CHANNEL_THRESHOLDS, FUSION_SIGMA, SEVERITY_BAND_*_MULTIPLIER,
 │   │   corroboration/merge tunables — never sent to clients
+│   ├── config/calibrated-weights.ts  adopts `ml/weights/weights.json`'s fitted LLR magnitudes behind
+│   │   CALIBRATED_WEIGHTS_ENABLED (off by default); `getLlr()` consults it first. With the flag on it
+│   │   throws if the artifact cannot be loaded, and `index.ts` builds it at boot
 │   ├── controllers/health, auth, org, candidate-directory, session, jd, coding-task, question-bank,
 │   │   link, join, candidate, internal, flag .controller.ts (candidate.controller.ts gained
 │   │   getTasks/runTask/submitTask in Phase 8; session.controller.ts gained getSessionCode in Phase 8
@@ -380,6 +383,7 @@ Removed: `bcryptjs`, `jsonwebtoken` (Rules: use `argon2`, `jose`).
 | 2026-09-18 | **Deployment bug, found and fixed.** `docker-compose.yml`'s `worker` service explicitly sets `healthcheck: disable: true` | The `Dockerfile`'s `HEALTHCHECK` probes the API's `GET /api/v1/ready` over HTTP; `worker.js` never opens a port, so that inherited check would report the worker container permanently unhealthy. Caught because `docker compose ps` showed `worker` stuck on "health: starting" after `api` was already "healthy" |
 | 2026-09-18 | **Deployment.** `worker.ts`'s shutdown handler rebuilt to match `index.ts`'s: guarded against double-invocation, a 10s force-kill fallback, and now disconnects Prisma/Redis before exiting; also now handles `unhandledRejection`/`uncaughtException` (previously only `SIGTERM`/`SIGINT`, and just `process.exit(0)` with no disconnect or timeout) | The two processes had drifted to different robustness levels since `index.ts`'s pattern was written in an earlier phase; an orchestrator's rolling restart sends `SIGTERM` to both, and the worker deserves the same clean-drain guarantee the API already had before this goes anywhere real |
 | 2026-09-18 | **Cleanup.** Deleted `pnpm-lock.yaml`/`pnpm-workspace.yaml` (untracked, appeared unexplained during an earlier session on this same day) and did a clean `rm -rf node_modules && npm install` | `node_modules/.pnpm` existed — something had run a real `pnpm install` against this npm-only project (Rules.md §3 doesn't list pnpm at all) at some point, leaving a hybrid npm/pnpm `node_modules` that happened to still pass typecheck/test/build but is exactly the kind of drift that causes "works here, breaks in CI" surprises, and a stray lockfile is itself a deployment risk on any platform that auto-detects the package manager from whichever lockfile is present. The Docker image build was already unaffected either way (it only ever copies `package.json`/`package-lock.json` into a fresh `npm ci`), but the host environment needed the same guarantee |
+| 2026-09-20 | **The calibration seam fails loudly when enabled.** With `CALIBRATED_WEIGHTS_ENABLED=true`, an artifact that is missing, unreadable, invalid or from a newer schema makes `buildCalibrationReport()` throw, and `src/index.ts` builds the report at boot so the API refuses to start. It used to log an error and score on the hand-set table | A fallback scores on priors while every setting says "calibrated", and nobody would notice. With the flag off nothing is read. The image now carries the artifact and the detector contract (named build contexts), so a missing file in a container is a loud failure and not a silent one |
 
 ---
 
@@ -533,6 +537,36 @@ Removed: `bcryptjs`, `jsonwebtoken` (Rules: use `argon2`, `jose`).
 ```
 
 ## Task history
+
+### 2026-09-20: post-calibration cleanup (container packaging, fail-loud flag, sensitivity guard)
+- Phase: 11 follow-up (no new phase work)
+- Built: The image now copies `ml/weights/weights.json` and `contracts/detector-registry.json` to
+  `/ml/weights/` and `/contracts/`, through named build contexts, so the `ml/` lab stays out. The
+  loader's repo root is `/` inside the image (`dist/config` three levels up), which is why those paths.
+  With `CALIBRATED_WEIGHTS_ENABLED=true`, `buildCalibrationReport()` throws on a missing, unreadable,
+  invalid or newer-schema artifact, and `src/index.ts` builds the report at boot so the process stops
+  there. `scaleBySensitivity()` returns a row with a non-positive STANDARD unscaled and logs a warning;
+  nothing reaches that today. No constant, weight, threshold or table row changed.
+- Files: `Dockerfile`, `docker-compose.yml`, `README.md`, `src/config/calibrated-weights.ts`,
+  `src/index.ts`, `tests/unit/calibrated-weights.test.ts`; docs: `docs/Memory.md`, `../README.md`,
+  `../docs/cross-component-architecture.md`
+- Schema/migrations: none
+- New env vars: none
+- Tests: 244 pass, `tsc` clean (241 before + 3 new). In `tests/unit/calibrated-weights.test.ts` the
+  three fallback tests became throw assertions, one test was added (flag off with a missing artifact
+  stays silent) and two cover `scaleBySensitivity` (positive path, and the guard, which fails when
+  the guard is removed). Checked in a real image built through compose: only the two files land outside
+  `/app`, the flag on loads and adopts four types as the non-root user, the flag on with the artifact
+  removed exits 1 naming `/ml/weights/weights.json`, and the flag off with it removed stays silent.
+- Decisions: the fail-loud rule (Decisions log, 2026-09-20). The handoff asked for the missing-artifact
+  case. Malformed and newer-schema artifacts now fail the same way, because one `catch` handled all
+  three and a split would leave the other two silently uncalibrated.
+- Issues left: `--no-isolate` on the test runner fails 108 of 241 tests (17 files) at the register
+  step. The cause was not diagnosed. `vitest.config.ts` warns against `isolate: false`. The image build's
+  first `npm ci --omit=dev` failed once and the identical retry passed; the error was not captured.
+  A plain `docker build .` without the named contexts fails with an unhelpful `pull access denied`.
+  The contract file's read is not wrapped, so a corrupt contract shows a bare `SyntaxError`.
+- Next: none queued.
 
 ### 2026-09-19: getLlr unknown-type fix; calibration window diagnosed, not changed
 - Phase: 11 follow-up (two defects from the backend handoff; no new phase work)
