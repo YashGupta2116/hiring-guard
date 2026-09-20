@@ -52,6 +52,25 @@ export const cvBatchSchema = z.object({
     .max(20),
 });
 
+/**
+ * Speech-to-text segments produced in a browser (Web Speech API), one schema shared by both
+ * namespaces. The socket handler assigns `speaker` itself from which namespace sent it -- never
+ * trusted from the client -- so a candidate can't claim to be the interviewer or vice versa.
+ */
+export const asrBatchSchema = z.object({
+  segments: z
+    .array(
+      z.object({
+        text: z.string().min(1).max(2000),
+        startMs: z.number().int().min(0),
+        endMs: z.number().int().min(0),
+        isFinal: z.boolean(),
+      }),
+    )
+    .min(1)
+    .max(20),
+});
+
 /** Live camera-analysis state, shown to the interviewer as an indicator. Not scored and not stored. */
 export const cvStatusSchema = z.object({
   state: z.enum(["loading", "ok", "unavailable"]),

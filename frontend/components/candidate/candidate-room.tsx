@@ -30,6 +30,7 @@ import { EditorSync, TelemetryReporter } from "@/lib/candidate/telemetry";
 import { CandidateRtc } from "@/lib/candidate/rtc";
 import { CvProducer } from "@/lib/candidate/cv";
 import { ScreenShareMonitor } from "@/lib/candidate/screen-monitor";
+import { AsrProducer } from "@/lib/asr";
 import { isTestMode } from "@/lib/candidate/test-mode";
 import { enterFullscreen, isFullscreen, startLockdown, type ViolationKind } from "@/lib/candidate/lockdown";
 import { cn } from "@/lib/utils";
@@ -292,6 +293,14 @@ export function CandidateRoom({ candidateToken, onInvalid, onFinished }: Candida
     monitor.start();
     return () => monitor.stop();
   }, [phase, socket]);
+
+  // Speech-to-text of the candidate's own mic, feeding the live transcript and Q&A pairing.
+  useEffect(() => {
+    if (phase !== "live" || !socket || !media.microphone) return;
+    const asr = new AsrProducer(socket, info?.startedAt ?? null);
+    asr.start();
+    return () => asr.stop();
+  }, [phase, socket, media.microphone, info?.startedAt]);
 
   // ---- Coding tasks & live signals ----------------------------------------------------------
   useEffect(() => {

@@ -347,7 +347,7 @@ function TranscriptTab({ lines }: { lines: TranscriptLine[] }) {
     return (
       <div className="space-y-2 animate-fade-in-up">
         <p className="rounded-md border border-dashed border-border p-3 text-xs text-muted-foreground leading-relaxed">
-          No transcript yet. Speech-to-text comes from an external audio service that posts to this session; none is connected in this environment, and audio isn&apos;t streamed.
+          No transcript yet. Speech-to-text runs live from both microphones (lib/asr.ts, browser-based); it fills in once someone starts speaking. Supported in Chrome/Edge only.
         </p>
       </div>
     );

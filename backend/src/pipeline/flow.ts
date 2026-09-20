@@ -87,7 +87,9 @@ async function sendSummaryEmail(sessionId: string): Promise<void> {
       `Technical: ${fmt(r.technicalScore)}\nCommunication: ${fmt(r.communicationScore)}\n` +
       `Integrity: ${fmt(r.integrityScore)}\nComposite: ${fmt(r.compositeScore)}\n` +
       `${r.reviewRequired ? "Manual review required.\n" : ""}${r.degraded ? "This report is degraded — some steps did not complete.\n" : ""}\n` +
-      `View it at ${env.APP_URL}/app/interviews/${sessionId}/report`,
+      // The report viewer lives at /app/reports/[reportId] (frontend/app/app/reports/[id]/page.tsx),
+      // not under /app/interviews -- and it takes the report's own id, not the session id.
+      `View it at ${env.APP_URL}/app/reports/${r.id}`,
   });
   await prisma.report.update({ where: { sessionId }, data: { emailSentAt: new Date() } });
 }

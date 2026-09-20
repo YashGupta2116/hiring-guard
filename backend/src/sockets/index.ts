@@ -4,7 +4,7 @@ import { env } from "../config/env.js";
 import { registry } from "../live/registry.js";
 import { acknowledgeWarning } from "../live/warden.js";
 import * as noteService from "../services/note.service.js";
-import { ingestExternalObservations, ingestHeartbeat } from "../services/internal.service.js";
+import { ingestExternalObservations, ingestHeartbeat, ingestTranscript } from "../services/internal.service.js";
 import { verifyAccessToken, verifyCandidateToken } from "../utils/jwt.js";
 import { handleCandidateViolation } from "../services/lifecycle.service.js";
 import { redis } from "../utils/redis.js";
@@ -12,6 +12,7 @@ import { logger } from "../utils/logger.js";
 import { prisma } from "../utils/prisma.js";
 import { bindSocketServer, replayFrom } from "./emitter.js";
 import {
+  asrBatchSchema,
   clockOffsetSchema,
   clockSyncSchema,
   cvBatchSchema,
@@ -116,6 +117,25 @@ export function createSocketServer(httpServer: HttpServer): Server {
         logger.error({ err }, "note.add failed");
         ack?.({ ok: false, error: { code: "INTERNAL", message: "Something went wrong." } });
       });
+    });
+
+    // Speech-to-text from the interviewer's own mic (Web Speech API, browser-side). Speaker is
+    // always INTERVIEWER here -- never taken from the payload -- since this is the interviewer's
+    // authenticated socket.
+    socket.on("asr.batch", (raw: unknown) => {
+      const parsed = asrBatchSchema.safeParse(raw);
+      if (!parsed.success) return;
+      for (const room of socket.rooms) {
+        if (!room.startsWith("session:")) continue;
+        const sessionId = room.slice("session:".length);
+        void ingestTranscript(
+          sessionId,
+          parsed.data.segments.map((s) => ({ ...s, speaker: "INTERVIEWER" as const })),
+        ).catch((err: unknown) => {
+          logger.error({ err, sessionId }, "asr.batch (interviewer) failed");
+        });
+        return;
+      }
     });
   });
 
@@ -223,6 +243,20 @@ export function createSocketServer(httpServer: HttpServer): Server {
       if (items.length === 0) return;
       void ingestExternalObservations(sessionId, "cv", items).catch((err: unknown) => {
         logger.error({ err, sessionId }, "cv.batch failed");
+      });
+    });
+
+    // Speech-to-text from the candidate's own mic (Web Speech API, browser-side). Speaker is
+    // always CANDIDATE here -- never taken from the payload -- since this is the candidate's
+    // authenticated socket, scoped to their own session by socket.data.sessionId.
+    socket.on("asr.batch", (raw: unknown) => {
+      const parsed = asrBatchSchema.safeParse(raw);
+      if (!parsed.success) return;
+      void ingestTranscript(
+        sessionId,
+        parsed.data.segments.map((s) => ({ ...s, speaker: "CANDIDATE" as const })),
+      ).catch((err: unknown) => {
+        logger.error({ err, sessionId }, "asr.batch (candidate) failed");
       });
     });
 

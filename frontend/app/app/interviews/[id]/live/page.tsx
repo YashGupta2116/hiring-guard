@@ -18,6 +18,7 @@ import { sessionCandidateName, sessionRef, sessionRole } from "@/lib/api/session
 import { openSessionRoom } from "@/lib/live/api";
 import { isEndedStatus, useLiveRoom } from "@/lib/live/use-live-room";
 import { useLiveVideo } from "@/lib/live/use-live-video";
+import { AsrProducer } from "@/lib/asr";
 import { AlertTriangle, Radio, PhoneOff, Clock, Shield, ChevronLeft, Loader2, Play, WifiOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -54,6 +55,14 @@ export default function LiveInterviewPage() {
   }, []);
 
   const { session, status, timer, snapshot } = room;
+
+  // Speech-to-text of the interviewer's own mic, feeding the live transcript and Q&A pairing.
+  useEffect(() => {
+    if (status !== "LIVE" || !room.socket || !video.local || !video.micOn) return;
+    const asr = new AsrProducer(room.socket, snapshot?.startedAt ?? null);
+    asr.start();
+    return () => asr.stop();
+  }, [status, room.socket, video.local, video.micOn, snapshot?.startedAt]);
 
   // Opening the live room is what lets the candidate begin their setup checks.
   const preLive = ["DRAFT", "CONFIGURED", "ARMED", "ADMITTED"].includes(status);
