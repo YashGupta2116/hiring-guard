@@ -167,6 +167,61 @@ def test_round_trip_after_calibration_closed_does_not_reopen_it() -> None:
     assert resumed._baseline == engine._baseline
 
 
+def _closed_engine() -> Engine:
+    engine = Engine(STANDARD, Weights())
+    engine.ingest([_gaze(i, 5_000 + i * 5_000) for i in range(8)])
+    engine.ingest([_gaze(50, 61_000, yaw=30.0)])
+    assert engine._baseline_closed
+    return engine
+
+
+_AFTER_CLOSE = [_obs(300, 90_000, Channel.GAZE, "gaze.persistent_offscreen", confidence=0.85)]
+
+
+def test_a_closed_baseline_does_not_serialise_the_builder_samples() -> None:
+    engine = _closed_engine()
+    assert engine._baseline_builder._gaze_points, "the fixture must leave samples in memory to skip"
+
+    state = engine.to_state()
+    assert state["baseline_builder"] is None
+    assert state["baseline"] is not None  # the closed baseline is what survives
+
+    resumed = _round_trip(engine)
+    assert resumed._baseline_closed
+    assert resumed._baseline == engine._baseline
+
+
+def test_round_trip_after_close_then_the_next_batch_scores_identically() -> None:
+    straight = _closed_engine()
+    straight.ingest(_AFTER_CLOSE)
+
+    resumed = _round_trip(_closed_engine())
+    resumed.ingest(_AFTER_CLOSE)
+
+    assert resumed.finalise(200_000) == straight.finalise(200_000)
+
+
+def test_an_older_state_that_still_carries_builder_samples_loads_and_is_ignored() -> None:
+    """Payloads written before the samples were skipped are still in the wild
+    (and in committed fixtures). They must load, and the extra samples must not
+    change anything, because a closed baseline never reads them."""
+    engine = _closed_engine()
+    state = json.loads(json.dumps(engine.to_state()))
+    state["baseline_builder"] = {
+        "gaze_points": [[4.0, 1.0]] * 8,
+        "keystroke_intervals": [],
+        "glance_count": 8,
+    }
+
+    resumed = Engine.from_state(state, STANDARD, Weights())
+    assert resumed._baseline_closed
+    assert resumed._baseline == engine._baseline
+
+    engine.ingest(_AFTER_CLOSE)
+    resumed.ingest(_AFTER_CLOSE)
+    assert resumed.finalise(200_000) == engine.finalise(200_000)
+
+
 def test_round_trip_preserves_the_rhythm_window() -> None:
     """The KS test compares against a sliding 30 s window of intervals. An
     empty window after a resume made the next keystroke observation look like

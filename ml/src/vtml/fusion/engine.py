@@ -463,7 +463,11 @@ class Engine:
             # already closed re-opened and closed again on less evidence.
             "baseline_closed": self._baseline_closed,
             "baseline": None if self._baseline is None else _baseline_to_state(self._baseline),
-            "baseline_builder": self._baseline_builder.to_state(),
+            # Nothing reads the builder once the baseline closes, so its samples
+            # are dropped. `from_state` still loads older payloads that carry them.
+            "baseline_builder": (
+                None if self._baseline_closed else self._baseline_builder.to_state()
+            ),
             # The sliding window the rhythm KS test compares against. Dropping
             # it made the first post-resume keystroke observation look like the
             # start of the session to `rhythm_is_anomalous`.
