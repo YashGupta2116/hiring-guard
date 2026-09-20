@@ -1,0 +1,130 @@
+name: veritrust
+
+services:
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN:?Set DOMAIN in .env.production}
+      ACME_EMAIL: ${ACME_EMAIL:?Set ACME_EMAIL in .env.production}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - frontend
+      - api
+
+  frontend:
+    build:
+      context: ../frontend
+      args:
+        NEXT_PUBLIC_API_URL: /api/v1
+    restart: unless-stopped
+    expose:
+      - "3000"
+
+  postgres:
+    image: postgres:17
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: veritrust
+      POSTGRES_USER: veritrust
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env.production}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U veritrust -d veritrust"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # Run manually before the first app start and whenever migrations are added.
+  migrate:
+    build:
+      context: ../backend
+      target: build
+    profiles: ["admin"]
+    environment: &backend_environment
+      NODE_ENV: production
+      PORT: 9000
+      APP_URL: https://${DOMAIN}
+      API_URL: https://${DOMAIN}/api/v1
+      CORS_ORIGINS: https://${DOMAIN}
+      DATABASE_URL: postgresql://veritrust:${POSTGRES_PASSWORD}@postgres:5432/veritrust
+      REDIS_URL: redis://redis:6379
+      HASH_PEPPER: ${HASH_PEPPER}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET}
+      JWT_REFRESH_TTL_DAYS: 30
+      JOIN_TOKEN_SECRET: ${JOIN_TOKEN_SECRET}
+      CANDIDATE_TOKEN_SECRET: ${CANDIDATE_TOKEN_SECRET}
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN}
+      EVIDENCE_SIGNING_PRIVATE_KEY: ${EVIDENCE_SIGNING_PRIVATE_KEY}
+      EVIDENCE_SIGNING_KEY_ID: production-1
+      STORAGE_PROVIDER: local
+      STORAGE_LOCAL_DIR: /app/storage
+      MAIL_PROVIDER: log
+      MAIL_FROM: VeriTrust <no-reply@${DOMAIN}>
+      LLM_PROVIDER: mock
+      MEDIA_PROVIDER: mock
+      SANDBOX_PROVIDER: mock
+      REPORT_PDF_ENABLED: "false"
+      CALIBRATED_WEIGHTS_ENABLED: "false"
+      RETENTION_MEDIA_DAYS: 90
+      RETENTION_OBSERVATIONS_DAYS: 180
+      RETENTION_EVIDENCE_LOG_FLOOR_DAYS: 30
+      RETENTION_REPORTS_DAYS: 1095
+      RETENTION_CRON: "0 3 * * *"
+    command: ["node_modules/.bin/prisma", "migrate", "deploy"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    build: ../backend
+    restart: unless-stopped
+    environment: *backend_environment
+    expose:
+      - "9000"
+    volumes:
+      - app_storage:/app/storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  worker:
+    build: ../backend
+    restart: unless-stopped
+    environment: *backend_environment
+    command: ["node", "dist/worker.js"]
+    volumes:
+      - app_storage:/app/storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  caddy_data:
+  caddy_config:
+  postgres_data:
+  redis_data:
+  app_storage:

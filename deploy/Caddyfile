@@ -1,0 +1,12 @@
+{
+  email {$ACME_EMAIL}
+}
+
+{$DOMAIN} {
+  encode zstd gzip
+
+  # Caddy passes WebSocket upgrade headers through automatically.
+  reverse_proxy /api/v1/* api:9000
+  reverse_proxy /socket.io/* api:9000
+  reverse_proxy frontend:3000
+}
