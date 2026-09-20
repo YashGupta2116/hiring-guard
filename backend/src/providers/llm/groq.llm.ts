@@ -4,16 +4,11 @@ import type { GradeInput, GradeResult, LlmProvider, SuggestInput, SuggestedQuest
 // Groq's Chat Completions API is OpenAI-compatible (https://console.groq.com/docs/api-reference).
 const GROQ_CHAT_URL = "https://api.groq.com/openai/v1/chat/completions";
 
-const suggestionsSchema = { questions: [{ rank: 1, topic: "string or null", text: "string", rationale: "string" }] };
-const gradeSchema = {
-  correctness: "0-100",
-  depth: "0-100",
-  specificity: "0-100",
-  structure: "0-100",
-  handsOn: "0-100",
-  strengths: ["string"],
-  concerns: ["string"],
-};
+// Real example values, not type placeholders like "0-100" or "string" -- a placeholder string in
+// the shown JSON risks the model echoing it back literally as a string value for that field
+// (this is exactly what happened with openai/gpt-oss-120b: it dropped/mistyped "correctness").
+const suggestionsSchema = { questions: [{ rank: 1, topic: "Databases", text: "Example question text.", rationale: "Example rationale." }] };
+const gradeSchema = { correctness: 82, depth: 75, specificity: 68, structure: 90, handsOn: 40, strengths: ["Example strength."], concerns: ["Example concern."] };
 
 export class GroqLlmProvider implements LlmProvider {
   readonly name = "groq";
@@ -90,22 +85,29 @@ export class GroqLlmProvider implements LlmProvider {
 
   async gradeAnswer(input: GradeInput): Promise<GradeResult> {
     const raw = await this.complete(
-      "You grade a candidate's spoken interview answer against a rubric. Score each dimension 0-100. " +
-        "Never score accent, fluency, grammar, speaking pace or silence -- only substance. Respond with ONLY " +
-        `a JSON object matching this exact shape (no prose, no markdown fences): ${JSON.stringify(gradeSchema)}.`,
+      "You grade a candidate's spoken interview answer against a rubric. Score each dimension as an " +
+        "integer from 0 to 100 -- a JSON number, never a string or a range like \"0-100\". Never score " +
+        "accent, fluency, grammar, speaking pace or silence -- only substance. Respond with ONLY a JSON " +
+        `object matching this exact shape (no prose, no markdown fences), with your own scores in place ` +
+        `of these example numbers: ${JSON.stringify(gradeSchema)}.`,
       JSON.stringify({ question: input.question, answer: input.answer, topic: input.topic, parsedJd: input.parsedJd }),
     );
-    const g = raw as Partial<GradeResult>;
+    const g = raw as Record<string, unknown>;
     const dims: (keyof GradeResult)[] = ["correctness", "depth", "specificity", "structure", "handsOn"];
+    const scores: Partial<Record<keyof GradeResult, number>> = {};
     for (const dim of dims) {
-      if (typeof g[dim] !== "number") throw new Error(`Groq grade is missing numeric "${dim}".`);
+      // Tolerate a stringified number ("82") -- a formatting quirk, not wrong data -- but not
+      // anything else, since that would mean the model didn't actually grade that dimension.
+      const value = typeof g[dim] === "number" ? g[dim] : typeof g[dim] === "string" ? Number(g[dim]) : NaN;
+      if (!Number.isFinite(value)) throw new Error(`Groq grade is missing numeric "${dim}" (got ${JSON.stringify(g[dim])}).`);
+      scores[dim] = value;
     }
     return {
-      correctness: g.correctness as number,
-      depth: g.depth as number,
-      specificity: g.specificity as number,
-      structure: g.structure as number,
-      handsOn: g.handsOn as number,
+      correctness: scores.correctness!,
+      depth: scores.depth!,
+      specificity: scores.specificity!,
+      structure: scores.structure!,
+      handsOn: scores.handsOn!,
       strengths: Array.isArray(g.strengths) ? (g.strengths as string[]) : [],
       concerns: Array.isArray(g.concerns) ? (g.concerns as string[]) : [],
     };
