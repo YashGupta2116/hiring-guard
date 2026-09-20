@@ -1,14 +1,16 @@
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import contract from "../../../contracts/detector-registry.json" with { type: "json" };
 import mlWeights from "../../../ml/weights/weights.json" with { type: "json" };
 import {
   buildCalibrationReport,
+  scaleBySensitivity,
   SUPPORTED_WEIGHTS_SCHEMA_VERSION,
 } from "../../src/config/calibrated-weights.js";
 import { LLR_TABLE } from "../../src/config/detection.js";
+import { logger } from "../../src/utils/logger.js";
 
 /**
  * The backend/ml seam: `ml/weights/weights.json` adopted as LLR_TABLE magnitudes.
@@ -145,6 +147,28 @@ describe("calibrated weights: sensitivity", () => {
   });
 });
 
+describe("calibrated weights: scaleBySensitivity", () => {
+  it("scales LOW and HIGH by the hand-set ratios around the calibrated STANDARD", () => {
+    // Doubling is exact in binary, so this can be an equality rather than a closeness check.
+    expect(scaleBySensitivity({ LOW: 0.8, STANDARD: 1.0, HIGH: 1.5 }, 2.0)).toEqual({
+      LOW: 1.6,
+      STANDARD: 2.0,
+      HIGH: 3.0,
+    });
+  });
+
+  it("returns a row whose STANDARD is not positive unscaled, rather than flipping its signs", () => {
+    const warn = vi.spyOn(logger, "warn").mockImplementation(() => undefined);
+    const negative = { LOW: -0.3, STANDARD: -0.4, HIGH: -0.5 };
+    const zero = { LOW: 0, STANDARD: 0, HIGH: 0 };
+
+    // Unguarded, the negative row divides 1.2 by -0.4 and comes back as LOW 0.9, HIGH 1.5.
+    expect(scaleBySensitivity(negative, 1.2)).toEqual(negative);
+    expect(scaleBySensitivity(zero, 1.2)).toEqual(zero);
+    expect(warn).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe("calibrated weights: many-to-one mapping", () => {
   it("refuses a backend type two fitted ml types both map to", () => {
     // All three gaze types collapse onto gaze_away, so two fitted gaze curves have no defensible
@@ -234,27 +258,32 @@ describe("calibrated weights: refusals", () => {
     expect(report.skipped.paste_large).toMatch(/not usable as evidence/);
   });
 
-  it("falls back to the hand-set table when the artifact is missing", () => {
-    const report = buildCalibrationReport(join(tmpdir(), "definitely-absent-weights.json"), true);
-    expect(report.enabled).toBe(true);
-    expect(report.adopted).toEqual([]);
-    expect(report.skipped._artifact).toBeDefined();
+});
+
+describe("calibrated weights: a flag that is on does not run uncalibrated", () => {
+  const missing = join(tmpdir(), "definitely-absent-weights.json");
+
+  it("throws, naming the resolved path, when the artifact is missing", () => {
+    expect(() => buildCalibrationReport(missing, true)).toThrow(missing);
+    expect(() => buildCalibrationReport(missing, true)).toThrow(/CALIBRATED_WEIGHTS_ENABLED=false/);
   });
 
-  it("falls back when the artifact is malformed rather than throwing", () => {
+  it("says nothing about the same missing artifact when the flag is off", () => {
+    const report = buildCalibrationReport(missing, false);
+    expect(report.enabled).toBe(false);
+    expect(report.skipped).toEqual({});
+  });
+
+  it("throws on a malformed artifact", () => {
     const path = writeArtifact({ schema_version: 1, nonsense: true });
-    const report = buildCalibrationReport(path, true);
-    expect(report.adopted).toEqual([]);
-    expect(report.skipped._artifact).toBe("unreadable or invalid");
+    expect(() => buildCalibrationReport(path, true)).toThrow(path);
   });
 
-  it("refuses an artifact whose schema version it does not understand", () => {
+  it("throws on an artifact whose schema version it does not understand", () => {
     const path = writeArtifact(
       artifactWith({}, { schema_version: SUPPORTED_WEIGHTS_SCHEMA_VERSION + 1 }),
     );
-    const report = buildCalibrationReport(path, true);
-    expect(report.adopted).toEqual([]);
-    expect(report.skipped._artifact).toMatch(/schema_version/);
+    expect(() => buildCalibrationReport(path, true)).toThrow(/has schema_version \d+ and this backend/);
   });
 });
 

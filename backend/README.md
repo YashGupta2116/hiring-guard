@@ -91,8 +91,15 @@ Prisma query-engine binary to worry about (Prisma here uses the `@prisma/adapter
 directly over `pg` — see `src/utils/prisma.ts` — so the generated client is plain compiled JS, not a
 platform-specific binary).
 
+The calibration seam reads two files from outside `backend/`: `ml/weights/weights.json` and
+`contracts/detector-registry.json`. The build takes them as named contexts, so the image carries
+those two files and none of the rest of `ml/`. `docker compose` passes the contexts for you. A plain
+`docker build .` fails with a `pull access denied` error for `ml-weights`, because Docker reads the
+missing context as an image name. With `CALIBRATED_WEIGHTS_ENABLED=true` the API refuses to start
+when it cannot load the artifact. With the flag off it reads nothing.
+
 ```bash
-docker build -t veritrust-backend .
+docker build --build-context ml-weights=../ml/weights --build-context contracts=../contracts -t veritrust-backend .
 docker run --rm veritrust-backend node_modules/.bin/prisma migrate deploy   # once, before first boot
 docker run -d -p 9000:9000 --env-file .env.production veritrust-backend                 # API
 docker run -d --env-file .env.production veritrust-backend node dist/worker.js          # worker

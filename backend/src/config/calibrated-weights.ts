@@ -12,6 +12,13 @@
  * scores, which `CLAUDE.md` requires asking about first; the flag is where that decision lives
  * rather than in a constant someone edited.
  *
+ * **Loud when on.** With the flag on, an artifact that cannot be loaded throws instead of falling
+ * back to the hand-set table, and so does an unreadable contract file (Node's own error names the
+ * path). A fallback would score on priors while every setting says "calibrated", which is worse than
+ * not starting. `index.ts` calls `getCalibrationReport()` at boot so the throw stops the process
+ * there, not on the first live observation. With the flag off nothing is read and a missing artifact
+ * is fine.
+ *
  * **What is adopted, and what is not.** The artifact carries a curve over the *detector's raw
  * confidence*. The backend's detectors emit a `strength` in 0..1 and throw it away (see
  * `live/detectors/types.ts`), so feeding `strength` into the curve looks tempting and is wrong:
@@ -41,7 +48,11 @@ import { LLR_TABLE } from "./detection.js";
 import { env } from "./env.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
-/** `src/config` -> repo root. `dist/config` resolves the same way from the build output. */
+/**
+ * `backend/src/config` and `backend/dist/config` both resolve to the repo root. In the container
+ * image `backend/` is `/app`, so this is `/`, and the Dockerfile copies the two files this module
+ * reads to `/ml/weights/` and `/contracts/` to match.
+ */
 const repoRoot = resolve(here, "..", "..", "..");
 
 const DEFAULT_ARTIFACT_PATH = join(repoRoot, "ml", "weights", "weights.json");
@@ -101,7 +112,7 @@ export type CalibratedEntry = {
 
 export type CalibrationReport = {
   enabled: boolean;
-  /** Null when disabled, absent, or refused — `skipped` says which. */
+  /** Null only when disabled: an enabled report that cannot load its artifact throws instead. */
   weightsVersion: string | null;
   datasetKind: CalibratedWeightsFile["dataset"]["kind"] | null;
   adopted: CalibratedEntry[];
@@ -117,6 +128,16 @@ const EMPTY_REPORT: CalibrationReport = {
   skipped: {},
 };
 
+/** Only reached with the flag on, so there is no quiet way to carry on: name what is wrong and stop. */
+function refuse(problem: string, cause?: unknown): never {
+  const detail = cause instanceof Error ? `: ${cause.message}` : "";
+  throw new Error(
+    `CALIBRATED_WEIGHTS_ENABLED is on but ${problem}${detail}. Ship the file, or set ` +
+      "CALIBRATED_WEIGHTS_ENABLED=false to score on the hand-set LLR_TABLE.",
+    { cause },
+  );
+}
+
 function readTypeMapping(): Record<string, string | null> {
   const raw = JSON.parse(readFileSync(CONTRACT_PATH, "utf8")) as {
     typeMapping?: Record<string, string | null>;
@@ -126,16 +147,22 @@ function readTypeMapping(): Record<string, string | null> {
 
 /**
  * Scales an adopted STANDARD value out to LOW and HIGH by the ratios the hand-set row used, so a
- * calibrated magnitude does not flatten the sensitivity spread. A hand-set STANDARD of 0 would
- * make the ratio meaningless; no row has one, and the guard keeps it that way rather than
- * dividing by zero if one ever appears.
+ * calibrated magnitude does not flatten the sensitivity spread. The ratio divides by the hand-set
+ * STANDARD, so a value at or below zero would divide by zero or flip the signs of LOW and HIGH.
+ * Nothing reaches that today (the negative clean-behaviour rows are not in the contract's
+ * `typeMapping`), but the safety should not live only in the caller: such a row comes back as
+ * hand-set, unscaled, with a warning.
  */
-function scaleBySensitivity(
+export function scaleBySensitivity(
   handSet: Record<Sensitivity, number>,
   calibratedStandard: number,
 ): Record<Sensitivity, number> {
-  if (handSet.STANDARD === 0) {
-    return { LOW: calibratedStandard, STANDARD: calibratedStandard, HIGH: calibratedStandard };
+  if (handSet.STANDARD <= 0) {
+    logger.warn(
+      { handSetStandard: handSet.STANDARD },
+      "calibrated weights: hand-set STANDARD is not positive, so LOW and HIGH cannot be scaled from it; keeping the hand-set row",
+    );
+    return { ...handSet };
   }
   const factor = calibratedStandard / handSet.STANDARD;
   return {
@@ -159,25 +186,14 @@ export function buildCalibrationReport(
   try {
     parsed = weightsFileSchema.parse(JSON.parse(readFileSync(artifactPath, "utf8")));
   } catch (error) {
-    // A missing or malformed artifact must never take the API down: the hand-set table is a
-    // complete, working fallback, so this degrades to "uncalibrated" and says so loudly.
-    logger.error(
-      { err: error, artifactPath },
-      "calibrated weights enabled but the artifact could not be read; falling back to the hand-set LLR_TABLE",
-    );
-    return { ...EMPTY_REPORT, enabled: true, skipped: { _artifact: "unreadable or invalid" } };
+    return refuse(`the artifact at ${artifactPath} is missing, unreadable or invalid`, error);
   }
 
   if (parsed.schema_version !== SUPPORTED_WEIGHTS_SCHEMA_VERSION) {
-    logger.error(
-      { artifactPath, found: parsed.schema_version, supported: SUPPORTED_WEIGHTS_SCHEMA_VERSION },
-      "calibrated weights schema version is not supported; falling back to the hand-set LLR_TABLE",
+    return refuse(
+      `the artifact at ${artifactPath} has schema_version ${parsed.schema_version} and this ` +
+        `backend supports ${SUPPORTED_WEIGHTS_SCHEMA_VERSION}`,
     );
-    return {
-      ...EMPTY_REPORT,
-      enabled: true,
-      skipped: { _artifact: `schema_version ${parsed.schema_version} is not supported` },
-    };
   }
 
   const typeMapping = readTypeMapping();

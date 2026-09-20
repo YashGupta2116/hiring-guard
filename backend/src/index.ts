@@ -1,4 +1,5 @@
 import { createServer } from "node:http";
+import { getCalibrationReport } from "./config/calibrated-weights.js";
 import { env } from "./config/env.js";
 import { createApp } from "./app.js";
 import { createSocketServer } from "./sockets/index.js";
@@ -9,6 +10,10 @@ import { prisma } from "./utils/prisma.js";
 import { redis } from "./utils/redis.js";
 
 const SHUTDOWN_TIMEOUT_MS = 10_000;
+
+// Throws, and so stops the process, when CALIBRATED_WEIGHTS_ENABLED is on and the artifact cannot be
+// loaded. Left lazy it would surface on the first live observation, in the middle of a session.
+getCalibrationReport();
 
 const app = createApp();
 const server = createServer(app);

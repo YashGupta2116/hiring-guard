@@ -42,6 +42,12 @@ COPY package.json ./
 COPY templates ./templates
 COPY prisma/schema.prisma prisma/migrations ./prisma/
 
+# Two files from outside backend/ that src/config/calibrated-weights.ts reads. Its repo root is `/`
+# in this image, hence these paths. They arrive as named build contexts (compose `additional_contexts`,
+# or `--build-context ml-weights=../ml/weights --build-context contracts=../contracts`), so the ml/ lab stays out.
+COPY --from=ml-weights weights.json /ml/weights/weights.json
+COPY --from=contracts detector-registry.json /contracts/detector-registry.json
+
 # Local disk storage (STORAGE_PROVIDER=local, the only provider built so far — see
 # docs/REMAINING_WORK.md) needs a writable, and in production persistent, directory. Mount a volume
 # at this path; without one, uploaded/rendered files vanish on every container restart.

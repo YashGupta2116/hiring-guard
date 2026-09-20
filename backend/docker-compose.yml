@@ -1,3 +1,11 @@
+# Build settings shared by migrate, api and worker. The two named contexts feed the Dockerfile's
+# `COPY --from` lines: the calibration artifact and the detector contract live outside backend/.
+x-app-build: &app-build
+  context: .
+  additional_contexts:
+    ml-weights: ../ml/weights
+    contracts: ../contracts
+
 services:
   postgres:
     image: postgres:17
@@ -46,7 +54,7 @@ services:
     # (the runtime image is `npm ci --omit=dev`, deliberately without it — see Dockerfile), and only
     # `build` still has the full source tree plus dev deps to run it from.
     build:
-      context: .
+      <<: *app-build
       target: build
     profiles: ["app"]
     env_file: .env
@@ -60,7 +68,7 @@ services:
         condition: service_healthy
 
   api:
-    build: .
+    build: *app-build
     profiles: ["app"]
     env_file: .env
     environment:
@@ -81,7 +89,7 @@ services:
         condition: service_completed_successfully
 
   worker:
-    build: .
+    build: *app-build
     profiles: ["app"]
     env_file: .env
     environment:
