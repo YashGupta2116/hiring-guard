@@ -112,8 +112,12 @@ services:
       EVIDENCE_SIGNING_KEY_ID: production-1
       STORAGE_PROVIDER: local
       STORAGE_LOCAL_DIR: /app/storage
-      MAIL_PROVIDER: log
-      MAIL_FROM: VeriTrust <no-reply@${DOMAIN}>
+      MAIL_PROVIDER: ${MAIL_PROVIDER:-log}
+      SMTP_HOST: ${SMTP_HOST:-localhost}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASS: ${SMTP_PASS:-}
+      MAIL_FROM: ${MAIL_FROM:-VeriTrust <no-reply@${DOMAIN}>}
       LLM_PROVIDER: mock
       MEDIA_PROVIDER: mock
       SANDBOX_PROVIDER: mock
