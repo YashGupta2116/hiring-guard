@@ -129,7 +129,7 @@ services:
       # GROQ_API_KEY (console.groq.com) in .env.production.
       LLM_PROVIDER: ${LLM_PROVIDER:-mock}
       GROQ_API_KEY: ${GROQ_API_KEY:-}
-      GROQ_MODEL: ${GROQ_MODEL:-llama-3.3-70b-versatile}
+      GROQ_MODEL: ${GROQ_MODEL:-openai/gpt-oss-120b}
       MEDIA_PROVIDER: mock
       # "docker" is real, per-run-isolated candidate code execution (no network, read-only rootfs,
       # resource-capped — see backend/src/providers/sandbox/docker.sandbox.ts). It needs the api

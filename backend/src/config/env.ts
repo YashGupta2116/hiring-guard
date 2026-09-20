@@ -54,7 +54,9 @@ const envSchema = z.object({
 
   LLM_PROVIDER: z.enum(["mock", "groq"]).default("mock"),
   GROQ_API_KEY: z.string().optional(),
-  GROQ_MODEL: z.string().default("llama-3.3-70b-versatile"),
+  // Groq decommissioned llama-3.3-70b-versatile on free/developer tiers 2026-09-21; this is their
+  // recommended replacement (also supports response_format: json_object, which groq.llm.ts uses).
+  GROQ_MODEL: z.string().default("openai/gpt-oss-120b"),
   MEDIA_PROVIDER: z.enum(["mock"]).default("mock"),
   SANDBOX_PROVIDER: z.enum(["mock", "docker", "local", "piston"]).default("mock"),
 
