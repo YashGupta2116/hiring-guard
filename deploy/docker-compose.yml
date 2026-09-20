@@ -57,7 +57,14 @@ services:
       - --lt-cred-mech
       - --realm=${DOMAIN:?Set DOMAIN in .env.production}
       - --user=${TURN_USERNAME:?Set TURN_USERNAME in .env.production}:${TURN_PASSWORD:?Set TURN_PASSWORD in .env.production}
-      - --external-ip=${SERVER_PUBLIC_IP:?Set SERVER_PUBLIC_IP in .env.production}
+      # Paired public/private form, not just the public IP alone: with host networking, coturn also
+      # sees Docker's bridge interfaces (e.g. 172.17.0.1) alongside the real NIC, and given only a
+      # public IP it can't tell which local address to substitute -- it silently drops external-ip
+      # for relay candidates and advertises private/bridge addresses no external client can reach.
+      # Pairing removes the ambiguity. Find the private IP with `hostname -I | awk '{print $1}'`.
+      - --external-ip=${SERVER_PUBLIC_IP:?Set SERVER_PUBLIC_IP in .env.production}/${SERVER_PRIVATE_IP:?Set SERVER_PRIVATE_IP in .env.production}
+      - --listening-ip=${SERVER_PRIVATE_IP:?Set SERVER_PRIVATE_IP in .env.production}
+      - --relay-ip=${SERVER_PRIVATE_IP:?Set SERVER_PRIVATE_IP in .env.production}
       - --min-port=49160
       - --max-port=49200
 
