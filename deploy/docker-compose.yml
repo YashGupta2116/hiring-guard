@@ -142,6 +142,12 @@ services:
     build: *backend_build
     restart: unless-stopped
     environment: *backend_environment
+    # Only needed when SANDBOX_PROVIDER=docker. The api container runs as a non-root user (see
+    # backend/Dockerfile) which owns none of the host's docker.sock groups by default, so it gets
+    # EACCES connecting to the socket below unless it's also a member of the host's docker group.
+    # Find that GID with `getent group docker` on the host and set DOCKER_GID in .env.production.
+    group_add:
+      - "${DOCKER_GID:?Set DOCKER_GID in .env.production (run: getent group docker | cut -d: -f3)}"
     expose:
       - "9000"
     volumes:
