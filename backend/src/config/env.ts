@@ -52,7 +52,9 @@ const envSchema = z.object({
   SMTP_PASS: z.string().optional(),
   MAIL_FROM: z.string().default("HiringGuard <no-reply@hiringguard.local>"),
 
-  LLM_PROVIDER: z.enum(["mock"]).default("mock"),
+  LLM_PROVIDER: z.enum(["mock", "groq"]).default("mock"),
+  GROQ_API_KEY: z.string().optional(),
+  GROQ_MODEL: z.string().default("llama-3.3-70b-versatile"),
   MEDIA_PROVIDER: z.enum(["mock"]).default("mock"),
   SANDBOX_PROVIDER: z.enum(["mock", "docker", "local", "piston"]).default("mock"),
 
@@ -78,13 +80,15 @@ const envSchema = z.object({
   RETENTION_CRON: z.string().default("0 3 * * *"),
 });
 
-const envSchemaWithRefinements = envSchema.refine(
-  (value) => !(value.NODE_ENV === "production" && value.SANDBOX_PROVIDER === "local"),
-  {
+const envSchemaWithRefinements = envSchema
+  .refine((value) => !(value.NODE_ENV === "production" && value.SANDBOX_PROVIDER === "local"), {
     message: "SANDBOX_PROVIDER=local runs candidate code on the API host with no isolation and must not be used when NODE_ENV=production.",
     path: ["SANDBOX_PROVIDER"],
-  },
-);
+  })
+  .refine((value) => !(value.LLM_PROVIDER === "groq" && !value.GROQ_API_KEY), {
+    message: "LLM_PROVIDER=groq requires GROQ_API_KEY.",
+    path: ["GROQ_API_KEY"],
+  });
 
 const parsed = envSchemaWithRefinements.safeParse(process.env);
 

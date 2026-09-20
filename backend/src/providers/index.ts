@@ -1,4 +1,5 @@
 import { env } from "../config/env.js";
+import { GroqLlmProvider } from "./llm/groq.llm.js";
 import { MockLlmProvider } from "./llm/mock.llm.js";
 import type { LlmProvider } from "./llm/llm.provider.js";
 import { LogMailProvider } from "./mail/log.mail.js";
@@ -30,7 +31,9 @@ export const getMail = lazy<MailProvider>(() =>
     : new SmtpMailProvider({ host: env.SMTP_HOST, port: env.SMTP_PORT, user: env.SMTP_USER, pass: env.SMTP_PASS, from: env.MAIL_FROM }),
 );
 
-export const getLlm = lazy<LlmProvider>(() => new MockLlmProvider());
+export const getLlm = lazy<LlmProvider>(() =>
+  env.LLM_PROVIDER === "groq" ? new GroqLlmProvider(env.GROQ_API_KEY!, env.GROQ_MODEL) : new MockLlmProvider(),
+);
 
 export const getMedia = lazy<MediaProvider>(() => new MockMediaProvider());
 
