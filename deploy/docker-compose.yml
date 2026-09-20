@@ -1,5 +1,14 @@
 name: veritrust
 
+# The two named contexts feed the backend Dockerfile's `COPY --from` lines: the calibration
+# artifact and the detector contract live outside backend/, so the build needs them passed in
+# explicitly (see backend/docker-compose.yml, which the backend Dockerfile was written against).
+x-backend-build: &backend_build
+  context: ../backend
+  additional_contexts:
+    ml-weights: ../ml/weights
+    contracts: ../contracts
+
 services:
   caddy:
     image: caddy:2.10-alpine
@@ -57,7 +66,7 @@ services:
   # Run manually before the first app start and whenever migrations are added.
   migrate:
     build:
-      context: ../backend
+      <<: *backend_build
       target: build
     profiles: ["admin"]
     environment: &backend_environment
@@ -96,7 +105,7 @@ services:
         condition: service_healthy
 
   api:
-    build: ../backend
+    build: *backend_build
     restart: unless-stopped
     environment: *backend_environment
     expose:
@@ -110,7 +119,7 @@ services:
         condition: service_healthy
 
   worker:
-    build: ../backend
+    build: *backend_build
     restart: unless-stopped
     environment: *backend_environment
     command: ["node", "dist/worker.js"]
