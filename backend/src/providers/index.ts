@@ -9,6 +9,7 @@ import { MockMediaProvider } from "./media/mock.media.js";
 import { DockerSandboxProvider } from "./sandbox/docker.sandbox.js";
 import { LocalSandboxProvider } from "./sandbox/local.sandbox.js";
 import { MockSandboxProvider } from "./sandbox/mock.sandbox.js";
+import { PistonSandboxProvider } from "./sandbox/piston.sandbox.js";
 import type { SandboxProvider } from "./sandbox/sandbox.provider.js";
 import { Ed25519Signer } from "./signer/ed25519.signer.js";
 import type { Signer } from "./signer/signer.js";
@@ -34,7 +35,13 @@ export const getLlm = lazy<LlmProvider>(() => new MockLlmProvider());
 export const getMedia = lazy<MediaProvider>(() => new MockMediaProvider());
 
 export const getSandbox = lazy<SandboxProvider>(() =>
-  env.SANDBOX_PROVIDER === "docker" ? new DockerSandboxProvider() : env.SANDBOX_PROVIDER === "local" ? new LocalSandboxProvider() : new MockSandboxProvider(),
+  env.SANDBOX_PROVIDER === "docker"
+    ? new DockerSandboxProvider()
+    : env.SANDBOX_PROVIDER === "local"
+      ? new LocalSandboxProvider()
+      : env.SANDBOX_PROVIDER === "piston"
+        ? new PistonSandboxProvider()
+        : new MockSandboxProvider(),
 );
 
 export const getSigner = lazy<Signer>(() => {

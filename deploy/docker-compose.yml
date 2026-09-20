@@ -120,7 +120,9 @@ services:
       MAIL_FROM: ${MAIL_FROM:-VeriTrust <no-reply@${DOMAIN}>}
       LLM_PROVIDER: mock
       MEDIA_PROVIDER: mock
-      SANDBOX_PROVIDER: mock
+      # "piston" runs candidate code on the free public Piston API (emkc.org), not on this server,
+      # so there is no Docker-socket / host-compromise tradeoff to accept for a real sandbox.
+      SANDBOX_PROVIDER: ${SANDBOX_PROVIDER:-mock}
       REPORT_PDF_ENABLED: "false"
       CALIBRATED_WEIGHTS_ENABLED: "false"
       RETENTION_MEDIA_DAYS: 90
