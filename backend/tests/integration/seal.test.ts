@@ -8,6 +8,7 @@ import { getStorage } from "../../src/providers/index.js";
 import { appendObservations } from "../../src/services/evidence.service.js";
 import { resumeStuckSeals } from "../../src/services/seal.service.js";
 import { createSocketServer } from "../../src/sockets/index.js";
+import { canonicalJson, sha256Hex } from "../../src/utils/hash.js";
 import { prisma } from "../../src/utils/prisma.js";
 import { redis } from "../../src/utils/redis.js";
 
@@ -181,6 +182,54 @@ describe("seal sequence", () => {
     expect(verify.body.data.valid).toBe(false);
     expect(verify.body.data.signatureValid).toBe(false);
     expect(verify.body.data.chainValid).toBe(true);
+  });
+
+  // Regression test for a fixed vulnerability: verification used to compare the recomputed chain
+  // against the mutable EvidenceManifest database row instead of the signed manifest.json bytes, so
+  // an attacker with database write access could rewrite an observation, recompute a self-consistent
+  // hash chain from it, and update the DB row's chainHead/lastSeq to match — all without the signing
+  // key — and verification would report valid. It must now compare against the *signed* content.
+  it("detects a database-only rewrite that recomputes a self-consistent chain and updates the manifest row to match, without touching the signed files", async () => {
+    const owner = await registerOwner();
+    const { sessionId } = await startLiveSession(owner.accessToken);
+    const observation = await seedObservation(sessionId);
+
+    await request(app).post(`/api/v1/sessions/${sessionId}/end`).set("Authorization", `Bearer ${owner.accessToken}`);
+
+    const originalManifest = await prisma.evidenceManifest.findUniqueOrThrow({ where: { sessionId } });
+
+    // Rewrite the observation and recompute a self-consistent chain from it, exactly as an attacker
+    // with database access (but not the signing key) could.
+    const forgedPayload = { durationMs: 1 };
+    const genesis = sha256Hex(`veritrust:${sessionId}`);
+    const forgedHash = sha256Hex(
+      genesis +
+        canonicalJson({
+          sessionId,
+          seq: 1,
+          source: observation.source,
+          channel: observation.channel,
+          type: observation.type,
+          ts: observation.ts,
+          payload: forgedPayload,
+        }),
+    );
+    await prisma.observation.update({
+      where: { id: observation.id },
+      data: { payload: forgedPayload, prevHash: genesis, hash: forgedHash },
+    });
+    // ...and "fix up" the manifest row so the old (pre-fix) DB-row comparison would have matched.
+    await prisma.evidenceManifest.update({ where: { sessionId }, data: { chainHead: forgedHash, lastSeq: 1 } });
+
+    const verify = await request(app).get(`/api/v1/sessions/${sessionId}/evidence/verify`).set("Authorization", `Bearer ${owner.accessToken}`);
+    expect(verify.status).toBe(200);
+    // The recomputed chain is internally self-consistent (chain.valid), but it no longer matches what
+    // was actually signed at seal time, so this must still be reported as invalid.
+    expect(verify.body.data.signatureValid).toBe(true);
+    expect(verify.body.data.chainValid).toBe(false);
+    expect(verify.body.data.valid).toBe(false);
+    expect(verify.body.data.chainHead).toBe(forgedHash);
+    expect(verify.body.data.chainHead).not.toBe(originalManifest.chainHead);
   });
 
   it("resumes and completes a seal left stuck in SEALING after a simulated crash", async () => {

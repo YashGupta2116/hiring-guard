@@ -325,17 +325,25 @@ export async function verifySession(orgId: string, sessionId: string): Promise<E
 
   const chain = await verifyChain(sessionId);
 
-  let signatureValid = false;
+  // Read and parse the manifest content independently of whether the signature verifies: "does the
+  // chain match what was recorded at seal time" and "is the recording itself authentic" are different
+  // questions, and collapsing them together would make a tampered .sig file (content untouched) look
+  // like a broken chain instead of what it actually is — an authenticity problem, not a data problem.
   let signedContent: SignedManifestContent | null = null;
+  try {
+    const manifestBytes = await getStorage().getBuffer(manifest.manifestUri);
+    signedContent = parseSignedManifest(manifestBytes);
+  } catch {
+    signedContent = null;
+  }
+
+  let signatureValid = false;
   try {
     const signer = getSigner();
     const manifestBytes = await getStorage().getBuffer(manifest.manifestUri);
     const sigKey = manifest.manifestUri.replace(/\.json$/, ".sig");
     const sigBytes = await getStorage().getBuffer(sigKey);
     signatureValid = manifest.signingKeyId === signer.keyId && signer.verify(manifestBytes, sigBytes.toString("utf8"));
-    if (signatureValid) {
-      signedContent = parseSignedManifest(manifestBytes);
-    }
   } catch {
     signatureValid = false;
   }
@@ -350,7 +358,7 @@ export async function verifySession(orgId: string, sessionId: string): Promise<E
       signedContent.chainHead === chain.chainHead && signedContent.lastSeq === chain.lastSeq && signedContent.eventsLogSha256 === eventsLogSha256;
   }
 
-  const chainValid = chain.valid && signatureValid && manifestMatchesContent;
+  const chainValid = chain.valid && manifestMatchesContent;
   const firstBrokenSeq = chain.firstBrokenSeq ?? (manifestMatchesContent ? null : Math.min(chain.lastSeq, signedContent?.lastSeq ?? chain.lastSeq) + 1);
 
   const verifiedAt = new Date();
